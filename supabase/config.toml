@@ -1,0 +1,12 @@
+# Supabase CLI config. Link with:
+#   supabase link --project-ref mlyrstwncxezhaymyeko
+# Then apply the schema with:
+#   supabase db push
+project_id = "mlyrstwncxezhaymyeko"
+
+[db]
+# Matches the Postgres major version used in production (Supabase = 16).
+major_version = 16
+
+[db.migrations]
+schema_paths = []

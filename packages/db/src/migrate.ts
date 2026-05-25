@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const migrationsDir = join(here, "..", "supabase", "migrations");
+// Canonical migrations live at the repo root: supabase/migrations (standard
+// Supabase CLI layout, so `supabase db push` works too). packages/db/src → root.
+const migrationsDir = join(here, "..", "..", "..", "supabase", "migrations");
 
 async function main() {
   const url = process.env.DATABASE_URL;
