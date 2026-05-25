@@ -25,6 +25,7 @@ import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { pathToFileURL } from "node:url";
 import { adminGuide, apiGuide } from "./guide.js";
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -112,14 +113,19 @@ app.put("/api/runs/:id/status", async (c) => {
   if (!run) return c.json({ error: "run not found" }, 404);
   const body = await c.req.json().catch(() => ({}));
   if (!RUN_STATUSES.includes(body.status)) return c.json({ error: "invalid status", valid: RUN_STATUSES }, 400);
-  const updated = await setRunStatus(db, run.id, {
-    status: body.status,
-    summary: body.summary,
-    tokensIn: body.tokensIn,
-    tokensOut: body.tokensOut,
-    costUsd: body.costUsd,
-    sdkSessionId: body.sdkSessionId,
-  });
+  const updated = await setRunStatus(
+    db,
+    run.id,
+    {
+      status: body.status,
+      summary: body.summary,
+      tokensIn: body.tokensIn,
+      tokensOut: body.tokensOut,
+      costUsd: body.costUsd,
+      sdkSessionId: body.sdkSessionId,
+    },
+    embedder, // done runs auto-index their summary into searchable memory
+  );
   return c.json({ run: updated });
 });
 
@@ -372,8 +378,12 @@ app.post("/api/knowledge/search", async (c) => {
   return c.json({ results });
 });
 
-serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`Agent OS API listening on http://localhost:${info.port}`);
-});
+// Only bind a port when run directly (not when imported by tests).
+const isMain = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+if (isMain) {
+  serve({ fetch: app.fetch, port: PORT }, (info) => {
+    console.log(`Agent OS API listening on http://localhost:${info.port}`);
+  });
+}
 
-export { app };
+export { app, db, embedder, vaultKey };

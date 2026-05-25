@@ -1,6 +1,7 @@
 import { schema, type Db } from "@agent-os/db";
 import type { ApprovalOption } from "@agent-os/shared";
 import { eq } from "drizzle-orm";
+import { indexDocument, type Embedder } from "./knowledge.js";
 
 const { approvals, documents, runs, runActivity } = schema;
 
@@ -16,7 +17,7 @@ export interface StatusUpdate {
 }
 
 /** Apply a status transition posted by a runner; stamps ended_at on terminal states. */
-export async function setRunStatus(db: Db, runId: string, update: StatusUpdate) {
+export async function setRunStatus(db: Db, runId: string, update: StatusUpdate, embedder?: Embedder) {
   const patch: Record<string, unknown> = { status: update.status };
   if (update.summary !== undefined) patch.summary = update.summary;
   if (update.tokensIn !== undefined) patch.tokensIn = update.tokensIn;
@@ -26,7 +27,7 @@ export async function setRunStatus(db: Db, runId: string, update: StatusUpdate) 
   if (TERMINAL.has(update.status)) patch.endedAt = new Date();
 
   const [row] = await db.update(runs).set(patch).where(eq(runs.id, runId)).returning();
-  if (row && update.status === "done") await writeRunMemory(db, row);
+  if (row && update.status === "done") await writeRunMemory(db, row, embedder);
   return row ?? null;
 }
 
@@ -94,16 +95,24 @@ export async function resolveApproval(db: Db, approvalId: string, optionKey: str
   return approval;
 }
 
-/** Autonomous memory: persist a run summary as an agent-generated document. */
-export async function writeRunMemory(db: Db, run: typeof schema.runs.$inferSelect) {
+/** Autonomous memory: persist a run summary as an agent-generated document and,
+ *  when an embedder is supplied, vector-index it so future runs can retrieve it. */
+export async function writeRunMemory(db: Db, run: typeof schema.runs.$inferSelect, embedder?: Embedder) {
   if (!run.summary) return;
   const day = new Date().toISOString().slice(0, 10);
-  await db.insert(documents).values({
-    tenantId: run.tenantId,
-    name: `run-summary_${run.agentId.slice(0, 8)}_${day}`,
-    type: "markdown",
-    source: "agent-generated",
-    vectorNamespace: `tenant/${run.tenantId}/memory`,
-    vectorIndexed: false,
-  });
+  const namespace = `tenant/${run.tenantId}/memory`;
+  const [doc] = await db
+    .insert(documents)
+    .values({
+      tenantId: run.tenantId,
+      name: `run-summary_${run.agentId.slice(0, 8)}_${day}`,
+      type: "markdown",
+      source: "agent-generated",
+      vectorNamespace: namespace,
+      vectorIndexed: false,
+    })
+    .returning();
+  if (doc && embedder) {
+    await indexDocument(db, embedder, { documentId: doc.id, tenantId: run.tenantId, content: run.summary, vectorNamespace: namespace });
+  }
 }

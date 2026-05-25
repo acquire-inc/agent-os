@@ -10,9 +10,11 @@ import {
   createApiKey,
   evaluateDueJobs,
   hashApiKey,
+  hashEmbedder,
   peekNextRun,
   raiseApproval,
   resolveApproval,
+  retrieve,
   setRunStatus,
   verifyApiKey,
 } from "./index.js";
@@ -117,6 +119,16 @@ async function main() {
   await resolveApproval(db, approval!.id, "1A", null);
   const [afterResolve] = await db.select().from(schema.runs).where(eq(schema.runs.id, waitingRun!.id));
   assert(afterResolve?.status === "pending", "resolveApproval flips run to 'pending' for resume");
+
+  console.log("\n[memory write-back is indexed + searchable]");
+  const embedder = hashEmbedder();
+  const [memRun] = await db
+    .insert(schema.runs)
+    .values({ tenantId, agentId, status: "running", triggerSource: "manual", scheduledFor: new Date() })
+    .returning();
+  await setRunStatus(db, memRun!.id, { status: "done", summary: "Northwind renewal churn risk: usage decline and unanswered emails; proposed a save play." }, embedder);
+  const memHits = await retrieve(db, embedder, { tenantId, query: "Northwind renewal churn risk save play", namespaces: [`tenant/${tenantId}/memory`], limit: 3 });
+  assert(memHits.length >= 1, "completed run's summary is vector-indexed into memory and retrievable");
 
   console.log("\n[resume: pending runs are claimable]");
   // The decided run (now pending) must be re-claimable by the runner, else it strands.
