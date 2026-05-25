@@ -13,3 +13,6 @@ build/
 coverage/
 *.tsbuildinfo
 .vite/
+
+# TanStack Router generated
+routeTree.gen.ts
