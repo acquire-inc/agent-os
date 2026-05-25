@@ -5,8 +5,11 @@ import {
   buildBundle,
   claimNextRun,
   createApiKey,
+  hashEmbedder,
+  indexDocument,
   peekNextRun,
   raiseApproval,
+  retrieve,
   retryRun,
   setRunStatus,
   verifyApiKey,
@@ -35,6 +38,10 @@ try {
   console.warn("AOS_VAULT_KEY not set — MCP credentials in the Bundle are placeholders.");
 }
 const tokenResolver = vaultKey ? makeBundleTokenResolver(db, vaultKey) : undefined;
+
+// Embedder for knowledge indexing/retrieval. hashEmbedder needs no API key;
+// swap for a Voyage/OpenAI embedder in production.
+const embedder = hashEmbedder();
 
 type Vars = { auth: ApiKeyContext };
 const app = new Hono<{ Variables: Vars }>();
@@ -254,6 +261,37 @@ app.post("/api/connections/:mcpId/credential", async (c) => {
     expiresAt: b.expiresAt ? new Date(b.expiresAt) : null,
   });
   return c.json({ ok: true, status: "connected" }, 201);
+});
+
+// ============================ Knowledge ============================
+// Index a document's content into pgvector (chunk + embed + store).
+app.post("/api/knowledge/index", async (c) => {
+  const { tenantId } = c.get("auth");
+  const b = await c.req.json().catch(() => ({}));
+  if (!b.documentId || typeof b.content !== "string") return c.json({ error: "documentId and content required" }, 400);
+  const [doc] = await db.select().from(schema.documents).where(and(eq(schema.documents.id, b.documentId), eq(schema.documents.tenantId, tenantId))).limit(1);
+  if (!doc) return c.json({ error: "document not found" }, 404);
+  const chunks = await indexDocument(db, embedder, {
+    documentId: doc.id,
+    tenantId,
+    content: b.content,
+    vectorNamespace: doc.vectorNamespace ?? `tenant/${tenantId}`,
+  });
+  return c.json({ ok: true, chunks }, 201);
+});
+
+// Vector-retrieve relevant chunks, scoped to the tenant (+ optional namespaces).
+app.post("/api/knowledge/search", async (c) => {
+  const { tenantId } = c.get("auth");
+  const b = await c.req.json().catch(() => ({}));
+  if (!b.query) return c.json({ error: "query required" }, 400);
+  const results = await retrieve(db, embedder, {
+    tenantId,
+    query: String(b.query),
+    namespaces: Array.isArray(b.namespaces) ? b.namespaces : undefined,
+    limit: typeof b.limit === "number" ? b.limit : 5,
+  });
+  return c.json({ results });
 });
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
