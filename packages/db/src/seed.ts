@@ -107,6 +107,15 @@ async function main() {
       await sql`insert into mcps (id, tenant_id, project_id, name, transport, endpoint, auth_type, scope, status, last_health_check)
         values (${m.id}, ${m.tenantId}, ${m.projectId}, ${m.name}, ${m.transport}, ${m.endpoint}, ${m.authType}, ${m.scope}, ${m.status}, ${m.lastHealthCheck})`;
     }
+    // Link MCPs to agents by fuzzy-matching mcpKeys against mcp names.
+    for (const a of demoAgents) {
+      for (const key of a.mcpKeys ?? []) {
+        const m = demoMcps.find(
+          (x) => x.tenantId === a.tenantId && (x.name.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(x.name.split(/\s|×/)[0]!.toLowerCase())),
+        );
+        if (m) await sql`insert into agent_mcps (agent_id, mcp_id) values (${a.id}, ${m.id}) on conflict do nothing`;
+      }
+    }
 
     for (const f of demoFolders) {
       await sql`insert into knowledge_folders (id, tenant_id, project_id, parent_id, name, path)
