@@ -33,6 +33,8 @@ export function Drawer({
         aria-hidden
       />
       <div
+        role="dialog"
+        aria-modal="true"
         className={cn(
           "animate-in relative flex h-full w-full flex-col border-l border-border bg-card shadow-[var(--shadow-pop)]",
           width,
@@ -43,6 +45,7 @@ export function Drawer({
           <div className="min-w-0 flex-1">{title}</div>
           <button
             type="button"
+            aria-label="Close"
             onClick={onClose}
             className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >

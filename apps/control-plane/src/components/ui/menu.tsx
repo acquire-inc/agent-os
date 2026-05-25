@@ -34,7 +34,13 @@ export function Menu({ trigger, children, align = "start", className, panelClass
 
   return (
     <div ref={ref} className={cn("relative", className)}>
-      <button type="button" onClick={() => setOpen((o) => !o)} className="outline-none">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         {trigger}
       </button>
       {open && (

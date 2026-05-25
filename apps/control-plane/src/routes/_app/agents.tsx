@@ -200,9 +200,9 @@ function AgentDrawer({ agent, tenantId, onClose }: { agent: Agent; tenantId: str
           <div>
             <SubLabel>Knowledge scope</SubLabel>
             <Muted>
-              {agent.knowledgeScope.folders.length === 0 && agent.knowledgeScope.tags.length === 0
+              {(agent.knowledgeScope?.folders?.length ?? 0) === 0 && (agent.knowledgeScope?.tags?.length ?? 0) === 0
                 ? "Inherits tenant defaults."
-                : [...agent.knowledgeScope.folders, ...agent.knowledgeScope.tags].join(", ")}
+                : [...(agent.knowledgeScope?.folders ?? []), ...(agent.knowledgeScope?.tags ?? [])].join(", ")}
             </Muted>
           </div>
           <div>

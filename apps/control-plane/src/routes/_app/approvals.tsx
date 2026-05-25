@@ -244,13 +244,10 @@ function ApprovalCard({
         </>
       ) : (
         <div className="flex flex-wrap gap-2">
+          {/* The chosen option key isn't persisted on the approval, so we don't
+              falsely highlight one — options are shown neutrally for resolved items. */}
           {approval.options.map((opt) => (
-            <Badge
-              key={opt.key}
-              variant={
-                approval.decidedBy && opt.key === approval.options[0]?.key ? "success" : "default"
-              }
-            >
+            <Badge key={opt.key} variant="default">
               {opt.key} · {opt.label}
             </Badge>
           ))}
