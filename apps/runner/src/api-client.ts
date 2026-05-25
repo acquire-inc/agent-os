@@ -14,7 +14,8 @@ export interface Bundle {
     thinkingLevel: string; autonomy: string; escalationPolicy: string | null; budgetCapUsd: number | null; runnerKind: string;
   };
   skills: { key: string; name: string; description: string }[];
-  mcpServers: { name: string; transport: string; endpoint: string | null; authType: string; credentials: { vaultRef: string; ttlSeconds: number } | null }[];
+  mcpServers: { name: string; transport: string; endpoint: string | null; authType: string; credentials: { vaultRef?: string; token?: string; ttlSeconds: number } | null }[];
+  knowledge: { chunk: string; source: string }[];
   envVars: Record<string, string>;
   autonomy: string;
   api: { statusUrl: string; activityUrl: string; approvalsUrl: string; validStatuses: string[] };
@@ -53,11 +54,20 @@ export class ApiClient {
     if (!res.ok) throw new Error(`status ${runId}: ${res.status} ${await res.text()}`);
   }
 
-  async postApproval(runId: string, body: { context: string; proposedAction: string; options: { key: string; label: string }[] }): Promise<void> {
+  async postApproval(runId: string, body: { context: string; proposedAction: string; options: { key: string; label: string }[]; sdkSessionId?: string }): Promise<void> {
     await fetch(`${this.cfg.apiUrl}/api/runs/${runId}/approvals`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
     });
+  }
+
+  /** PostToolUse hook target — immutable audit trail of tool calls. */
+  async postAudit(runId: string, body: { toolName: string; inputHash?: string; result?: string }): Promise<void> {
+    await fetch(`${this.cfg.apiUrl}/api/runs/${runId}/audit`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify(body),
+    }).catch(() => {});
   }
 }

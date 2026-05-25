@@ -58,7 +58,7 @@ export async function retryRun(db: Db, runId: string) {
 
 export async function raiseApproval(
   db: Db,
-  args: { runId: string; tenantId: string; agentId: string; context: string; proposedAction: string; options: ApprovalOption[] },
+  args: { runId: string; tenantId: string; agentId: string; context: string; proposedAction: string; options: ApprovalOption[]; sdkSessionId?: string | null },
 ) {
   const [approval] = await db
     .insert(approvals)
@@ -72,8 +72,11 @@ export async function raiseApproval(
       status: "open",
     })
     .returning();
-  // The run now waits on a human.
-  await db.update(runs).set({ status: "waiting" }).where(eq(runs.id, args.runId));
+  // The run now waits on a human. Persist the session id so the runner can
+  // resume the exact Agent SDK conversation once the human decides.
+  const patch: Record<string, unknown> = { status: "waiting" };
+  if (args.sdkSessionId) patch.sdkSessionId = args.sdkSessionId;
+  await db.update(runs).set(patch).where(eq(runs.id, args.runId));
   return approval;
 }
 

@@ -76,6 +76,11 @@ async function main() {
   assert(bundle!.mcpServers.length >= 1, `bundle includes MCP servers (${bundle!.mcpServers.length})`);
   assert(bundle!.api.statusUrl.endsWith(`/api/runs/${runId}/status`), "bundle carries callback URLs");
   assert(bundle!.api.validStatuses.includes("waiting"), "bundle lists valid statuses");
+  assert(Array.isArray(bundle!.knowledge) && bundle!.knowledge.length === 0, "bundle knowledge empty without a retriever");
+  const bundleK = await buildBundle(db, runId, "https://api.example.com", {
+    retrieveKnowledge: async () => [{ chunk: "Northwind is at churn risk.", source: "acqu/memory" }],
+  });
+  assert(bundleK!.knowledge.length === 1 && bundleK!.knowledge[0]!.source === "acqu/memory", "bundle injects retrieved knowledge when a retriever is supplied");
 
   console.log("\n[lifecycle]");
   await appendActivity(db, runId, tenantId, "tool", "close.get_metrics()");
@@ -112,6 +117,12 @@ async function main() {
   await resolveApproval(db, approval!.id, "1A", null);
   const [afterResolve] = await db.select().from(schema.runs).where(eq(schema.runs.id, waitingRun!.id));
   assert(afterResolve?.status === "pending", "resolveApproval flips run to 'pending' for resume");
+
+  console.log("\n[resume: pending runs are claimable]");
+  // The decided run (now pending) must be re-claimable by the runner, else it strands.
+  const resumed = await claimNextRun(db, agentId, tenantId, "runner-resume");
+  assert(resumed?.id === waitingRun!.id, "claimNextRun resumes the pending run (prioritized over scheduled)");
+  assert(resumed?.status === "running", "resumed run transitions back to running");
 
   console.log(`\nResult: ${passed} passed, ${failed} failed\n`);
   process.exit(failed > 0 ? 1 : 0);

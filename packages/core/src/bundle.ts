@@ -52,9 +52,14 @@ export interface Bundle {
 /** Resolves a fresh, short-TTL credential for an MCP at bundle-build time. */
 export type TokenResolver = (mcpId: string) => Promise<{ token: string; ttlSeconds: number } | null>;
 
+/** Retrieves knowledge chunks relevant to a query within the agent's scope. */
+export type KnowledgeRetriever = (query: string, namespaces: string[]) => Promise<{ chunk: string; source: string }[]>;
+
 export interface BundleOptions {
   /** When provided, real per-run tokens are injected (vault). Else a vaultRef placeholder is used. */
   resolveToken?: TokenResolver;
+  /** When provided, the agent's knowledge_scope is vector-retrieved into the bundle. */
+  retrieveKnowledge?: KnowledgeRetriever;
 }
 
 /** Assemble everything a runner needs to construct a fully configured agent run. */
@@ -87,6 +92,13 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
   ]);
 
   const scope = (agent.knowledgeScopeJson as { folders: string[]; tags: string[] }) ?? { folders: [], tags: [] };
+
+  // Vector-retrieve knowledge relevant to this job, scoped to the agent.
+  let knowledge: { chunk: string; source: string }[] = [];
+  if (opts.retrieveKnowledge) {
+    const query = [job?.instructions, agent.persona].filter(Boolean).join("\n").slice(0, 2000);
+    if (query) knowledge = await opts.retrieveKnowledge(query, scope.folders).catch(() => []);
+  }
 
   return {
     run: {
@@ -131,8 +143,7 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
         return { name: m.name, transport: m.transport, endpoint: m.endpoint, authType: m.authType, scope: m.scope, credentials };
       }),
     ),
-    // Vector retrieval is wired in Phase 7; scope is carried through now.
-    knowledge: [],
+    knowledge,
     envVars: Object.fromEntries(envRows.map((e) => [e.key, e.encryptedValue])),
     autonomy: agent.autonomy,
     escalationPolicy: agent.escalationPolicy,

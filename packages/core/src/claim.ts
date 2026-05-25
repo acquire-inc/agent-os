@@ -16,9 +16,10 @@ function mapRun(row: Record<string, unknown> | undefined): ClaimedRun | null {
 }
 
 /**
- * Transactionally claim the next scheduled run for an agent — the runs table is
- * the queue. Uses FOR UPDATE SKIP LOCKED so concurrent runners never collide.
- * Returns the claimed run, or null if there is no work.
+ * Transactionally claim the next runnable run for an agent — the runs table is
+ * the queue. Claims `scheduled` runs and `pending` ones (approved, awaiting
+ * resume), preferring pending so human-unblocked work continues first. Uses FOR
+ * UPDATE SKIP LOCKED so concurrent runners never collide. Returns null if idle.
  */
 export async function claimNextRun(
   db: Db,
@@ -30,8 +31,8 @@ export async function claimNextRun(
     update runs set status = 'running', claimed_by = ${runner}, started_at = now()
     where id = (
       select id from runs
-      where agent_id = ${agentId} and tenant_id = ${tenantId} and status = 'scheduled'
-      order by scheduled_for asc nulls last
+      where agent_id = ${agentId} and tenant_id = ${tenantId} and status in ('scheduled', 'pending')
+      order by (status = 'pending') desc, scheduled_for asc nulls last
       for update skip locked
       limit 1
     )
@@ -49,8 +50,8 @@ export async function peekNextRun(
 ): Promise<ClaimedRun | null> {
   const result = await db.execute(sql`
     select * from runs
-    where agent_id = ${agentId} and tenant_id = ${tenantId} and status = 'scheduled'
-    order by scheduled_for asc nulls last
+    where agent_id = ${agentId} and tenant_id = ${tenantId} and status in ('scheduled', 'pending')
+    order by (status = 'pending') desc, scheduled_for asc nulls last
     limit 1
   `);
   const rows = result as unknown as Record<string, unknown>[];

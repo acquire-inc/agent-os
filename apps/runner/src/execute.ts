@@ -38,8 +38,12 @@ function permissionMode(autonomy: string): "default" | "acceptEdits" | "bypassPe
 async function dryRun(api: ApiClient, b: Bundle): Promise<RunResult> {
   const runId = b.run.id;
   await api.postActivity(runId, "start", `Dry-run: ${b.agent.name} picked up ${b.job?.name ?? "a manual task"}`);
+  if (b.knowledge.length) await api.postActivity(runId, "knowledge", `Retrieved ${b.knowledge.length} knowledge chunk(s) for context.`);
   for (const m of b.mcpServers.slice(0, 2)) {
-    await api.postActivity(runId, "tool", `${m.name.toLowerCase().split(/\s|×/)[0]}.read(...)  [simulated]`);
+    const tool = `${m.name.toLowerCase().split(/\s|×/)[0]}.read`;
+    await api.postActivity(runId, "tool", `${tool}(...)  [simulated]`);
+    // PostToolUse hook → immutable audit log.
+    await api.postAudit(runId, { toolName: tool, result: "ok" });
   }
   const summary = b.job
     ? `Simulated completion of "${b.job.name}". No Anthropic key set — wire ANTHROPIC_API_KEY for live execution.`

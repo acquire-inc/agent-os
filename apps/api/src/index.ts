@@ -95,7 +95,13 @@ app.get("/api/agents/:id/next", async (c) => {
 
   const claimed = await claimNextRun(db, agentId, tenantId, c.req.header("x-runner-id") ?? "runner");
   if (!claimed) return c.json({ hasWork: false }, 200);
-  const bundle = await buildBundle(db, claimed.id, PUBLIC_URL, { resolveToken: tokenResolver });
+  const bundle = await buildBundle(db, claimed.id, PUBLIC_URL, {
+    resolveToken: tokenResolver,
+    retrieveKnowledge: async (query, namespaces) => {
+      const hits = await retrieve(db, embedder, { tenantId, query, namespaces: namespaces.length ? namespaces : undefined, limit: 5 });
+      return hits.map((h) => ({ chunk: h.content, source: h.vectorNamespace ?? "knowledge" }));
+    },
+  });
   return c.json({ hasWork: true, run: claimed, bundle });
 });
 
@@ -149,6 +155,7 @@ app.post("/api/runs/:id/approvals", async (c) => {
     context: String(body.context),
     proposedAction: String(body.proposedAction),
     options: body.options,
+    sdkSessionId: body.sdkSessionId ? String(body.sdkSessionId) : null,
   });
   // Mirror to Slack/Telegram (best-effort).
   const [agent] = await db.select().from(schema.agents).where(eq(schema.agents.id, run.agentId)).limit(1);
