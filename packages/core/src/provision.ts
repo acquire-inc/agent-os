@@ -1,5 +1,5 @@
 import { schema, type Db } from "@agent-os/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 const {
   tenants, tenantMembers, projects, agents, agentSkills, agentMcps, projectEntities,
@@ -67,13 +67,17 @@ export async function provisionClientTenant(
     }).returning({ id: agents.id });
     agentMap.set(a.id, row!.id);
   }
-  for (const link of await db.select().from(agentSkills)) {
-    const na = agentMap.get(link.agentId), ns = skillMap.get(link.skillId);
-    if (na && ns) await db.insert(agentSkills).values({ agentId: na, skillId: ns }).onConflictDoNothing();
-  }
-  for (const link of await db.select().from(agentMcps)) {
-    const na = agentMap.get(link.agentId), nm = mcpMap.get(link.mcpId);
-    if (na && nm) await db.insert(agentMcps).values({ agentId: na, mcpId: nm }).onConflictDoNothing();
+  // Only read the TEMPLATE tenant's agents' links (never scan other tenants).
+  const srcAgentIds = [...agentMap.keys()];
+  if (srcAgentIds.length > 0) {
+    for (const link of await db.select().from(agentSkills).where(inArray(agentSkills.agentId, srcAgentIds))) {
+      const na = agentMap.get(link.agentId), ns = skillMap.get(link.skillId);
+      if (na && ns) await db.insert(agentSkills).values({ agentId: na, skillId: ns }).onConflictDoNothing();
+    }
+    for (const link of await db.select().from(agentMcps).where(inArray(agentMcps.agentId, srcAgentIds))) {
+      const na = agentMap.get(link.agentId), nm = mcpMap.get(link.mcpId);
+      if (na && nm) await db.insert(agentMcps).values({ agentId: na, mcpId: nm }).onConflictDoNothing();
+    }
   }
   for (const pe of await db.select().from(projectEntities).where(eq(projectEntities.tenantId, src))) {
     const np = projectMap.get(pe.projectId), ne = pe.entityType === "agent" ? agentMap.get(pe.entityId) : undefined;

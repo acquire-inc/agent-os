@@ -22,7 +22,7 @@ import {
   type ApiKeyContext,
 } from "@agent-os/core";
 import { RUN_STATUSES } from "@agent-os/shared";
-import { loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
+import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { adminGuide, apiGuide } from "./guide.js";
@@ -97,6 +97,7 @@ app.get("/api/agents/:id/next", async (c) => {
   if (!claimed) return c.json({ hasWork: false }, 200);
   const bundle = await buildBundle(db, claimed.id, PUBLIC_URL, {
     resolveToken: tokenResolver,
+    decryptEnv: vaultKey ? (blob) => decryptEnvValue(blob, vaultKey!) : undefined,
     retrieveKnowledge: async (query, namespaces) => {
       const hits = await retrieve(db, embedder, { tenantId, query, namespaces: namespaces.length ? namespaces : undefined, limit: 5 });
       return hits.map((h) => ({ chunk: h.content, source: h.vectorNamespace ?? "knowledge" }));
@@ -204,6 +205,11 @@ app.post("/api/docs", async (c) => {
   const { tenantId } = c.get("auth");
   const body = await c.req.json().catch(() => ({}));
   if (!body.name) return c.json({ error: "name required" }, 400);
+  // A client-supplied projectId must belong to this tenant.
+  if (body.projectId) {
+    const [proj] = await db.select({ id: schema.projects.id }).from(schema.projects).where(and(eq(schema.projects.id, body.projectId), eq(schema.projects.tenantId, tenantId))).limit(1);
+    if (!proj) return c.json({ error: "project not found in tenant" }, 404);
+  }
   const [doc] = await db.insert(schema.documents).values({
     tenantId,
     projectId: body.projectId ?? null,
@@ -242,6 +248,9 @@ app.post("/api/admin/jobs", requireAdmin, async (c) => {
   const { tenantId } = c.get("auth");
   const b = await c.req.json().catch(() => ({}));
   if (!b.agentId || !b.name || !b.scheduleCron) return c.json({ error: "agentId, name, scheduleCron required" }, 400);
+  // The agent must belong to this tenant — never create a job pointing at another tenant's agent.
+  const [owned] = await db.select({ id: schema.agents.id }).from(schema.agents).where(and(eq(schema.agents.id, b.agentId), eq(schema.agents.tenantId, tenantId))).limit(1);
+  if (!owned) return c.json({ error: "agent not found in tenant" }, 404);
   const [job] = await db.insert(schema.jobs).values({
     tenantId, agentId: b.agentId, name: b.name, scheduleCron: b.scheduleCron, instructions: b.instructions ?? "",
   }).returning();

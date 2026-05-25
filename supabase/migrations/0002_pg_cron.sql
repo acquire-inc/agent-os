@@ -32,7 +32,7 @@ create or replace function aos_job_cron_command(p_job uuid)
            where j.id = %L and j.enabled
              and not exists (
                select 1 from runs r
-               where r.job_id = j.id and r.scheduled_for >= date_trunc('minute', now())
+               where r.job_id = j.id and r.scheduled_for = date_trunc('minute', now())
              );$cmd$,
       p_job
     );

@@ -60,6 +60,8 @@ export interface BundleOptions {
   resolveToken?: TokenResolver;
   /** When provided, the agent's knowledge_scope is vector-retrieved into the bundle. */
   retrieveKnowledge?: KnowledgeRetriever;
+  /** Decrypts a stored env-var value (vault). Without it, env vars are omitted — never ship ciphertext. */
+  decryptEnv?: (blob: string) => string;
 }
 
 /** Assemble everything a runner needs to construct a fully configured agent run. */
@@ -144,7 +146,16 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
       }),
     ),
     knowledge,
-    envVars: Object.fromEntries(envRows.map((e) => [e.key, e.encryptedValue])),
+    // Decrypt env values via the vault; never emit ciphertext. Omit if no decryptor.
+    envVars: opts.decryptEnv
+      ? Object.fromEntries(envRows.flatMap((e) => {
+          try {
+            return [[e.key, opts.decryptEnv!(e.encryptedValue)]] as [string, string][];
+          } catch {
+            return [];
+          }
+        }))
+      : {},
     autonomy: agent.autonomy,
     escalationPolicy: agent.escalationPolicy,
     budgetCapUsd: agent.budgetCapUsd ? Number(agent.budgetCapUsd) : null,
