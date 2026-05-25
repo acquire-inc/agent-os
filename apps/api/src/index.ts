@@ -3,16 +3,21 @@ import { createDb, schema } from "@agent-os/db";
 import {
   appendActivity,
   buildBundle,
+  checkBudget,
   claimNextRun,
+  costSummary,
   createApiKey,
   hashEmbedder,
   indexDocument,
   peekNextRun,
   raiseApproval,
+  resolveApproval,
   retrieve,
   retryRun,
+  sendApprovalNotification,
   setRunStatus,
   verifyApiKey,
+  writeAudit,
   type ApiKeyContext,
 } from "@agent-os/core";
 import { RUN_STATUSES } from "@agent-os/shared";
@@ -144,7 +149,47 @@ app.post("/api/runs/:id/approvals", async (c) => {
     proposedAction: String(body.proposedAction),
     options: body.options,
   });
+  // Mirror to Slack/Telegram (best-effort).
+  const [agent] = await db.select().from(schema.agents).where(eq(schema.agents.id, run.agentId)).limit(1);
+  void sendApprovalNotification({
+    agentName: agent?.name ?? "Agent",
+    context: String(body.context),
+    proposedAction: String(body.proposedAction),
+    options: body.options,
+  }).catch(() => {});
   return c.json({ approval }, 201);
+});
+
+// Human (or Slack/Telegram bridge) decides an approval → flips the run to pending.
+app.post("/api/approvals/:id/decide", async (c) => {
+  const { tenantId } = c.get("auth");
+  const id = c.req.param("id");
+  const b = await c.req.json().catch(() => ({}));
+  if (!b.optionKey) return c.json({ error: "optionKey required" }, 400);
+  const [approval] = await db.select().from(schema.approvals).where(and(eq(schema.approvals.id, id), eq(schema.approvals.tenantId, tenantId))).limit(1);
+  if (!approval) return c.json({ error: "approval not found" }, 404);
+  if (approval.status !== "open") return c.json({ error: "approval already decided" }, 409);
+  const updated = await resolveApproval(db, id, String(b.optionKey), b.decidedBy ?? null);
+  return c.json({ approval: updated, runStatus: "pending" });
+});
+
+// Audit log (PostToolUse hook target).
+app.post("/api/runs/:id/audit", async (c) => {
+  const { tenantId } = c.get("auth");
+  const run = await ownedRun(tenantId, c.req.param("id"));
+  if (!run) return c.json({ error: "run not found" }, 404);
+  const b = await c.req.json().catch(() => ({}));
+  if (!b.toolName) return c.json({ error: "toolName required" }, 400);
+  const row = await writeAudit(db, { tenantId, runId: run.id, toolName: String(b.toolName), inputHash: b.inputHash ?? null, result: b.result ?? null });
+  return c.json({ audit: row }, 201);
+});
+
+// Cost summary + budget status for the tenant.
+app.get("/api/cost", async (c) => {
+  const { tenantId } = c.get("auth");
+  const sinceDays = Number(c.req.query("sinceDays") ?? 14);
+  const [summary, budget] = await Promise.all([costSummary(db, tenantId, sinceDays), checkBudget(db, tenantId)]);
+  return c.json({ summary, budget });
 });
 
 app.post("/api/docs", async (c) => {

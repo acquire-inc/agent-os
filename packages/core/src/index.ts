@@ -5,3 +5,5 @@ export * from "./bundle.js";
 export * from "./lifecycle.js";
 export * from "./auth.js";
 export * from "./knowledge.js";
+export * from "./cost.js";
+export * from "./notify.js";
