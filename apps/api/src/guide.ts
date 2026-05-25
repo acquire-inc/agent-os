@@ -25,5 +25,6 @@ export const adminGuide = {
     "POST /api/admin/skills": "Register a skill. Body { key, name, description?, source?, repoPath? }.",
     "POST /api/admin/mcps": "Register an MCP. Body { name, transport?, endpoint?, authType? }.",
     "POST /api/admin/keys": "Mint an API key. Body { kind, name }. Returns the raw key once.",
+    "POST /api/admin/provision": "Onboard a client: clone your tenant's workforce into a new client tenant. Body { name, slug, ownerUserId, monthlyBudgetUsd? }.",
   },
 };

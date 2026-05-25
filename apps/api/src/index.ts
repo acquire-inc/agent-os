@@ -10,6 +10,7 @@ import {
   hashEmbedder,
   indexDocument,
   peekNextRun,
+  provisionClientTenant,
   raiseApproval,
   resolveApproval,
   retrieve,
@@ -258,6 +259,22 @@ app.post("/api/admin/mcps", requireAdmin, async (c) => {
     tenantId, name: b.name, transport: b.transport ?? "http", endpoint: b.endpoint ?? null, authType: b.authType ?? "none",
   }).returning();
   return c.json({ mcp }, 201);
+});
+
+// Provision a new client tenant by cloning the admin's tenant as a template
+// (the AI ROI offer: onboard a client onto your workforce as fulfillment).
+app.post("/api/admin/provision", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const b = await c.req.json().catch(() => ({}));
+  if (!b.name || !b.slug || !b.ownerUserId) return c.json({ error: "name, slug, ownerUserId required" }, 400);
+  const result = await provisionClientTenant(db, {
+    name: String(b.name),
+    slug: String(b.slug),
+    templateTenantId: tenantId, // clone YOUR workforce
+    ownerUserId: String(b.ownerUserId),
+    monthlyBudgetUsd: typeof b.monthlyBudgetUsd === "number" ? b.monthlyBudgetUsd : null,
+  });
+  return c.json(result, 201);
 });
 
 app.post("/api/admin/keys", requireAdmin, async (c) => {
