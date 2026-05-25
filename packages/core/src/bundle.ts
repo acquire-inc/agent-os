@@ -33,7 +33,7 @@ export interface Bundle {
     endpoint: string | null;
     authType: string;
     scope: string;
-    credentials: { vaultRef: string; ttlSeconds: number } | null;
+    credentials: { vaultRef?: string; token?: string; ttlSeconds: number } | null;
   }[];
   knowledge: { chunk: string; source: string }[];
   envVars: Record<string, string>;
@@ -49,8 +49,16 @@ export interface Bundle {
   };
 }
 
+/** Resolves a fresh, short-TTL credential for an MCP at bundle-build time. */
+export type TokenResolver = (mcpId: string) => Promise<{ token: string; ttlSeconds: number } | null>;
+
+export interface BundleOptions {
+  /** When provided, real per-run tokens are injected (vault). Else a vaultRef placeholder is used. */
+  resolveToken?: TokenResolver;
+}
+
 /** Assemble everything a runner needs to construct a fully configured agent run. */
-export async function buildBundle(db: Db, runId: string, baseUrl: string): Promise<Bundle | null> {
+export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: BundleOptions = {}): Promise<Bundle | null> {
   const [run] = await db.select().from(runs).where(eq(runs.id, runId)).limit(1);
   if (!run) return null;
 
@@ -110,15 +118,19 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string): Promi
       source: s.source,
       repoPath: s.repoPath,
     })),
-    mcpServers: mcpRows.map((m) => ({
-      name: m.name,
-      transport: m.transport,
-      endpoint: m.endpoint,
-      authType: m.authType,
-      scope: m.scope,
-      // Per-run, short-TTL credential reference. Real token resolution lands with the vault (Phase 4).
-      credentials: m.authType === "none" ? null : { vaultRef: `vault://${run.tenantId}/${m.id}`, ttlSeconds: 300 },
-    })),
+    mcpServers: await Promise.all(
+      mcpRows.map(async (m) => {
+        let credentials: { vaultRef?: string; token?: string; ttlSeconds: number } | null = null;
+        if (m.authType !== "none") {
+          // Resolve a fresh, short-TTL token from the vault when a resolver is supplied.
+          const resolved = opts.resolveToken ? await opts.resolveToken(m.id) : null;
+          credentials = resolved
+            ? { token: resolved.token, ttlSeconds: resolved.ttlSeconds }
+            : { vaultRef: `vault://${run.tenantId}/${m.id}`, ttlSeconds: 300 };
+        }
+        return { name: m.name, transport: m.transport, endpoint: m.endpoint, authType: m.authType, scope: m.scope, credentials };
+      }),
+    ),
     // Vector retrieval is wired in Phase 7; scope is carried through now.
     knowledge: [],
     envVars: Object.fromEntries(envRows.map((e) => [e.key, e.encryptedValue])),

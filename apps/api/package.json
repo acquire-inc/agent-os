@@ -12,6 +12,7 @@
     "@agent-os/core": "workspace:*",
     "@agent-os/db": "workspace:*",
     "@agent-os/shared": "workspace:*",
+    "@agent-os/vault": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.23"

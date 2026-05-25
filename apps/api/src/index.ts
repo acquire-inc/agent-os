@@ -13,6 +13,7 @@ import {
   type ApiKeyContext,
 } from "@agent-os/core";
 import { RUN_STATUSES } from "@agent-os/shared";
+import { loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { adminGuide, apiGuide } from "./guide.js";
@@ -23,6 +24,17 @@ const PORT = Number(process.env.PORT ?? 8787);
 const PUBLIC_URL = process.env.PUBLIC_URL ?? `http://localhost:${PORT}`;
 
 const db = createDb(DATABASE_URL);
+
+// Vault key is optional: with it, /next injects real short-TTL tokens; without
+// it, the Bundle falls back to vaultRef placeholders.
+let vaultKey: Buffer | null = null;
+try {
+  vaultKey = loadVaultKey();
+  console.log("Vault key loaded — bundles inject live MCP tokens.");
+} catch {
+  console.warn("AOS_VAULT_KEY not set — MCP credentials in the Bundle are placeholders.");
+}
+const tokenResolver = vaultKey ? makeBundleTokenResolver(db, vaultKey) : undefined;
 
 type Vars = { auth: ApiKeyContext };
 const app = new Hono<{ Variables: Vars }>();
@@ -70,7 +82,7 @@ app.get("/api/agents/:id/next", async (c) => {
 
   const claimed = await claimNextRun(db, agentId, tenantId, c.req.header("x-runner-id") ?? "runner");
   if (!claimed) return c.json({ hasWork: false }, 200);
-  const bundle = await buildBundle(db, claimed.id, PUBLIC_URL);
+  const bundle = await buildBundle(db, claimed.id, PUBLIC_URL, { resolveToken: tokenResolver });
   return c.json({ hasWork: true, run: claimed, bundle });
 });
 
@@ -202,6 +214,46 @@ app.post("/api/admin/keys", requireAdmin, async (c) => {
   if (!b.kind || !b.name) return c.json({ error: "kind and name required" }, 400);
   const { raw, row } = await createApiKey(db, { tenantId, kind: b.kind, name: b.name });
   return c.json({ key: raw, id: row?.id, note: "Store this key now — it is shown only once." }, 201);
+});
+
+// ============================ Connections ============================
+// List MCPs and their credential status (drives the Connections UI).
+app.get("/api/connections", async (c) => {
+  const { tenantId } = c.get("auth");
+  const rows = await db.select().from(schema.mcps).where(eq(schema.mcps.tenantId, tenantId));
+  const creds = await db.select().from(schema.oauthCredentials).where(eq(schema.oauthCredentials.tenantId, tenantId));
+  const credByMcp = new Map(creds.map((cr) => [cr.mcpId, cr]));
+  return c.json({
+    connections: rows.map((m) => {
+      const cr = credByMcp.get(m.id);
+      return {
+        id: m.id, name: m.name, transport: m.transport, authType: m.authType, status: m.status,
+        lastHealthCheck: m.lastHealthCheck, hasCredential: Boolean(cr),
+        scopes: cr?.scopes ?? [], expiresAt: cr?.expiresAt ?? null,
+      };
+    }),
+  });
+});
+
+// Store/replace a credential for an MCP. In production this is called by the
+// OAuth callback handler after the human consents; here it also enables manual
+// setup. Requires the vault key to be configured.
+app.post("/api/connections/:mcpId/credential", async (c) => {
+  const { tenantId } = c.get("auth");
+  if (!vaultKey) return c.json({ error: "vault not configured (AOS_VAULT_KEY)" }, 503);
+  const mcpId = c.req.param("mcpId");
+  const [mcp] = await db.select().from(schema.mcps).where(and(eq(schema.mcps.id, mcpId), eq(schema.mcps.tenantId, tenantId))).limit(1);
+  if (!mcp) return c.json({ error: "mcp not found" }, 404);
+  const b = await c.req.json().catch(() => ({}));
+  if (!b.accessToken) return c.json({ error: "accessToken required" }, 400);
+  await storeCredential(db, vaultKey, {
+    tenantId, mcpId,
+    accessToken: String(b.accessToken),
+    refreshToken: b.refreshToken ? String(b.refreshToken) : undefined,
+    scopes: Array.isArray(b.scopes) ? b.scopes : [],
+    expiresAt: b.expiresAt ? new Date(b.expiresAt) : null,
+  });
+  return c.json({ ok: true, status: "connected" }, 201);
 });
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
