@@ -3,8 +3,17 @@
 -- its cron tick; triggers keep those entries in sync with the jobs table.
 -- This is the Supabase deployment's scheduler — an alternative to the portable
 -- apps/scheduler worker (use one or the other, not both, per database).
+--
+-- Designed to apply cleanly on ANY Postgres: where pg_cron is unavailable
+-- (e.g. plain local Postgres), the helper functions become no-ops, so the same
+-- migration is safe everywhere. On Supabase, enable pg_cron and it activates.
 
-create extension if not exists pg_cron;
+do $$
+begin
+  if exists (select 1 from pg_available_extensions where name = 'pg_cron') then
+    create extension if not exists pg_cron;
+  end if;
+end $$;
 
 -- Stable pg_cron entry name for a job.
 create or replace function aos_cron_name(p_job uuid)
@@ -29,21 +38,25 @@ create or replace function aos_job_cron_command(p_job uuid)
     );
   $$;
 
--- (Re)register a job's pg_cron entry. cron.schedule upserts by name.
+-- (Re)register a job's pg_cron entry. No-op if pg_cron isn't installed.
 create or replace function aos_schedule_job(p_job uuid, p_cron text)
   returns void language plpgsql security definer set search_path = public, cron, extensions
   as $$
   begin
-    perform cron.schedule(aos_cron_name(p_job), p_cron, aos_job_cron_command(p_job));
+    if to_regprocedure('cron.schedule(text,text,text)') is not null then
+      perform cron.schedule(aos_cron_name(p_job), p_cron, aos_job_cron_command(p_job));
+    end if;
   end;
   $$;
 
--- Remove a job's pg_cron entry (no error if it isn't scheduled).
+-- Remove a job's pg_cron entry. No-op if pg_cron isn't installed or not scheduled.
 create or replace function aos_unschedule_job(p_job uuid)
   returns void language plpgsql security definer set search_path = public, cron, extensions
   as $$
   begin
-    perform cron.unschedule(aos_cron_name(p_job));
+    if to_regprocedure('cron.unschedule(text)') is not null then
+      perform cron.unschedule(aos_cron_name(p_job));
+    end if;
   exception when others then
     null;
   end;
@@ -72,7 +85,7 @@ create trigger jobs_cron_sync
   after insert or delete or update of schedule_cron, enabled, agent_id on jobs
   for each row execute function aos_sync_job_cron();
 
--- Backfill: schedule every currently-enabled job.
+-- Backfill: schedule every currently-enabled job (no-op without pg_cron).
 do $$
 declare j record;
 begin
