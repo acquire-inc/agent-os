@@ -214,6 +214,14 @@ export const demoSkills: Skill[] = [
   skill({ id: "80000000-0000-0000-0000-000000000008", tenantId: CLIENTLY, key: "gsd", name: "GSD (Get Shit Done)", description: "Spec-driven dev: phased research → plan → execute with per-agent model selection.", source: "github", repoPath: "open-gsd/get-shit-done", tags: ["dev"] }),
   skill({ id: "80000000-0000-0000-0000-000000000009", tenantId: CLIENTLY, key: "systematic-debugging", name: "Systematic Debugging", description: "Root-cause debugging loop.", source: "github", repoPath: "obra/superpowers", tags: ["dev"] }),
   skill({ id: "80000000-0000-0000-0000-00000000000a", tenantId: CLIENTLY, key: "verification-before-completion", name: "Verification Before Completion", description: "Verify behavior in the real app before marking work done.", source: "github", repoPath: "obra/superpowers", tags: ["dev"] }),
+  // Expanded skill catalog (authored in external/acqu-skills).
+  skill({ id: "80000000-0000-0000-0000-00000000000b", tenantId: ACQU, key: "client-health-scan", name: "Client Health Scan", description: "Score account health from usage, results, sentiment, and cadence.", repoPath: "acqu-skills/client-health-scan", tags: ["client-success", "research"] }),
+  skill({ id: "80000000-0000-0000-0000-00000000000c", tenantId: ACQU, key: "content-engine", name: "Content Engine", description: "Turn a source into a multi-channel content set in brand voice.", repoPath: "acqu-skills/content-engine", tags: ["content", "marketing"] }),
+  skill({ id: "80000000-0000-0000-0000-00000000000d", tenantId: ACQU, key: "playbook-capture", name: "Playbook Capture", description: "Capture a reusable playbook into Knowledge after a notable outcome.", repoPath: "acqu-skills/playbook-capture", tags: ["systems"] }),
+  skill({ id: "80000000-0000-0000-0000-00000000000e", tenantId: ACQU, key: "memory-consolidation", name: "Memory Consolidation", description: "Weekly: compact run logs into durable 'what we know' docs.", repoPath: "acqu-skills/memory-consolidation", tags: ["systems"] }),
+  skill({ id: "80000000-0000-0000-0000-00000000000f", tenantId: ACQU, key: "meeting-prep", name: "Meeting Prep", description: "Assemble a call prep brief from CRM, results, and past transcripts.", repoPath: "acqu-skills/meeting-prep", tags: ["ops", "sales"] }),
+  skill({ id: "80000000-0000-0000-0000-000000000010", tenantId: ACQU, key: "competitor-ad-teardown", name: "Competitor Ad Teardown", description: "Analyze competitor ads and extract testable angles.", repoPath: "acqu-skills/competitor-ad-teardown", tags: ["research", "creative", "meta"] }),
+  skill({ id: "80000000-0000-0000-0000-000000000011", tenantId: ACQU, key: "proposal-drafting", name: "Proposal Drafting", description: "Draft scope, pricing tiers, and the exec summary for a qualified deal.", repoPath: "acqu-skills/proposal-drafting", tags: ["sales"] }),
 ];
 
 // --- MCPs ---
@@ -230,6 +238,21 @@ export const demoMcps: Mcp[] = [
   mcp({ id: "90000000-0000-0000-0000-000000000007", tenantId: ACQU, name: "pgvector Knowledge", transport: "stdio", authType: "api_key", status: "connected", tags: ["systems"] }),
   mcp({ id: "90000000-0000-0000-0000-000000000008", tenantId: CLIENTLY, name: "GitHub", authType: "oauth", status: "connected", tags: ["dev"] }),
   mcp({ id: "90000000-0000-0000-0000-000000000009", tenantId: CLIENTLY, name: "Playwright", transport: "stdio", authType: "none", status: "connected", tags: ["dev"] }),
+  // Expanded connector catalog.
+  mcp({ id: "90000000-0000-0000-0000-00000000000a", tenantId: ACQU, name: "HubSpot", authType: "oauth", status: "disconnected", tags: ["sales", "marketing"] }),
+  mcp({ id: "90000000-0000-0000-0000-00000000000b", tenantId: ACQU, name: "Stripe", authType: "api_key", status: "disconnected", tags: ["finance"] }),
+  mcp({ id: "90000000-0000-0000-0000-00000000000c", tenantId: ACQU, name: "QuickBooks", authType: "oauth", status: "disconnected", tags: ["finance"] }),
+  mcp({ id: "90000000-0000-0000-0000-00000000000d", tenantId: ACQU, name: "Notion", authType: "oauth", status: "disconnected", tags: ["content", "ops"] }),
+  mcp({ id: "90000000-0000-0000-0000-00000000000e", tenantId: ACQU, name: "Google Calendar", authType: "oauth", status: "connected", tags: ["ops"] }),
+  mcp({ id: "90000000-0000-0000-0000-00000000000f", tenantId: ACQU, name: "Apollo", authType: "api_key", status: "disconnected", tags: ["sales", "research"] }),
+  mcp({ id: "90000000-0000-0000-0000-000000000010", tenantId: ACQU, name: "Twilio", authType: "api_key", status: "disconnected", tags: ["ops", "client-success"] }),
+  mcp({ id: "90000000-0000-0000-0000-000000000011", tenantId: ACQU, name: "Intercom", authType: "oauth", status: "disconnected", tags: ["client-success"] }),
+  mcp({ id: "90000000-0000-0000-0000-000000000012", tenantId: ACQU, name: "Airtable", authType: "api_key", status: "disconnected", tags: ["systems", "ops"] }),
+  mcp({ id: "90000000-0000-0000-0000-000000000013", tenantId: ACQU, name: "n8n", transport: "http", authType: "api_key", status: "connected", tags: ["systems"] }),
+  mcp({ id: "90000000-0000-0000-0000-000000000014", tenantId: ACQU, name: "Telegram", authType: "api_key", status: "connected", tags: ["ops"] }),
+  mcp({ id: "90000000-0000-0000-0000-000000000015", tenantId: CLIENTLY, name: "Linear", authType: "oauth", status: "disconnected", tags: ["dev", "systems"] }),
+  mcp({ id: "90000000-0000-0000-0000-000000000016", tenantId: CLIENTLY, name: "Sentry", authType: "oauth", status: "disconnected", tags: ["dev"] }),
+  mcp({ id: "90000000-0000-0000-0000-000000000017", tenantId: CLIENTLY, name: "Vercel", authType: "oauth", status: "disconnected", tags: ["dev", "systems"] }),
 ];
 
 // --- Knowledge ---
