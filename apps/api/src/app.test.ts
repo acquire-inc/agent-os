@@ -90,6 +90,38 @@ async function main() {
   const evCross = await app.request(`/api/runs/${otherRun!.id}/autonomy-event`, { method: "POST", headers: rh, body: JSON.stringify({ kind: "allow" }) });
   assert(evCross.status === 404, "cross-tenant autonomy-event rejected (404)");
 
+  console.log("\n[approval bridge end-to-end (1c)]");
+  // Simulate what the runner's PreToolUse hook does on an irreversible call.
+  const [bridgeRun] = await db.insert(schema.runs).values({ tenantId: ACQU, agentId: ADOPS, status: "running", triggerSource: "manual", scheduledFor: new Date() }).returning();
+  const raise = await app.request(`/api/runs/${bridgeRun!.id}/approvals`, {
+    method: "POST", headers: rh,
+    body: JSON.stringify({
+      context: "Ad-Ops wants to call close.update_lead",
+      proposedAction: "close.update_lead",
+      options: [{ key: "1A", label: "Allow once" }, { key: "1B", label: "Always allow this run" }, { key: "none", label: "Deny" }],
+      sdkSessionId: "sess_bridge_01",
+    }),
+  });
+  assert(raise.status === 201, "raise approval (201)");
+  const raised = (await raise.json()) as { approval: { id: string } };
+  // Record the 'propose' autonomy event (what the runner's hook does in parallel).
+  const prop = await app.request(`/api/runs/${bridgeRun!.id}/autonomy-event`, {
+    method: "POST", headers: rh,
+    body: JSON.stringify({ kind: "propose", toolName: "close.update_lead", rationale: "irreversible under propose" }),
+  });
+  assert(prop.status === 201, "record 'propose' autonomy event (201)");
+  // Run is now waiting + sdkSessionId persisted for resume.
+  const [postRaise] = await db.select().from(schema.runs).where(eq(schema.runs.id, bridgeRun!.id));
+  assert(postRaise?.status === "waiting", "run flips to 'waiting'");
+  assert(postRaise?.sdkSessionId === "sess_bridge_01", "sdkSessionId persisted for resume");
+  // Decide and verify the run is now ready for resume.
+  const decide = await app.request(`/api/approvals/${raised.approval.id}/decide`, {
+    method: "POST", headers: rh, body: JSON.stringify({ optionKey: "1A" }),
+  });
+  assert(decide.status === 200, "decide approval (200)");
+  const [postDecide] = await db.select().from(schema.runs).where(eq(schema.runs.id, bridgeRun!.id));
+  assert(postDecide?.status === "pending", "decided run → 'pending' (claimable by runner)");
+
   console.log("\n[cost + knowledge]");
   const cost = (await (await app.request("/api/cost", { headers: rh })).json()) as { summary: { total: number }; budget: { level: string } };
   assert(typeof cost.summary.total === "number" && ["ok", "warn", "over"].includes(cost.budget.level), "GET /api/cost returns summary + budget");

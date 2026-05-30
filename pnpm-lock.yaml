@@ -115,6 +115,9 @@ importers:
 
   apps/runner:
     dependencies:
+      '@agent-os/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@agent-os/shared':
         specifier: workspace:*
         version: link:../../packages/shared

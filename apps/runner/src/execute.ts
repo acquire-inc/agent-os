@@ -1,6 +1,7 @@
+import { autonomyGate, buildApprovalOptions } from "@agent-os/core";
 import type { ApiClient, Bundle } from "./api-client.js";
 import type { RunnerConfig } from "./config.js";
-import { buildPostToolUseHook, recordToolUse } from "./hooks.js";
+import { buildPostToolUseHook, buildPreToolUseHook, recordToolUse } from "./hooks.js";
 
 export interface RunResult {
   status: "done" | "failed" | "waiting";
@@ -35,22 +36,73 @@ function permissionMode(autonomy: string): "default" | "acceptEdits" | "bypassPe
   return "plan";
 }
 
-/** Simulated run used when no Anthropic key is configured — exercises the full loop. */
+/** Simulated run used when no Anthropic key is configured — exercises the full
+ *  loop including 1c's PreToolUse approval bridge. */
 async function dryRun(api: ApiClient, b: Bundle): Promise<RunResult> {
   const runId = b.run.id;
-  await api.postActivity(runId, "start", `Dry-run: ${b.agent.name} picked up ${b.job?.name ?? "a manual task"}`);
-  if (b.knowledge.length) await api.postActivity(runId, "knowledge", `Retrieved ${b.knowledge.length} knowledge chunk(s) for context.`);
+  // A non-null sdkSessionId on the bundle's run means we're resuming after a
+  // human decided an approval — proceed past the gate that fired last time.
+  const isResume = Boolean(b.run.sdkSessionId);
+  const sessionId = b.run.sdkSessionId ?? `dry_${runId.slice(0, 8)}`;
+
+  await api.postActivity(
+    runId,
+    "start",
+    `${isResume ? "Resumed" : "Dry-run"}: ${b.agent.name} picked up ${b.job?.name ?? "a manual task"}`,
+  );
+  if (b.knowledge.length) {
+    await api.postActivity(runId, "knowledge", `Retrieved ${b.knowledge.length} knowledge chunk(s) for context.`);
+  }
+
+  // Read steps — always allowed by autonomyGate.
   for (const m of b.mcpServers.slice(0, 2)) {
     const tool = `${m.name.toLowerCase().split(/\s|×/)[0]}.read`;
     await api.postActivity(runId, "tool", `${tool}(...)  [simulated]`);
-    // Same PostToolUse path used in live runs: audit + autonomy_event ('allow').
     await recordToolUse(api, runId, { toolName: tool, result: "ok" });
   }
+
+  // One simulated mutation per run — this is where 1c's PreToolUse gate fires.
+  // On first run under autonomy=propose/execute_safe, the gate raises an
+  // approval and we suspend the dry-run with status=waiting. On resume
+  // (sdkSessionId set), we proceed past the gate.
+  if (b.mcpServers.length > 0) {
+    const prefix = b.mcpServers[0]!.name.toLowerCase().split(/\s|×/)[0];
+    const mutation = `${prefix}.update`;
+    const decision = isResume
+      ? "allow"
+      : autonomyGate({
+          toolName: mutation,
+          autonomy: b.agent.autonomy,
+          escalationPolicy: b.agent.escalationPolicy,
+        });
+    if (decision === "propose") {
+      await Promise.allSettled([
+        api.postApproval(runId, {
+          context: `${b.agent.name} wants to call ${mutation}`,
+          proposedAction: mutation,
+          options: buildApprovalOptions(mutation),
+          sdkSessionId: sessionId,
+        }),
+        api.postAutonomyEvent(runId, {
+          kind: "propose",
+          toolName: mutation,
+          rationale: `under autonomy=${b.agent.autonomy}, ${mutation} is irreversible`,
+        }),
+      ]);
+      const summary = `Awaiting approval to call ${mutation} (dry-run).`;
+      await api.postActivity(runId, "propose", summary);
+      return { status: "waiting", summary, tokensIn: 800, tokensOut: 100, costUsd: 0.005, sdkSessionId: sessionId };
+    }
+    // 'allow' — execute the mutation in simulation.
+    await api.postActivity(runId, "tool", `${mutation}(...)  [simulated]`);
+    await recordToolUse(api, runId, { toolName: mutation, result: "ok" });
+  }
+
   const summary = b.job
-    ? `Simulated completion of "${b.job.name}". No Anthropic key set — wire ANTHROPIC_API_KEY for live execution.`
-    : "Simulated manual run complete.";
+    ? `${isResume ? "Resumed and completed" : "Simulated completion of"} "${b.job.name}". No Anthropic key set — wire ANTHROPIC_API_KEY for live execution.`
+    : `${isResume ? "Resumed manual run" : "Simulated manual run"} complete.`;
   await api.postActivity(runId, "summary", summary);
-  return { status: "done", summary, tokensIn: 1200, tokensOut: 180, costUsd: 0.01, sdkSessionId: `dry_${runId.slice(0, 8)}` };
+  return { status: "done", summary, tokensIn: 1200, tokensOut: 180, costUsd: 0.01, sdkSessionId: sessionId };
 }
 
 /** Live run via the Claude Agent SDK. */
@@ -67,9 +119,19 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<Ru
     systemPrompt: buildSystemPrompt(b),
     permissionMode: permissionMode(b.autonomy),
     maxTurns: 12,
-    // Safety hooks (Step 1a): every executed tool gets audited + logged as
-    // an `allow` autonomy event. 1b/1c will extend this map.
+    // Safety hooks:
+    //  1a — PostToolUse audits every executed tool + logs 'allow' autonomy event
+    //  1c — PreToolUse gates each tool call; raises approval on 'propose' and
+    //       asks the SDK to suspend (run → waiting) until human decides.
     hooks: {
+      PreToolUse: [
+        buildPreToolUseHook(api, runId, {
+          autonomy: b.agent.autonomy,
+          escalationPolicy: b.agent.escalationPolicy,
+          agentName: b.agent.name,
+          sdkSessionId: b.run.sdkSessionId ?? undefined,
+        }),
+      ],
       PostToolUse: [buildPostToolUseHook(api, runId)],
     },
   };

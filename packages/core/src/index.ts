@@ -4,6 +4,7 @@ export * from "./claim.js";
 export * from "./bundle.js";
 export * from "./lifecycle.js";
 export * from "./auth.js";
+export * from "./autonomy.js";
 export * from "./knowledge.js";
 export * from "./cost.js";
 export * from "./notify.js";

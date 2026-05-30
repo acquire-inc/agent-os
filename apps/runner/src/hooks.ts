@@ -1,7 +1,11 @@
-// SDK hook factories. Today: PostToolUse only (Step 1a). 1b/1c will add Stop /
-// SessionEnd / PreToolUse alongside, but those wire into the same API surface.
-// The same `recordToolUse` is used by the dry-run path so the wiring is
-// verifiable without an Anthropic key.
+// SDK hook factories.
+// Step 1a: PostToolUse → audit + 'allow' autonomy event on every executed tool.
+// Step 1b: SessionEnd is recorded server-side by setRunStatus on terminal status;
+//          budget_cap is enforced server-side in PUT /api/runs/:id/status.
+// Step 1c: PreToolUse consults the autonomy gate; on 'propose' it raises an
+//          approval and asks the SDK to suspend the session.
+// Same helpers back the dry-run path so the wiring is verifiable without a key.
+import { autonomyGate, buildApprovalOptions } from "@agent-os/core";
 import type { ApiClient } from "./api-client.js";
 
 export interface ToolEvent {
@@ -38,5 +42,61 @@ export function buildPostToolUseHook(api: ApiClient, runId: string) {
       toolName,
       result: event.tool_result != null || event.toolResult != null ? "ok" : undefined,
     });
+  };
+}
+
+export interface GateCtx {
+  autonomy: string;
+  escalationPolicy: string | null;
+  agentName: string;
+  sdkSessionId?: string;
+}
+
+/**
+ * Claude Agent SDK PreToolUse hook. For each tool the SDK is about to invoke we
+ * consult the pure `autonomyGate`:
+ *  - 'allow'   → proceed; PostToolUse will record the 'allow' event after execution
+ *  - 'propose' → raise an Approval, record a 'propose' autonomy event, and ask the
+ *                SDK to suspend the session (run → waiting). The runner picks the
+ *                run back up when the human decides (run → pending → running).
+ *  - 'deny'    → record 'deny' and tell the SDK to block.
+ * Hook return shape is intentionally loose (Record<string, unknown>) to absorb
+ * minor SDK version drift in the decision contract.
+ */
+export function buildPreToolUseHook(api: ApiClient, runId: string, ctx: GateCtx) {
+  return async (event: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const toolName = String(
+      (event.tool_name as string | undefined) ??
+        (event.toolName as string | undefined) ??
+        "unknown",
+    );
+    const decision = autonomyGate({
+      toolName,
+      autonomy: ctx.autonomy,
+      escalationPolicy: ctx.escalationPolicy,
+    });
+    if (decision === "allow") return { decision: "allow" };
+    if (decision === "propose") {
+      await Promise.allSettled([
+        api.postApproval(runId, {
+          context: `${ctx.agentName} wants to call ${toolName}`,
+          proposedAction: toolName,
+          options: buildApprovalOptions(toolName),
+          sdkSessionId: ctx.sdkSessionId,
+        }),
+        api.postAutonomyEvent(runId, {
+          kind: "propose",
+          toolName,
+          rationale: `under autonomy=${ctx.autonomy}, ${toolName} is irreversible`,
+        }),
+      ]);
+      return { decision: "ask" };
+    }
+    await api.postAutonomyEvent(runId, {
+      kind: "deny",
+      toolName,
+      rationale: `policy-blocked under autonomy=${ctx.autonomy}`,
+    });
+    return { decision: "deny" };
   };
 }

@@ -9,8 +9,12 @@ import {
   claimNextRun,
   createApiKey,
   evaluateDueJobs,
+  autonomyGate,
+  buildApprovalOptions,
   hashApiKey,
   hashEmbedder,
+  isIrreversibleTool,
+  parseToolVerb,
   peekNextRun,
   raiseApproval,
   recordAutonomyEvent,
@@ -147,6 +151,25 @@ async function main() {
   assert(denyEv?.kind === "deny" && denyEv.rationale === "irreversible under propose", "records 'deny' with rationale");
   const evs = await db.select().from(schema.autonomyEvents).where(eq(schema.autonomyEvents.runId, memRun!.id));
   assert(evs.length >= 2, "events queryable by run");
+
+  console.log("\n[autonomy gate (1c)]");
+  assert(parseToolVerb("close.update_lead") === "update", "parseToolVerb extracts leading verb");
+  assert(parseToolVerb("github.read") === "read", "parseToolVerb on read");
+  assert(parseToolVerb("send") === "send", "parseToolVerb on bare verb");
+
+  assert(isIrreversibleTool({ toolName: "close.read", autonomy: "propose" }) === false, "read verb is reversible");
+  assert(isIrreversibleTool({ toolName: "close.update_lead", autonomy: "propose" }) === true, "update verb is irreversible");
+  assert(
+    isIrreversibleTool({ toolName: "close.update_lead", autonomy: "propose", escalationPolicy: "always_allow: close.update_lead" }) === false,
+    "escalation policy 'always_allow' overrides irreversibility",
+  );
+
+  assert(autonomyGate({ toolName: "close.read", autonomy: "propose" }) === "allow", "propose: read → allow");
+  assert(autonomyGate({ toolName: "close.update_lead", autonomy: "propose" }) === "propose", "propose: mutation → propose");
+  assert(autonomyGate({ toolName: "close.update_lead", autonomy: "execute_safe" }) === "propose", "execute_safe: mutation → propose (doctrine)");
+  assert(autonomyGate({ toolName: "close.delete", autonomy: "execute_full" }) === "allow", "execute_full: mutation → allow (pre-approved scope)");
+  const opts = buildApprovalOptions("close.update_lead");
+  assert(opts.length === 3 && opts[0]?.key === "1A" && opts.some((o) => o.key === "none"), "buildApprovalOptions returns 1A / 1B / none");
 
   console.log("\n[resume: pending runs are claimable]");
   // The decided run (now pending) must be re-claimable by the runner, else it strands.
