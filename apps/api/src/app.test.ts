@@ -218,6 +218,54 @@ async function main() {
   });
   assert(reSeed.status === 201, "re-seed idempotent (201)");
 
+  // ---- remix flow ----
+  // 400 when mode=remix without baseAgentKey
+  const noBase = await app.request("/api/admin/architect/propose", {
+    method: "POST", headers: ah, body: JSON.stringify({ prompt: "make it weekly", mode: "remix" }),
+  });
+  assert(noBase.status === 400, "remix without baseAgentKey → 400");
+
+  // Inject a fixture LLM that emits a single-agent remix re-using the apitest-meta-scout key.
+  setArchitectLlm(fixtureLlmFromJson({
+    teamName: "Remix: weekly scout",
+    rationale: "Switch to weekly cadence per operator instruction.",
+    agents: [{
+      key: "apitest-meta-scout",
+      name: "Apitest Meta Scout (Weekly)",
+      role: "Weekly competitor scan.",
+      systemPrompt: "You are the Apitest Meta Scout. EVERY MONDAY (07:00): ... RULES: ...",
+      model: "nousresearch/hermes-4-70b",
+      thinkingLevel: "low",
+      autonomy: "propose",
+      knowledgeScope: { folders: ["ad-playbooks"], tags: [] },
+      budgetCapUsd: "0.30",
+      cron: { schedule: "0 7 * * 1", jobName: "Weekly scout" },
+      skillKeys: [],
+      mcpNames: ["Pipeboard × Meta"],
+    }],
+    proposedSkills: [],
+    proposedMcps: [],
+  }, { model: "fixture/hermes-4-405b", costUsd: 0.005 }));
+
+  const remixRes = await app.request("/api/admin/architect/propose", {
+    method: "POST", headers: ah,
+    body: JSON.stringify({ prompt: "switch to weekly on Mondays at 07:00", mode: "remix", baseAgentKey: "apitest-meta-scout" }),
+  });
+  assert(remixRes.status === 201, "remix propose returns 201");
+  const remixBP = (await remixRes.json()) as { blueprint: { id: string; agents: { key: string; cron?: { schedule: string } | null }[] } };
+  assert(remixBP.blueprint.agents.length === 1, "remix returns single-agent team");
+  assert(remixBP.blueprint.agents[0]!.key === "apitest-meta-scout", "remix preserves the base key");
+  assert(remixBP.blueprint.agents[0]!.cron?.schedule === "0 7 * * 1", "remix carries new cron");
+
+  // Seed it — upsertAgent(tenant, key) should hit the SAME row.
+  const baseAgentId = seeded.seeded.find((s) => s.key === "apitest-meta-scout")!.agentId;
+  const remixSeedRes = await app.request("/api/admin/architect/seed", {
+    method: "POST", headers: ah, body: JSON.stringify({ blueprintId: remixBP.blueprint.id }),
+  });
+  assert(remixSeedRes.status === 201, "remix seed returns 201");
+  const remixSeeded = (await remixSeedRes.json()) as { seeded: { key: string; agentId: string }[] };
+  assert(remixSeeded.seeded[0]!.agentId === baseAgentId, "remix re-uses the same agent row (upsert by key)");
+
   // Cross-tenant blueprint fetch returns 404.
   const otherAdmin = (await createApiKey(db, { tenantId: TENANT_IDS.cliently, kind: "admin", name: "apitest-admin-other" })).raw;
   const crossGet = await app.request(`/api/admin/architect/blueprints/${proposed.blueprint.id}`, {

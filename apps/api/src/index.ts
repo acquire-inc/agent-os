@@ -389,6 +389,8 @@ app.post("/api/admin/architect/propose", requireAdmin, async (c) => {
   const b = await c.req.json().catch(() => ({}));
   if (typeof b.prompt !== "string" || !b.prompt.trim())
     return c.json({ error: "prompt required" }, 400);
+  if (b.mode === "remix" && !b.baseAgentKey)
+    return c.json({ error: "remix mode requires baseAgentKey" }, 400);
   if (!architectLlm)
     return c.json({ error: "architect not configured — set OPENROUTER_API_KEY" }, 501);
   try {
