@@ -98,6 +98,56 @@ export async function findMcpByName(db: Db, tenantId: string, name: string) {
   return row;
 }
 
+// ---------- tools ---------------------------------------------------------
+
+/**
+ * Ensure a tools row exists for (tenantId, key); insert if absent, return the row.
+ *
+ * Mirrors {@link ensureSkillFromDir} but simpler — tools are pure DB rows, no disk
+ * read and no version compute. Tools are DATA (CLAUDE.md non-negotiable #1): adding
+ * one is a configuration insert, not new application code.
+ *
+ * Safety defaults mirror the 0007 DDL: `requiresApproval` defaults to `true` so a
+ * tool is deny-by-default until an author explicitly opts it out (T-7-07).
+ */
+export async function ensureTool(
+  db: Db,
+  tenantId: string,
+  args: {
+    key: string;
+    name: string;
+    kind?: "custom" | "mcp";
+    description?: string;
+    inputSchema?: unknown;
+    requiresApproval?: boolean;
+    reversible?: boolean;
+  },
+) {
+  const [existing] = await db
+    .select()
+    .from(schema.tools)
+    .where(and(eq(schema.tools.tenantId, tenantId), eq(schema.tools.key, args.key)))
+    .limit(1);
+
+  if (!existing) {
+    const [row] = await db
+      .insert(schema.tools)
+      .values({
+        tenantId,
+        key: args.key,
+        name: args.name,
+        description: args.description ?? "",
+        kind: args.kind ?? "custom",
+        inputSchema: args.inputSchema ?? {},
+        requiresApproval: args.requiresApproval ?? true,
+        reversible: args.reversible ?? false,
+      })
+      .returning();
+    return row!;
+  }
+  return existing;
+}
+
 // ---------- agent ---------------------------------------------------------
 
 type AgentInsert = typeof schema.agents.$inferInsert;
@@ -247,6 +297,19 @@ export async function bindMcp(db: Db, agentId: string, mcpId: string) {
   );
 }
 
+/**
+ * Bind a tool to an agent via the `agent_tools` join — idempotent.
+ *
+ * Mirrors {@link bindSkill}/{@link bindMcp} exactly: a parameterized `sql` tagged
+ * template with `on conflict do nothing`, so re-running a seed never duplicates the
+ * join row (T-7-06: parameterized — no string concat).
+ */
+export async function bindTool(db: Db, agentId: string, toolId: string) {
+  await db.execute(
+    sql`insert into agent_tools (agent_id, tool_id) values (${agentId}, ${toolId}) on conflict do nothing`,
+  );
+}
+
 // ---------- the high-level spec -------------------------------------------
 
 export type AgentSpec = {
@@ -267,6 +330,13 @@ export type AgentSpec = {
   cron?: { schedule: string; jobName: string } | null;
   skills: { key: string; name: string }[];
   mcpNames: string[];
+  /**
+   * Tools to ensure-and-bind for this agent. OPTIONAL by design (Pitfall 1): the
+   * `?` is load-bearing — making it required would break all 26+ existing seed
+   * scripts that predate the tools registry. Absent → no tool work (defaults to []).
+   * Tools are DATA (CLAUDE.md non-negotiable #1): a spec adds one as config, not code.
+   */
+  tools?: { key: string; name: string; kind?: "custom" | "mcp"; requiresApproval?: boolean }[];
 };
 
 export type AgentSeedResult = {
@@ -276,6 +346,7 @@ export type AgentSeedResult = {
   jobId: string | null;
   skills: string[];
   mcps: string[];
+  tools: string[];
 };
 
 /** Seed a single agent end-to-end. Idempotent: safe to re-run. */
@@ -288,6 +359,11 @@ export async function seedAgent(
     spec.skills.map((s) => ensureSkillFromDir(db, spec.tenantId, s, options.skillSource)),
   );
   const mcpRows = await Promise.all(spec.mcpNames.map((n) => findMcpByName(db, spec.tenantId, n)));
+  // Tools are optional (Pitfall 1): `?? []` makes the no-tools path a no-op so every
+  // pre-existing seed continues to pass unchanged.
+  const toolRows = await Promise.all(
+    (spec.tools ?? []).map((t) => ensureTool(db, spec.tenantId, t)),
+  );
 
   const agent = await upsertAgent(db, spec.tenantId, spec.key, {
     name: spec.name,
@@ -321,6 +397,7 @@ export async function seedAgent(
 
   for (const s of skillRows) await bindSkill(db, agent.id, s.id);
   for (const m of mcpRows) await bindMcp(db, agent.id, m.id);
+  for (const t of toolRows) await bindTool(db, agent.id, t.id);
 
   return {
     agent,
@@ -329,5 +406,6 @@ export async function seedAgent(
     jobId,
     skills: skillRows.map((s) => s.key),
     mcps: mcpRows.map((m) => m.name),
+    tools: toolRows.map((t) => t.key),
   };
 }
