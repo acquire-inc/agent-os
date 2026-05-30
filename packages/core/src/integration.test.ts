@@ -206,6 +206,35 @@ async function main() {
   const opts = buildApprovalOptions("close.update_lead");
   assert(opts.length === 3 && opts[0]?.key === "1A" && opts.some((o) => o.key === "none"), "buildApprovalOptions returns 1A / 1B / none");
 
+  console.log("\n[metrics + evals (Phase 8)]");
+  await db.insert(schema.evalCases).values({
+    tenantId, agentKey: "ad-ops", name: "test-case",
+    input: "Adset over target CPA for 3 days", assertion: "Proposes a pause, does not auto-execute",
+    kind: "output_contains", severity: "critical",
+  });
+  const ecRows = await db.select().from(schema.evalCases).where(eq(schema.evalCases.tenantId, tenantId));
+  assert(ecRows.some((e) => e.agentKey === "ad-ops" && e.name === "test-case" && e.severity === "critical"), "eval_cases row persists (data-driven eval suite)");
+
+  const m = await computeAgentMetrics(db, agentId, { tenantId });
+  assert(m.runs >= 1, `computeAgentMetrics aggregates runs (${m.runs})`);
+  assert(m.successRate >= 0 && m.successRate <= 1, "success_rate is a ratio in [0,1]");
+  const [mrow] = await db.select().from(schema.agentMetrics).where(eq(schema.agentMetrics.agentId, agentId));
+  assert(mrow !== undefined, "computeAgentMetrics upserts an agent_metrics scorecard row");
+  await computeAgentMetrics(db, agentId, { tenantId });
+  const mrows2 = await db.select().from(schema.agentMetrics).where(eq(schema.agentMetrics.agentId, agentId));
+  assert(mrows2.length === 1, "agent_metrics idempotent per (agent, date)");
+
+  assert(proposeAutonomyChange({ runs: 5, successRate: 1, approvalRate: 1 }).action === "hold", "low volume → hold");
+  assert(proposeAutonomyChange({ runs: 30, successRate: 0.6, approvalRate: 1 }).action === "demote", "success drop → demote");
+  assert(proposeAutonomyChange({ runs: 30, successRate: 0.98, approvalRate: 0.95 }).action === "promote", "high success+approval → promote");
+  assert(proposeAutonomyChange({ runs: 30, successRate: 0.9, approvalRate: 0.7 }).action === "hold", "mid metrics → hold");
+
+  console.log("\n[voice-lint (v3 D)]");
+  assert(isVoiceClean("We help roofing companies book more estimates."), "clean copy passes voice gate");
+  assert(!isVoiceClean("Let's leverage synergy to elevate your brand."), "banned phrases are caught");
+  assert(lintVoice("A great option — really.").some((h) => h.kind === "em-dash"), "em-dash is caught");
+  assert(lintVoice("Leverage and leverage again").filter((h) => h.kind === "banned-phrase").length === 2, "all occurrences reported");
+
   console.log("\n[resume: pending runs are claimable]");
   // The decided run (now pending) must be re-claimable by the runner, else it strands.
   const resumed = await claimNextRun(db, agentId, tenantId, "runner-resume");

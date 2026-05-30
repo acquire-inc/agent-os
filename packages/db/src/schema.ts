@@ -7,6 +7,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  date,
   primaryKey,
   text,
   timestamp,
