@@ -14,6 +14,7 @@
     "db:generate": "pnpm --filter @agent-os/db generate",
     "db:migrate": "pnpm --filter @agent-os/db migrate",
     "db:seed": "pnpm --filter @agent-os/db seed",
+    "seed:acqu-vitals": "pnpm --filter @agent-os/seed run acqu-vitals",
     "verify": "bash scripts/test-all.sh"
   },
   "devDependencies": {

@@ -1,0 +1,19 @@
+{
+  "name": "@agent-os/seed",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "acqu-vitals": "tsx acqu-vitals.ts"
+  },
+  "dependencies": {
+    "@agent-os/db": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
