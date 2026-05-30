@@ -92,7 +92,16 @@ Plans:
   1. `tools` table + `agent_tools` join — agents bind to tools the way they already bind to skills/MCPs.
   2. Inngest scheduler replaces the in-process scheduler; pg_cron remains as the trigger that calls Inngest.
   3. `tool.browser` (Browserbase + Stagehand) registered; the dev agent can use it for headless web automation.
-**Plans**: TBD (5–7 expected)
+**Plans:** 7 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — tools + agent_tools migration 0007, Drizzle mirror, RLS tests (SC-7-1)
+- [ ] 07-02-PLAN.md — seedAgent + Bundle extended with tools field; backward-compatible AgentSpec (SC-7-1)
+- [ ] 07-03-PLAN.md — @agent-os/inngest workspace: client + runScheduledAgent + unit test (SC-7-2)
+- [ ] 07-04-PLAN.md — Hono /api/inngest mount + migration 0008 pg_cron → Inngest bridge (SC-7-2)
+- [ ] 07-05-PLAN.md — @agent-os/tool-browser workspace: SSRF denylist + Stagehand wrapper + unit tests (SC-7-3)
+- [ ] 07-06-PLAN.md — Runner allowedTools narrowing + custom-tool dispatch + live Browserbase smoke (SC-7-3)
+- [ ] 07-07-PLAN.md — Seed tool.browser row + architect regression assertions (SC-7-1, SC-7-3)
 
 ### Phase 8: Phase-4 doctrine batch seed (moat + meta-layer)
 **Goal**: Seed ~20 Phase-4 agents (governance, knowledge curation, pricing, treasury).
