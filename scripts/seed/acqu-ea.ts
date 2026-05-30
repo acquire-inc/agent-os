@@ -4,7 +4,7 @@
 
 import { TENANT_IDS } from "@agent-os/shared";
 import { runStandalone } from "./lib/runSpec.js";
-import type { AgentSpec } from "./lib/seedAgent.js";
+import type { AgentSpec } from "@agent-os/core";
 
 // Prompt derived from v2 D7.3 — vitals (what happened) → briefing (what matters)
 // → ea (what's on me) → decision-memo (help me decide). v2 line 1693: "These keep

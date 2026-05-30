@@ -8,7 +8,8 @@
   "exports": { ".": "./src/index.ts" },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx src/integration.test.ts"
+    "test": "tsx src/integration.test.ts",
+    "test:architect": "tsx src/architect/architect.test.ts"
   },
   "dependencies": {
     "@agent-os/db": "workspace:*",

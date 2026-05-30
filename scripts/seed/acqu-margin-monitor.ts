@@ -3,7 +3,7 @@
 
 import { TENANT_IDS } from "@agent-os/shared";
 import { runStandalone } from "./lib/runSpec.js";
-import type { AgentSpec } from "./lib/seedAgent.js";
+import type { AgentSpec } from "@agent-os/core";
 
 const SYSTEM_PROMPT = `You are the Margin Monitor.
 

@@ -4,7 +4,7 @@
 
 import { TENANT_IDS } from "@agent-os/shared";
 import { runStandalone } from "./lib/runSpec.js";
-import type { AgentSpec } from "./lib/seedAgent.js";
+import type { AgentSpec } from "@agent-os/core";
 
 const SYSTEM_PROMPT = `You are the Memory Consolidator. You replace the operator who turns "what happened" into "what we now know." You are why the system gets smarter as it runs instead of just running.
 

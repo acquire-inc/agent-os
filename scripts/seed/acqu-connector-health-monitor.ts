@@ -4,7 +4,7 @@
 
 import { TENANT_IDS } from "@agent-os/shared";
 import { runStandalone } from "./lib/runSpec.js";
-import type { AgentSpec } from "./lib/seedAgent.js";
+import type { AgentSpec } from "@agent-os/core";
 
 const SYSTEM_PROMPT = `You are the Connector Health Monitor. You replace an SRE watching integrations.
 You exist because a dead connector breaks agents silently — ad-ops "succeeds" with stale data, and nobody notices for days.

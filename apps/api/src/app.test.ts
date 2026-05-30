@@ -1,10 +1,10 @@
 // In-process API integration test (no port). Hits the Hono app via app.request.
 // Run: DATABASE_URL=... pnpm --filter @agent-os/api test
-import { createApiKey } from "@agent-os/core";
+import { createApiKey, fixtureLlmFromJson } from "@agent-os/core";
 import { schema } from "@agent-os/db";
 import { eq } from "drizzle-orm";
 import { AGENT_IDS, TENANT_IDS } from "@agent-os/shared";
-import { app, db } from "./index.js";
+import { app, db, setArchitectLlm } from "./index.js";
 
 let passed = 0,
   failed = 0;
@@ -121,6 +121,116 @@ async function main() {
   assert(decide.status === 200, "decide approval (200)");
   const [postDecide] = await db.select().from(schema.runs).where(eq(schema.runs.id, bridgeRun!.id));
   assert(postDecide?.status === "pending", "decided run → 'pending' (claimable by runner)");
+
+  console.log("\n[architect (1d — plain-English → seeded agents)]");
+  // 501 path when no LLM is configured.
+  setArchitectLlm(null);
+  const unconfigured = await app.request("/api/admin/architect/propose", {
+    method: "POST", headers: ah, body: JSON.stringify({ prompt: "build me a marketing team" }),
+  });
+  assert(unconfigured.status === 501, "501 when OPENROUTER_API_KEY isn't set");
+
+  // Inject a fixture LLM that emits a valid 2-agent blueprint.
+  setArchitectLlm(fixtureLlmFromJson({
+    teamName: "Test Marketing Pair",
+    rationale: "Two-agent loop: scout the market, post to Slack.",
+    agents: [
+      {
+        key: "apitest-meta-scout",
+        name: "Apitest Meta Scout",
+        role: "Scout competitor ads.",
+        systemPrompt: "You are the Apitest Meta Scout. EVERY MORNING (07:00): ... RULES: ...",
+        model: "nousresearch/hermes-4-70b",
+        thinkingLevel: "low",
+        autonomy: "propose",
+        knowledgeScope: { folders: ["ad-playbooks"], tags: [] },
+        budgetCapUsd: "0.30",
+        cron: { schedule: "0 7 * * *", jobName: "Apitest morning scout" },
+        skillKeys: ["competitor-ad-teardown"],
+        mcpNames: ["Pipeboard × Meta"],
+      },
+      {
+        key: "apitest-slack-poster",
+        name: "Apitest Slack Poster",
+        role: "Post scout findings to Slack.",
+        systemPrompt: "You are the Apitest Slack Poster. EVERY MORNING (07:15): ... RULES: ...",
+        model: "nousresearch/hermes-4-70b",
+        thinkingLevel: "low",
+        autonomy: "propose",
+        knowledgeScope: { folders: [], tags: [] },
+        budgetCapUsd: "0.10",
+        cron: { schedule: "15 7 * * *", jobName: "Apitest scout post" },
+        skillKeys: [],
+        mcpNames: ["Slack"],
+      },
+    ],
+    proposedSkills: [],
+    proposedMcps: [],
+  }, { model: "fixture/hermes-4-405b", costUsd: 0.01 }));
+
+  // Non-admin → 403
+  const noAdminPropose = await app.request("/api/admin/architect/propose", {
+    method: "POST", headers: rh, body: JSON.stringify({ prompt: "anything" }),
+  });
+  assert(noAdminPropose.status === 403, "runner key cannot propose blueprints (403)");
+
+  // Missing prompt → 400
+  const noPrompt = await app.request("/api/admin/architect/propose", {
+    method: "POST", headers: ah, body: JSON.stringify({}),
+  });
+  assert(noPrompt.status === 400, "400 when prompt missing");
+
+  // Happy path → 201 with blueprint
+  const proposeRes = await app.request("/api/admin/architect/propose", {
+    method: "POST", headers: ah, body: JSON.stringify({ prompt: "create my marketing team for Meta ads" }),
+  });
+  assert(proposeRes.status === 201, "propose returns 201");
+  const proposed = (await proposeRes.json()) as { blueprint: { id: string; teamName: string; agents: { key: string; enabled: boolean; autonomy: string }[]; warnings: string[]; status: string } };
+  assert(proposed.blueprint.teamName === "Test Marketing Pair", "blueprint persisted with teamName");
+  assert(proposed.blueprint.agents.length === 2, "blueprint has 2 agents");
+  assert(proposed.blueprint.agents.every((a) => a.autonomy === "propose"), "all blueprint agents autonomy=propose");
+  assert(proposed.blueprint.agents.every((a) => a.enabled === false), "all blueprint agents enabled=false");
+  assert(proposed.blueprint.status === "proposed", "blueprint status=proposed");
+
+  // GET single blueprint
+  const getOne = await app.request(`/api/admin/architect/blueprints/${proposed.blueprint.id}`, { headers: ah });
+  assert(getOne.status === 200, "GET blueprint by id (200)");
+  // 404 unknown id
+  const notFound = await app.request("/api/admin/architect/blueprints/00000000-0000-0000-0000-000000000000", { headers: ah });
+  assert(notFound.status === 404, "unknown blueprint id → 404");
+  // GET list
+  const listRes = await app.request("/api/admin/architect/blueprints?limit=5", { headers: ah });
+  const list = (await listRes.json()) as { blueprints: { id: string }[] };
+  assert(list.blueprints.length >= 1, "list returns at least the new blueprint");
+
+  // Seed it.
+  const seedRes = await app.request("/api/admin/architect/seed", {
+    method: "POST", headers: ah, body: JSON.stringify({ blueprintId: proposed.blueprint.id }),
+  });
+  assert(seedRes.status === 201, "seed returns 201");
+  const seeded = (await seedRes.json()) as { seeded: { key: string; autonomy: string; enabled: boolean; agentId: string }[] };
+  assert(seeded.seeded.length === 2, "2 agents seeded");
+  assert(seeded.seeded.every((s) => s.autonomy === "propose" && s.enabled === false), "all seeded autonomy=propose, enabled=false");
+
+  // Idempotent re-seed returns the same agents (status=seeded short-circuit).
+  const reSeed = await app.request("/api/admin/architect/seed", {
+    method: "POST", headers: ah, body: JSON.stringify({ blueprintId: proposed.blueprint.id }),
+  });
+  assert(reSeed.status === 201, "re-seed idempotent (201)");
+
+  // Cross-tenant blueprint fetch returns 404.
+  const otherAdmin = (await createApiKey(db, { tenantId: TENANT_IDS.cliently, kind: "admin", name: "apitest-admin-other" })).raw;
+  const crossGet = await app.request(`/api/admin/architect/blueprints/${proposed.blueprint.id}`, {
+    headers: { Authorization: `Bearer ${otherAdmin}` },
+  });
+  assert(crossGet.status === 404, "blueprint scoped to its tenant (cross-tenant 404)");
+
+  // Clean up the seeded agents so re-runs of the test stay green.
+  for (const s of seeded.seeded) {
+    await db.delete(schema.agents).where(eq(schema.agents.id, s.agentId));
+  }
+  // And drop the blueprints we created.
+  await db.delete(schema.architectBlueprints).where(eq(schema.architectBlueprints.tenantId, ACQU));
 
   console.log("\n[cost + knowledge]");
   const cost = (await (await app.request("/api/cost", { headers: rh })).json()) as { summary: { total: number }; budget: { level: string } };

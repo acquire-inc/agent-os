@@ -259,6 +259,9 @@ importers:
 
   scripts/seed:
     dependencies:
+      '@agent-os/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@agent-os/db':
         specifier: workspace:*
         version: link:../../packages/db

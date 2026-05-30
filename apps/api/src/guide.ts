@@ -26,5 +26,9 @@ export const adminGuide = {
     "POST /api/admin/mcps": "Register an MCP. Body { name, transport?, endpoint?, authType? }.",
     "POST /api/admin/keys": "Mint an API key. Body { kind, name }. Returns the raw key once.",
     "POST /api/admin/provision": "Onboard a client: clone your tenant's workforce into a new client tenant. Body { name, slug, ownerUserId, monthlyBudgetUsd? }.",
+    "POST /api/admin/architect/propose": "Plain-English → N proposed agents (Blueprint). Body { prompt, mode?: 'team'|'single'|'remix', baseAgentKey?, llmBudgetUsd? }. Returns { blueprint }. 501 if OPENROUTER_API_KEY isn't set.",
+    "GET  /api/admin/architect/blueprints": "List recent blueprints (?limit=20).",
+    "GET  /api/admin/architect/blueprints/:id": "Fetch one blueprint (status, agents, warnings).",
+    "POST /api/admin/architect/seed": "Persist an approved blueprint via seedAgent. Body { blueprintId }. All seeded agents land autonomy=propose, enabled=false (operator flips on after dry-run).",
   },
 };

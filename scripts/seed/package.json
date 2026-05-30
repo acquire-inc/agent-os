@@ -17,6 +17,7 @@
     "phase-1": "tsx seed-phase-1.ts"
   },
   "dependencies": {
+    "@agent-os/core": "workspace:*",
     "@agent-os/db": "workspace:*",
     "@agent-os/shared": "workspace:*",
     "drizzle-orm": "^0.45.2"

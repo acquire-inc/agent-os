@@ -1,21 +1,37 @@
-// scripts/seed/lib/seedAgent.ts
-// Shared, idempotent helpers for seeding an agent as DATA.
-// Re-running brings the DB to the same final state.
+// Idempotent agent-seeding helpers — single source of truth used by:
+//   1) scripts/seed/* (operator CLI for hand-authored Acqu agents)
+//   2) the Architect (LLM-driven agent creation)
 //
-// Source of truth: doctrine docs in /docs/. The seed scripts in this folder are
-// thin specs (data) that resolve through `seedAgent(db, spec)` below.
+// Re-running with the same AgentSpec brings the DB to the same final state.
+// A change to the systemPrompt creates a new versioned row in agent_prompts.
 
-import { createDb, schema } from "@agent-os/db";
+import { schema, type Db } from "@agent-os/db";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = join(HERE, "..", "..", "..");
+export interface SkillSource {
+  readSkillMd(key: string): Promise<string | null>;
+}
 
-type Db = ReturnType<typeof createDb>;
+/** Default reader: pulls from {repoRoot}/external/acqu-skills/{key}/SKILL.md. */
+export function diskSkillSource(repoRoot: string): SkillSource {
+  return {
+    async readSkillMd(key) {
+      try {
+        return await readFile(join(repoRoot, "external", "acqu-skills", key, "SKILL.md"), "utf8");
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
+/** Tests / in-process callers: provide content by key. */
+export function inMemorySkillSource(map: Record<string, string>): SkillSource {
+  return { async readSkillMd(key) { return map[key] ?? null; } };
+}
 
 // ---------- skills --------------------------------------------------------
 
@@ -23,6 +39,7 @@ export async function ensureSkillFromDir(
   db: Db,
   tenantId: string,
   args: { key: string; name: string },
+  source: SkillSource,
 ) {
   const [existing] = await db
     .select()
@@ -30,15 +47,7 @@ export async function ensureSkillFromDir(
     .where(and(eq(schema.skills.tenantId, tenantId), eq(schema.skills.key, args.key)))
     .limit(1);
 
-  let content = "";
-  try {
-    content = await readFile(
-      join(REPO_ROOT, "external", "acqu-skills", args.key, "SKILL.md"),
-      "utf8",
-    );
-  } catch {
-    /* allow seeding even if SKILL.md isn't authored yet */
-  }
+  const content = (await source.readSkillMd(args.key)) ?? "";
   const version = content
     ? createHash("sha256").update(content).digest("hex").slice(0, 12)
     : "0.0.0";
@@ -253,6 +262,8 @@ export type AgentSpec = {
   budgetCapUsd: string;
   escalationPolicy?: string | null;
   runnerKind?: string;
+  /** When false, the runner skips this agent. Architect seeds with `false` until first dry-run. */
+  enabled?: boolean;
   cron?: { schedule: string; jobName: string } | null;
   skills: { key: string; name: string }[];
   mcpNames: string[];
@@ -268,9 +279,13 @@ export type AgentSeedResult = {
 };
 
 /** Seed a single agent end-to-end. Idempotent: safe to re-run. */
-export async function seedAgent(db: Db, spec: AgentSpec): Promise<AgentSeedResult> {
+export async function seedAgent(
+  db: Db,
+  spec: AgentSpec,
+  options: { skillSource: SkillSource },
+): Promise<AgentSeedResult> {
   const skillRows = await Promise.all(
-    spec.skills.map((s) => ensureSkillFromDir(db, spec.tenantId, s)),
+    spec.skills.map((s) => ensureSkillFromDir(db, spec.tenantId, s, options.skillSource)),
   );
   const mcpRows = await Promise.all(spec.mcpNames.map((n) => findMcpByName(db, spec.tenantId, n)));
 
@@ -285,7 +300,7 @@ export async function seedAgent(db: Db, spec: AgentSpec): Promise<AgentSeedResul
     budgetCapUsd: spec.budgetCapUsd,
     escalationPolicy: spec.escalationPolicy ?? null,
     runnerKind: spec.runnerKind ?? "local",
-    enabled: true,
+    enabled: spec.enabled ?? true,
     templateId: null,
   });
 

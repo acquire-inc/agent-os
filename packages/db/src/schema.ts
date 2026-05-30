@@ -336,3 +336,26 @@ export const apiKeys = pgTable("api_keys", {
   createdBy: uuid("created_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Architect blueprints — proposed agent teams awaiting operator review/seed.
+ * Spec: docs/specs/agent-architect.md
+ */
+export const architectBlueprints = pgTable("architect_blueprints", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  createdByUserId: uuid("created_by_user_id"),
+  prompt: text("prompt").notNull(),
+  teamName: text("team_name").notNull(),
+  rationale: text("rationale").notNull(),
+  llmModel: text("llm_model").notNull(),
+  llmCostUsd: numeric("llm_cost_usd", { precision: 12, scale: 4 }).notNull().default("0"),
+  status: text("status").notNull().default("proposed"),
+  warningsJson: jsonb("warnings_json").notNull().default([]),
+  agentsJson: jsonb("agents_json").notNull(),
+  proposedSkillsJson: jsonb("proposed_skills_json").notNull().default([]),
+  proposedMcpsJson: jsonb("proposed_mcps_json").notNull().default([]),
+  seededAgentIds: jsonb("seeded_agent_ids").notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});

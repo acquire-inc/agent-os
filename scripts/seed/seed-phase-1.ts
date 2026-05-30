@@ -4,6 +4,7 @@
 // Prints a verification table the operator can eyeball against the manifest.
 
 import { createDb } from "@agent-os/db";
+import { seedAgent, type AgentSpec } from "@agent-os/core";
 import { adOpsSpec } from "./acqu-ad-ops.js";
 import { briefingSpec } from "./acqu-briefing.js";
 import { connectorHealthMonitorSpec } from "./acqu-connector-health-monitor.js";
@@ -13,7 +14,7 @@ import { expenseTrackerSpec } from "./acqu-expense-tracker.js";
 import { marginMonitorSpec } from "./acqu-margin-monitor.js";
 import { memoryConsolidatorSpec } from "./acqu-memory-consolidator.js";
 import { vitalsSpec } from "./acqu-vitals.js";
-import { seedAgent, type AgentSpec } from "./lib/seedAgent.js";
+import { SKILL_SOURCE } from "./lib/runSpec.js";
 
 const PHASE_1: AgentSpec[] = [
   vitalsSpec,
@@ -45,7 +46,7 @@ async function main() {
   }[] = [];
 
   for (const spec of PHASE_1) {
-    const r = await seedAgent(db, spec);
+    const r = await seedAgent(db, spec, { skillSource: SKILL_SOURCE });
     rows.push({
       key: r.agent.key,
       model: r.agent.model,

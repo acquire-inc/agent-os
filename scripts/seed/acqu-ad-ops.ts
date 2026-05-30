@@ -4,7 +4,7 @@
 
 import { TENANT_IDS } from "@agent-os/shared";
 import { runStandalone } from "./lib/runSpec.js";
-import type { AgentSpec } from "./lib/seedAgent.js";
+import type { AgentSpec } from "@agent-os/core";
 
 const SYSTEM_PROMPT = `You are the Ad-Ops Agent for tenant {tenant_name}. You replace a junior media buyer.
 

@@ -8,9 +8,10 @@
 //   - acqu-agent-doctrine.md §2.9 (canonical system prompt + MCP list)
 
 import { createDb, schema } from "@agent-os/db";
+import { seedAgent, type AgentSpec } from "@agent-os/core";
 import { TENANT_IDS } from "@agent-os/shared";
 import { eq } from "drizzle-orm";
-import { seedAgent, type AgentSpec } from "./lib/seedAgent.js";
+import { SKILL_SOURCE } from "./lib/runSpec.js";
 
 const TENANT_ID = TENANT_IDS.acqu;
 
@@ -55,7 +56,7 @@ async function main() {
   const db = createDb(process.env.DATABASE_URL);
 
   console.log("▸ Seeding vitals for tenant Acqu…");
-  const result = await seedAgent(db, vitalsSpec);
+  const result = await seedAgent(db, vitalsSpec, { skillSource: SKILL_SOURCE });
 
   const [a] = await db.select().from(schema.agents).where(eq(schema.agents.id, result.agent.id));
   const prompts = await db

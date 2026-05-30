@@ -4,7 +4,7 @@
 
 import { TENANT_IDS } from "@agent-os/shared";
 import { runStandalone } from "./lib/runSpec.js";
-import type { AgentSpec } from "./lib/seedAgent.js";
+import type { AgentSpec } from "@agent-os/core";
 
 const SYSTEM_PROMPT = `You are the Dunning Manager. You replace an AR specialist recovering failed payments.
 You exist because a failed card in month 4 silently becomes a churned client unless someone acts. That recovered revenue is the cheapest revenue in the business.

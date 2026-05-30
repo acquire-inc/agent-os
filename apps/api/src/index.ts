@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { createDb, schema } from "@agent-os/db";
 import {
+  ArchitectError,
   AUTONOMY_EVENT_KINDS,
   appendActivity,
   buildBundle,
@@ -8,20 +9,27 @@ import {
   claimNextRun,
   costSummary,
   createApiKey,
+  diskSkillSource,
   hashEmbedder,
   indexDocument,
+  listBlueprints,
+  loadBlueprint,
+  openrouterLlm,
   peekNextRun,
+  proposeBlueprint,
   provisionClientTenant,
   recordAutonomyEvent,
   raiseApproval,
   resolveApproval,
   retrieve,
   retryRun,
+  seedFromBlueprint,
   sendApprovalNotification,
   setRunStatus,
   verifyApiKey,
   writeAudit,
   type ApiKeyContext,
+  type LlmClient,
 } from "@agent-os/core";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
@@ -51,6 +59,23 @@ const tokenResolver = vaultKey ? makeBundleTokenResolver(db, vaultKey) : undefin
 // Embedder for knowledge indexing/retrieval. hashEmbedder needs no API key;
 // swap for a Voyage/OpenAI embedder in production.
 const embedder = hashEmbedder();
+
+// Architect LLM — optional. Without OPENROUTER_API_KEY the /architect/propose
+// endpoint returns 501; everything else works. The `let` + setter pattern lets
+// tests inject a fixture LLM via setArchitectLlm() without touching env.
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
+let architectLlm: LlmClient | null = OPENROUTER_KEY
+  ? openrouterLlm({ apiKey: OPENROUTER_KEY, model: process.env.ARCHITECT_MODEL ?? "nousresearch/hermes-4-405b" })
+  : null;
+export function setArchitectLlm(client: LlmClient | null) {
+  architectLlm = client;
+}
+if (!architectLlm) {
+  console.warn("OPENROUTER_API_KEY not set — /api/admin/architect/propose returns 501.");
+}
+// SKILL.md files live at {repoRoot}/external/acqu-skills/<key>/. From this
+// process's cwd (the api package), that's two levels up.
+const architectSkillSource = diskSkillSource(process.env.REPO_ROOT ?? process.cwd());
 
 type Vars = { auth: ApiKeyContext };
 const app = new Hono<{ Variables: Vars }>();
@@ -355,6 +380,68 @@ app.post("/api/admin/keys", requireAdmin, async (c) => {
   if (!b.kind || !b.name) return c.json({ error: "kind and name required" }, 400);
   const { raw, row } = await createApiKey(db, { tenantId, kind: b.kind, name: b.name });
   return c.json({ key: raw, id: row?.id, note: "Store this key now — it is shown only once." }, 201);
+});
+
+// ============================ Architect ============================
+// Plain-English → N seeded agents. Spec: docs/specs/agent-architect.md
+app.post("/api/admin/architect/propose", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const b = await c.req.json().catch(() => ({}));
+  if (typeof b.prompt !== "string" || !b.prompt.trim())
+    return c.json({ error: "prompt required" }, 400);
+  if (!architectLlm)
+    return c.json({ error: "architect not configured — set OPENROUTER_API_KEY" }, 501);
+  try {
+    const blueprint = await proposeBlueprint(
+      { db, llm: architectLlm },
+      {
+        prompt: b.prompt,
+        tenantId,
+        userId: b.userId ?? null,
+        mode: b.mode,
+        baseAgentKey: b.baseAgentKey,
+        llmBudgetUsd: typeof b.llmBudgetUsd === "number" ? b.llmBudgetUsd : undefined,
+      },
+    );
+    return c.json({ blueprint }, 201);
+  } catch (e) {
+    if (e instanceof ArchitectError) return c.json({ error: e.message, code: e.code }, 400);
+    throw e;
+  }
+});
+
+app.get("/api/admin/architect/blueprints", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const limit = Number(c.req.query("limit") ?? 20);
+  const blueprints = await listBlueprints(db, tenantId, Number.isFinite(limit) ? limit : 20);
+  return c.json({ blueprints });
+});
+
+app.get("/api/admin/architect/blueprints/:id", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const blueprint = await loadBlueprint(db, tenantId, c.req.param("id"));
+  if (!blueprint) return c.json({ error: "blueprint not found" }, 404);
+  return c.json({ blueprint });
+});
+
+app.post("/api/admin/architect/seed", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const b = await c.req.json().catch(() => ({}));
+  if (typeof b.blueprintId !== "string")
+    return c.json({ error: "blueprintId required" }, 400);
+  try {
+    const result = await seedFromBlueprint(db, {
+      tenantId,
+      blueprintId: b.blueprintId,
+      skillSource: architectSkillSource,
+    });
+    return c.json(result, 201);
+  } catch (e) {
+    if (e instanceof ArchitectError) {
+      return c.json({ error: e.message, code: e.code }, e.code === "not_found" ? 404 : 400);
+    }
+    throw e;
+  }
 });
 
 // ============================ Connections ============================
