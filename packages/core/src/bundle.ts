@@ -2,7 +2,7 @@ import { schema, type Db } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { and, eq, inArray } from "drizzle-orm";
 
-const { agents, agentMcps, agentSkills, documents, envVars, jobRefs, jobs, mcps, runs, skills } = schema;
+const { agents, agentMcps, agentSkills, agentTools, documents, envVars, jobRefs, jobs, mcps, runs, skills, tools } = schema;
 
 export interface Bundle {
   run: {
@@ -34,6 +34,14 @@ export interface Bundle {
     authType: string;
     scope: string;
     credentials: { vaultRef?: string; token?: string; ttlSeconds: number } | null;
+  }[];
+  tools: {
+    key: string;
+    name: string;
+    kind: string;
+    inputSchema: unknown;
+    requiresApproval: boolean;
+    reversible: boolean;
   }[];
   knowledge: { chunk: string; source: string }[];
   envVars: Record<string, string>;
@@ -81,13 +89,16 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
 
   const agentSkillRows = await db.select().from(agentSkills).where(eq(agentSkills.agentId, agent.id));
   const agentMcpRows = await db.select().from(agentMcps).where(eq(agentMcps.agentId, agent.id));
+  const agentToolRows = await db.select().from(agentTools).where(eq(agentTools.agentId, agent.id));
   const skillIds = agentSkillRows.map((r) => r.skillId);
   const mcpIds = agentMcpRows.map((r) => r.mcpId);
+  const toolIds = agentToolRows.map((r) => r.toolId);
 
-  const [docRows, skillRows, mcpRows, envRows] = await Promise.all([
+  const [docRows, skillRows, mcpRows, toolRows, envRows] = await Promise.all([
     docRefIds.length ? db.select().from(documents).where(inArray(documents.id, docRefIds)) : Promise.resolve([]),
     skillIds.length ? db.select().from(skills).where(inArray(skills.id, skillIds)) : Promise.resolve([]),
     mcpIds.length ? db.select().from(mcps).where(inArray(mcps.id, mcpIds)) : Promise.resolve([]),
+    toolIds.length ? db.select().from(tools).where(inArray(tools.id, toolIds)) : Promise.resolve([]),
     envRefIds.length
       ? db.select().from(envVars).where(and(eq(envVars.tenantId, run.tenantId), inArray(envVars.id, envRefIds)))
       : db.select().from(envVars).where(and(eq(envVars.tenantId, run.tenantId), eq(envVars.pinned, true))),
@@ -145,6 +156,15 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
         return { name: m.name, transport: m.transport, endpoint: m.endpoint, authType: m.authType, scope: m.scope, credentials };
       }),
     ),
+    // Tools carry no OAuth/credentials — a plain projection of the registry row.
+    tools: toolRows.map((t) => ({
+      key: t.key,
+      name: t.name,
+      kind: t.kind,
+      inputSchema: t.inputSchema,
+      requiresApproval: t.requiresApproval,
+      reversible: t.reversible,
+    })),
     knowledge,
     // Decrypt env values via the vault; never emit ciphertext. Omit if no decryptor.
     envVars: opts.decryptEnv
