@@ -16,6 +16,7 @@
     "db:seed": "pnpm --filter @agent-os/db seed",
     "seed:acqu-vitals": "pnpm --filter @agent-os/seed run acqu-vitals",
     "seed:phase-1": "pnpm --filter @agent-os/seed run phase-1",
+    "seed:phase-2": "pnpm --filter @agent-os/seed run phase-2",
     "verify": "bash scripts/test-all.sh"
   },
   "devDependencies": {

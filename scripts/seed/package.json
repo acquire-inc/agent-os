@@ -14,7 +14,16 @@
     "acqu-dunning-manager": "tsx acqu-dunning-manager.ts",
     "acqu-connector-health-monitor": "tsx acqu-connector-health-monitor.ts",
     "acqu-memory-consolidator": "tsx acqu-memory-consolidator.ts",
-    "phase-1": "tsx seed-phase-1.ts"
+    "phase-1": "tsx seed-phase-1.ts",
+    "acqu-creative-miner": "tsx acqu-creative-miner.ts",
+    "acqu-creative-studio": "tsx acqu-creative-studio.ts",
+    "acqu-creative-critic": "tsx acqu-creative-critic.ts",
+    "acqu-content-engine": "tsx acqu-content-engine.ts",
+    "acqu-weekly-report": "tsx acqu-weekly-report.ts",
+    "acqu-ad-claim-compliance": "tsx acqu-ad-claim-compliance.ts",
+    "acqu-win-detector": "tsx acqu-win-detector.ts",
+    "acqu-case-study-builder": "tsx acqu-case-study-builder.ts",
+    "phase-2": "tsx seed-phase-2.ts"
   },
   "dependencies": {
     "@agent-os/core": "workspace:*",
