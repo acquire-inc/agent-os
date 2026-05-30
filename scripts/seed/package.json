@@ -23,7 +23,20 @@
     "acqu-ad-claim-compliance": "tsx acqu-ad-claim-compliance.ts",
     "acqu-win-detector": "tsx acqu-win-detector.ts",
     "acqu-case-study-builder": "tsx acqu-case-study-builder.ts",
-    "phase-2": "tsx seed-phase-2.ts"
+    "phase-2": "tsx seed-phase-2.ts",
+    "acqu-launcher": "tsx acqu-launcher.ts",
+    "acqu-lead-triage": "tsx acqu-lead-triage.ts",
+    "acqu-booking-concierge": "tsx acqu-booking-concierge.ts",
+    "acqu-funnel-monitor": "tsx acqu-funnel-monitor.ts",
+    "acqu-onboarding-runner": "tsx acqu-onboarding-runner.ts",
+    "acqu-client-comms": "tsx acqu-client-comms.ts",
+    "acqu-client-health": "tsx acqu-client-health.ts",
+    "acqu-churn-risk-detector": "tsx acqu-churn-risk-detector.ts",
+    "acqu-ar-aging-monitor": "tsx acqu-ar-aging-monitor.ts",
+    "acqu-revenue-recognizer": "tsx acqu-revenue-recognizer.ts",
+    "acqu-cash-position-monitor": "tsx acqu-cash-position-monitor.ts",
+    "acqu-runway-watcher": "tsx acqu-runway-watcher.ts",
+    "phase-3": "tsx seed-phase-3.ts"
   },
   "dependencies": {
     "@agent-os/core": "workspace:*",
