@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx src/integration.test.ts",
     "test:tools-schema": "tsx src/integration.test.ts",
+    "test:seed-tools": "tsx src/seed/seedAgent.test.ts",
     "test:architect": "tsx src/architect/architect.test.ts"
   },
   "dependencies": {
