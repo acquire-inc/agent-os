@@ -217,6 +217,33 @@ async function main() {
   assert(gaps.missingSkills.includes("meta-anomaly-watch"), "identifies missing skill key");
   assert(gaps.missingMcps.includes("MissingMCP"), "identifies missing MCP name");
 
+  console.log("• remix prompt + key preservation");
+  const { buildUserPrompt } = await import("./prompt.js");
+  const baseAgent = {
+    key: "briefing",
+    name: "Briefing",
+    model: "nousresearch/hermes-4-405b",
+    autonomy: "execute_safe",
+    systemPrompt: "You are the Briefing agent. EVERY MORNING (08:00): ...",
+    budgetCapUsd: "0.50",
+    cronSchedule: "0 8 * * *",
+  };
+  const remixUser = buildUserPrompt(
+    { tenantId: TENANT, prompt: "switch to weekly on Mondays at 09:00", mode: "remix", baseAgentKey: "briefing" },
+    baseAgent,
+  );
+  assert(remixUser.includes("REMIX request"), "remix branch labels the request");
+  assert(remixUser.includes("MUST reuse the exact same key"), "remix branch insists on same key");
+  assert(remixUser.includes("current systemPrompt:"), "remix branch includes current prompt");
+  assert(remixUser.includes("0 8 * * *"), "remix branch includes current cron");
+
+  const remixNoBase = buildUserPrompt(
+    { tenantId: TENANT, prompt: "make it weekly", mode: "remix", baseAgentKey: "unknown" },
+    undefined,
+  );
+  assert(remixNoBase.includes("REMIX request"), "remix branch still labels the request when base unknown");
+  assert(remixNoBase.includes("not found on tenant"), "remix branch flags missing base agent");
+
   console.log("");
   console.log(`Results: ${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
