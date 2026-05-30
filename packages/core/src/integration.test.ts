@@ -13,6 +13,8 @@ import {
   buildApprovalOptions,
   computeAgentMetrics,
   proposeAutonomyChange,
+  lintVoice,
+  isVoiceClean,
   hashApiKey,
   hashEmbedder,
   isIrreversibleTool,
