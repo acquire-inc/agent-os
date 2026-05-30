@@ -114,7 +114,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — tools + agent_tools migration 0007, Drizzle mirror, RLS tests (SC-7-1)
+- [x] 07-01-PLAN.md — tools + agent_tools migration 0007, Drizzle mirror, RLS tests (SC-7-1) — done (supabase db push deferred to operator; see 07-01-SUMMARY.md)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
