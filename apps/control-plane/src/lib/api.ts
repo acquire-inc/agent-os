@@ -89,6 +89,12 @@ export interface Blueprint {
 export const architect = {
   propose: (args: { prompt: string; mode?: "team" | "single" | "remix"; baseAgentKey?: string }) =>
     call<{ blueprint: Blueprint }>("POST", "/api/admin/architect/propose", args),
+  remix: (baseAgentKey: string, instruction: string) =>
+    call<{ blueprint: Blueprint }>("POST", "/api/admin/architect/propose", {
+      prompt: instruction,
+      mode: "remix",
+      baseAgentKey,
+    }),
   list: () => call<{ blueprints: Blueprint[] }>("GET", "/api/admin/architect/blueprints?limit=30"),
   get: (id: string) => call<{ blueprint: Blueprint }>("GET", `/api/admin/architect/blueprints/${id}`),
   seed: (blueprintId: string) =>

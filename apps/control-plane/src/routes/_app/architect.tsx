@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight, Loader2, Sparkles, Wand2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -11,7 +11,13 @@ import { Card } from "#/components/ui/card";
 import { Separator } from "#/components/ui/misc";
 import { ApiError, architect, hasAdminKey, type Blueprint } from "#/lib/api";
 
-export const Route = createFileRoute("/_app/architect")({ component: ArchitectPage });
+type ArchitectSearch = { focus?: string };
+export const Route = createFileRoute("/_app/architect")({
+  component: ArchitectPage,
+  validateSearch: (s: Record<string, unknown>): ArchitectSearch => ({
+    focus: typeof s.focus === "string" ? s.focus : undefined,
+  }),
+});
 
 const EXAMPLES = [
   "create my marketing team for Meta ads",
@@ -22,6 +28,7 @@ const EXAMPLES = [
 
 function ArchitectPage() {
   const qc = useQueryClient();
+  const { focus } = Route.useSearch();
   const [prompt, setPrompt] = useState("");
   const [active, setActive] = useState<Blueprint | null>(null);
   const noKey = !hasAdminKey();
@@ -31,6 +38,13 @@ function ArchitectPage() {
     queryFn: () => architect.list().then((r) => r.blueprints),
     enabled: !noKey,
   });
+
+  // Auto-focus a blueprint when arriving with ?focus=<id> (e.g. from Remix).
+  useEffect(() => {
+    if (!focus || active?.id === focus) return;
+    const found = list.data?.find((bp) => bp.id === focus);
+    if (found) setActive(found);
+  }, [focus, list.data, active?.id]);
 
   const propose = useMutation({
     mutationFn: () => architect.propose({ prompt }),

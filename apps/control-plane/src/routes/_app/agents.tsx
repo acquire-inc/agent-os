@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { Boxes, Cable, Plus, Sparkles } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { AlertCircle, Boxes, Cable, Loader2, Plus, Sparkles, Wand2 } from "lucide-react";
 import { useState } from "react";
+import { architect, hasAdminKey } from "#/lib/api";
 import type { Agent, Job, Run } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
 import { EmptyState, Page, PageHeader } from "#/components/shell/page";
@@ -176,6 +177,7 @@ function AgentDrawer({ agent, tenantId, onClose }: { agent: Agent; tenantId: str
 
         <TabsContent value="overview" className="space-y-4">
           <p className="text-sm">{agent.persona ?? "No description."}</p>
+          <RemixPanel agentKey={agent.key} agentName={agent.name} />
           <div className="grid grid-cols-2 gap-3">
             <Field label="Backend" value={agent.backend} />
             <Field label="Model" value={agent.model} />
@@ -246,6 +248,65 @@ function AgentDrawer({ agent, tenantId, onClose }: { agent: Agent; tenantId: str
         </TabsContent>
       </Tabs>
     </Drawer>
+  );
+}
+
+function RemixPanel({ agentKey, agentName }: { agentKey: string; agentName: string }) {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const noKey = !hasAdminKey();
+  const remix = useMutation({
+    mutationFn: () => architect.remix(agentKey, instruction),
+    onSuccess: (r) => {
+      setOpen(false);
+      setInstruction("");
+      navigate({ to: "/architect", search: { focus: r.blueprint.id } });
+    },
+  });
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-primary/50 hover:text-foreground"
+      >
+        <Wand2 className="size-3.5" /> Remix this agent
+      </button>
+    );
+  }
+  return (
+    <div className="rounded-lg border border-border bg-subtle p-3">
+      <p className="mb-2 text-xs font-medium">Remix {agentName}</p>
+      <p className="mb-2 text-xs text-muted-foreground">
+        One-line instruction. The Architect returns a single-agent blueprint with the same key —
+        landing in DB demotes the agent to autonomy=propose until you approve again.
+      </p>
+      {noKey && (
+        <p className="mb-2 flex items-center gap-1.5 text-xs text-amber-600">
+          <AlertCircle className="size-3.5" /> Set an admin key on /settings first.
+        </p>
+      )}
+      <textarea
+        value={instruction}
+        onChange={(e) => setInstruction(e.target.value)}
+        placeholder='e.g. "switch to weekly on Mondays at 09:00"'
+        rows={2}
+        className="w-full rounded-md border border-border bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+        disabled={noKey || remix.isPending}
+      />
+      {remix.isError && (
+        <p className="mt-2 text-xs text-destructive">{(remix.error as Error).message}</p>
+      )}
+      <div className="mt-2 flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
+        <Button size="sm" onClick={() => remix.mutate()} disabled={noKey || !instruction.trim() || remix.isPending}>
+          {remix.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
+          Propose remix
+        </Button>
+      </div>
+    </div>
   );
 }
 
