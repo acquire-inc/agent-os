@@ -4,7 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "acqu-vitals": "tsx acqu-vitals.ts"
+    "acqu-vitals": "tsx acqu-vitals.ts",
+    "acqu-ad-ops": "tsx acqu-ad-ops.ts",
+    "acqu-briefing": "tsx acqu-briefing.ts",
+    "acqu-ea": "tsx acqu-ea.ts",
+    "acqu-expense-tracker": "tsx acqu-expense-tracker.ts",
+    "acqu-margin-monitor": "tsx acqu-margin-monitor.ts",
+    "acqu-dunning-manager": "tsx acqu-dunning-manager.ts",
+    "acqu-connector-health-monitor": "tsx acqu-connector-health-monitor.ts",
+    "acqu-memory-consolidator": "tsx acqu-memory-consolidator.ts",
+    "phase-1": "tsx seed-phase-1.ts"
   },
   "dependencies": {
     "@agent-os/db": "workspace:*",
