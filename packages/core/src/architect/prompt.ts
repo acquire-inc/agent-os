@@ -80,9 +80,33 @@ ${HARD_RULES}
 ${OUTPUT_SCHEMA}`;
 }
 
-export function buildUserPrompt(input: ArchitectInput): string {
+export interface BaseAgentSummary {
+  key: string;
+  name: string;
+  model: string;
+  autonomy: string;
+  systemPrompt: string;
+  budgetCapUsd: string | null;
+  cronSchedule: string | null;
+}
+
+export function buildUserPrompt(input: ArchitectInput, baseAgent?: BaseAgentSummary): string {
   if (input.mode === "remix" && input.baseAgentKey) {
-    return `REMIX request — modify the existing agent "${input.baseAgentKey}" per the instruction below. Return a single-agent team (one element in agents[]). Keep the existing key.\n\nInstruction:\n${input.prompt}`;
+    const base = baseAgent
+      ? `\nBASE AGENT (current row — produce a single-agent team that REPLACES this):
+- key: ${baseAgent.key}     (MUST keep this key — remix targets the same row)
+- name: ${baseAgent.name}
+- model: ${baseAgent.model}
+- autonomy: ${baseAgent.autonomy}
+- budget: $${baseAgent.budgetCapUsd ?? "?"}
+- cron: ${baseAgent.cronSchedule ?? "—"}
+- current systemPrompt:
+"""
+${baseAgent.systemPrompt}
+"""
+`
+      : `\n(base agent "${input.baseAgentKey}" not found on tenant — proceed with caller intent only)\n`;
+    return `REMIX request — modify the existing agent below per the instruction. Return a single-agent team (one element in agents[]). MUST reuse the exact same key.\n${base}\nInstruction:\n${input.prompt}`;
   }
   if (input.mode === "single") {
     return `SINGLE-AGENT request — create exactly ONE new agent. Return a one-agent team.\n\nRequest:\n${input.prompt}`;

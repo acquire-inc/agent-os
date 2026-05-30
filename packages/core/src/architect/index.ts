@@ -12,7 +12,7 @@ import {
   persistBlueprint,
 } from "./persist.js";
 import { ParseError, parseTeamProposal } from "./parse.js";
-import { buildSystemPrompt, buildUserPrompt, type TenantContext } from "./prompt.js";
+import { buildSystemPrompt, buildUserPrompt, type BaseAgentSummary, type TenantContext } from "./prompt.js";
 import type { ArchitectInput, HydratedBlueprint, SeedFromBlueprintResult } from "./types.js";
 
 export * from "./types.js";
@@ -73,6 +73,49 @@ export async function loadTenantContext(db: Db, tenantId: string): Promise<Tenan
   };
 }
 
+/** Load the base agent's full row + current prompt + cron, for remix prompt context. */
+async function loadBaseAgent(
+  db: Db,
+  tenantId: string,
+  key: string,
+): Promise<BaseAgentSummary | null> {
+  const [agent] = await db
+    .select()
+    .from(schema.agents)
+    .where(and(eq(schema.agents.tenantId, tenantId), eq(schema.agents.key, key)))
+    .limit(1);
+  if (!agent) return null;
+  const [prompt] = await db
+    .select()
+    .from(schema.agentPrompts)
+    .where(
+      and(
+        eq(schema.agentPrompts.agentId, agent.id),
+        eq(schema.agentPrompts.isCurrent, true),
+      ),
+    )
+    .limit(1);
+  const [trigger] = await db
+    .select()
+    .from(schema.agentTriggers)
+    .where(
+      and(
+        eq(schema.agentTriggers.agentId, agent.id),
+        eq(schema.agentTriggers.type, "cron"),
+      ),
+    )
+    .limit(1);
+  return {
+    key: agent.key,
+    name: agent.name,
+    model: agent.model,
+    autonomy: agent.autonomy,
+    systemPrompt: prompt?.systemPrompt ?? agent.persona ?? "",
+    budgetCapUsd: agent.budgetCapUsd,
+    cronSchedule: trigger?.schedule ?? null,
+  };
+}
+
 /** Build a ResolverContext from the tenant context — for hydrate(). */
 export function resolverFromContext(ctx: TenantContext): ResolverContext {
   return {
@@ -90,7 +133,11 @@ export async function proposeBlueprint(
 ): Promise<HydratedBlueprint> {
   const tenantCtx = await loadTenantContext(deps.db, input.tenantId);
   const system = buildSystemPrompt(tenantCtx);
-  const user = buildUserPrompt(input);
+  let baseAgent: BaseAgentSummary | undefined;
+  if (input.mode === "remix" && input.baseAgentKey) {
+    baseAgent = (await loadBaseAgent(deps.db, input.tenantId, input.baseAgentKey)) ?? undefined;
+  }
+  const user = buildUserPrompt(input, baseAgent);
   const budget = input.llmBudgetUsd ?? DEFAULT_LLM_BUDGET_USD;
 
   let totalCost = 0;
