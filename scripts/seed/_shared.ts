@@ -21,6 +21,14 @@ export const TENANT_ID = TENANT_IDS.acqu;
 
 export type Db = ReturnType<typeof createDb>;
 
+// ── Model policy (operator override) ──────────────────────────────────────────
+// Per operator decision (2026-05): EVERY Acqu agent runs on Hermes 4 405B. This
+// overrides the doctrine's per-tier split (and the can't-fail "never Hermes" rule)
+// — a deliberate, documented config choice; the doctrine states model is config,
+// overridable per agent. The Claude Agent SDK remains the RUNTIME (backend); only
+// the model routed through it changes. Single source of truth: change here once.
+export const ACQU_AGENT_MODEL = "nousresearch/hermes-4-405b";
+
 /** Ensure a skill row exists for tenant Acqu, sourced from external/acqu-skills/{key}/SKILL.md. */
 export async function ensureSkillFromDir(db: Db, args: { key: string; name: string }) {
   const [existing] = await db

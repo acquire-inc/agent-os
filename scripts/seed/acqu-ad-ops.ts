@@ -3,6 +3,7 @@
 // Model/autonomy/trigger/skills/MCPs per Session B Master Doc §3.
 // System prompt: VERBATIM from acqu-agent-doctrine.md (v1) §2.5 → #### `ad-ops`.
 
+import { ACQU_AGENT_MODEL } from "./_shared.js";
 import { createDb } from "@agent-os/db";
 import {
   TENANT_ID,
@@ -61,7 +62,7 @@ export async function seedAdOps(db: Db) {
     name: "Ad-Ops",
     persona: AD_OPS_SYSTEM_PROMPT,
     backend: "claude-agent-sdk",
-    model: "anthropic/claude-sonnet-4.6",
+    model: ACQU_AGENT_MODEL,
     thinkingLevel: "medium",
     autonomy: "propose", // kills always propose; tier moves gated 30 days
     knowledgeScopeJson: { folders: ["campaign-plan/acqu", "campaign-plan"], tags: ["acqu", "meta"] },

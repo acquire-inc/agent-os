@@ -8,6 +8,7 @@
 import { createDb, schema } from "@agent-os/db";
 import { TENANT_IDS } from "@agent-os/shared";
 import { and, eq, inArray } from "drizzle-orm";
+import { ACQU_AGENT_MODEL } from "./_shared.js";
 import { seedAdOps } from "./acqu-ad-ops.js";
 import { seedBriefing } from "./acqu-briefing.js";
 import { seedEa } from "./acqu-ea.js";
@@ -19,19 +20,10 @@ import { seedMemoryConsolidator } from "./acqu-memory-consolidator.js";
 
 const TENANT_ID = TENANT_IDS.acqu;
 
-// Phase-1 roster + the manifest's expected tier, for an inline assertion.
+// Phase-1 roster. Per operator override, EVERY agent runs on Hermes 4 405B (ACQU_AGENT_MODEL),
+// so the expected model is uniform across the roster.
 const PHASE_1 = ["ad-ops", "briefing", "ea", "expense-tracker", "margin-monitor", "dunning-manager", "connector-health-monitor", "memory-consolidator"];
-const EXPECTED_MODEL: Record<string, string> = {
-  vitals: "nousresearch/hermes-4-70b",
-  "ad-ops": "anthropic/claude-sonnet-4.6",
-  briefing: "nousresearch/hermes-4-405b",
-  ea: "anthropic/claude-sonnet-4.6",
-  "expense-tracker": "nousresearch/hermes-4-70b",
-  "margin-monitor": "nousresearch/hermes-4-70b",
-  "dunning-manager": "anthropic/claude-sonnet-4.6",
-  "connector-health-monitor": "nousresearch/hermes-4-70b",
-  "memory-consolidator": "nousresearch/hermes-4-405b",
-};
+const EXPECTED = ACQU_AGENT_MODEL;
 
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL required");
@@ -63,26 +55,17 @@ async function main() {
     if (!a) { console.log(`${key.padEnd(27)} MISSING`); continue; }
     const trg = await db.select().from(schema.agentTriggers).where(eq(schema.agentTriggers.agentId, a.id));
     const trgStr = trg.map((t) => (t.type === "cron" ? `cron(${t.schedule})` : t.eventKey ? `${t.type}(${t.eventKey})` : t.type)).join(", ");
-    const flag = a.model === EXPECTED_MODEL[key] ? "" : `  ⚠ expected ${EXPECTED_MODEL[key]}`;
+    const flag = a.model === EXPECTED ? "" : `  ⚠ expected ${EXPECTED}`;
     console.log(`${key.padEnd(27)} ${(a.model ?? "").padEnd(30)} ${(a.autonomy ?? "").padEnd(13)} $${String(a.budgetCapUsd).padEnd(5)} ${trgStr}${flag}`);
   }
   console.log("──────────────────────────────────────────────────────────────────────────────────────────");
 
-  // Explicit tier assertions called out by B1.
-  const assertModel = (key: string, want: string) => {
-    const got = byKey.get(key)?.model;
-    console.log(`  ${got === want ? "✓" : "✗"} ${key} = ${got} ${got === want ? "" : `(expected ${want})`}`);
-  };
-  console.log("\nTier confirmations (B1):");
-  assertModel("briefing", "nousresearch/hermes-4-405b");
-  assertModel("memory-consolidator", "nousresearch/hermes-4-405b");
-  assertModel("ad-ops", "anthropic/claude-sonnet-4.6");
-  assertModel("ea", "anthropic/claude-sonnet-4.6");
-  assertModel("dunning-manager", "anthropic/claude-sonnet-4.6");
+  // Invariant: every agent on Hermes 4 405B (operator override).
+  const offModel = keys.filter((k) => byKey.get(k)?.model !== EXPECTED);
+  console.log(`\n✓ All on ${EXPECTED}: ${offModel.length === 0 ? "yes" : "NO → " + offModel.join(", ")}`);
 
-  // Count totals (rows already fetched via inArray above).
   console.log(`\n✓ Phase-1 seed complete — ${rows.length}/9 agents present (vitals + 8 Phase-1).`);
-  process.exit(0);
+  process.exit(offModel.length ? 1 : 0);
 }
 
 main().catch((err) => { console.error(err); process.exit(1); });

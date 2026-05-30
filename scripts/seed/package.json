@@ -13,7 +13,14 @@
     "acqu-dunning-manager": "tsx acqu-dunning-manager.ts",
     "acqu-connector-health-monitor": "tsx acqu-connector-health-monitor.ts",
     "acqu-memory-consolidator": "tsx acqu-memory-consolidator.ts",
-    "phase-1": "tsx seed-phase-1.ts"
+    "phase-1": "tsx seed-phase-1.ts",
+    "phase-2": "tsx seed-remaining-phases.ts 'Phase 2'",
+    "phase-3": "tsx seed-remaining-phases.ts 'Phase 3'",
+    "phase-4": "tsx seed-remaining-phases.ts 'Phase 4'",
+    "phase-5": "tsx seed-remaining-phases.ts 'Phase 5'",
+    "phases-2-5": "tsx seed-remaining-phases.ts",
+    "all": "tsx acqu-vitals.ts && tsx seed-phase-1.ts && tsx seed-remaining-phases.ts",
+    "test": "tsx _doctrine.test.ts"
   },
   "dependencies": {
     "@agent-os/db": "workspace:*",
