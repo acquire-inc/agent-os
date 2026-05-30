@@ -12,9 +12,11 @@ A multi-tenant **Agent OS** — the control plane that runs Acquire Inc (Acqu) o
 
 ## Canonical docs (read the slice you need; don't load whole docs)
 
+**Precedence:** when any other doc conflicts with `main-acqu-agent-doctrine.md` on *machinery* (models, gateway, hosting, orchestration, browser layer, connector OAuth), **`main` wins**. v1 and v2 carry the same banner at their top.
+
 - `/docs/main-acqu-agent-doctrine.md` — **HOW** agents run: model tiers, tooling (OpenRouter, Inngest, Browserbase, Railway, Nango), skills, connectors. Canonical layer — *supersedes* model/stack/tooling sections of earlier docs.
-- `/docs/acqu-agent-doctrine-v2.md` — **WHAT** exists: 8 domains, 26 functions, 10 new functions, handoff chains. *(awaiting upload)*
-- `/docs/acqu-agent-doctrine.md` — **detailed agent system prompts** for the original 14 functions. *(awaiting upload)*
+- `/docs/acqu-agent-doctrine-v2.md` — **WHAT** exists: 8 domains, 26 functions, 10 new functions, handoff chains. *(prompts/architecture only — machinery superseded by main)*
+- `/docs/acqu-agent-doctrine.md` — **detailed agent system prompts** for the original 14 functions. *(prompts/architecture only — machinery superseded by main)*
 - `/docs/acqu-os-build-spec.md` — **platform build spec**: data model, runner, safety layer, 5-session plan.
 - `/docs/acqu-os-session-runbook.md` — Session A/B prompts for loading doctrine + batch-seeding agents (operating reference).
 
