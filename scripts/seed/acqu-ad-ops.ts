@@ -67,7 +67,7 @@ export async function seedAdOps(db: Db) {
     autonomy: "propose", // kills always propose; tier moves gated 30 days
     knowledgeScopeJson: { folders: ["campaign-plan/acqu", "campaign-plan"], tags: ["acqu", "meta"] },
     budgetCapUsd: "1.50",
-    escalationPolicy: null,
+    escalationPolicy: "All Meta writes (kills + budget changes) require an approval tap.",
     runnerKind: "local",
     enabled: true,
     templateId: null,

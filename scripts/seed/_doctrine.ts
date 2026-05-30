@@ -206,3 +206,26 @@ export function parseSkillKeys(raw: string | undefined): string[] {
   if (!raw) return [];
   return [...raw.matchAll(/`([^`]+)`/g)].map((m) => m[1]!.replace(/^skill:/, "").trim());
 }
+
+/** Parse the **Knowledge scope:** line → { folders, tags }. Folders = unique first path
+ *  segment after `kb:` (e.g. `kb:finance/unit-economics-*` → "finance"); tags always ["acqu"]. */
+export function parseKnowledgeScope(raw: string | undefined): { folders: string[]; tags: string[] } {
+  const folders = new Set<string>();
+  if (raw) {
+    // Exclusionary scopes ("all kb except kb:legal/…") describe what's EXCLUDED — listing
+    // those would invert the meaning. Parse only the part before "except"; if that's a broad
+    // phrase with no concrete kb: path (e.g. "all kb"), leave folders empty = broad scope.
+    const beforeExcept = raw.split(/\bexcept\b/i)[0]!;
+    for (const m of beforeExcept.matchAll(/kb:([a-z0-9._{}\-]+)/gi)) {
+      const seg = m[1]!.split("/")[0]!.replace(/\.md$/, "").trim();
+      if (seg && !seg.includes("{")) folders.add(seg);
+    }
+  }
+  return { folders: [...folders], tags: ["acqu"] };
+}
+
+/** Parse the **Approval gate:** line → escalation-policy text (trimmed), or null. */
+export function parseApprovalGate(raw: string | undefined): string | null {
+  const t = (raw ?? "").trim();
+  return t.length ? t : null;
+}

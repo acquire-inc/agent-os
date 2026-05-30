@@ -30,6 +30,8 @@ TypeScript (strict) · TanStack Router SPA + Hono API · Postgres + pgvector (Su
 
 ## Model tiering — CANONICAL (model is CONFIG, not code; start at the cheapest safe tier, promote only on eval failure)
 
+> **⚠ OPERATOR OVERRIDE (2026-05, active):** Every Acqu agent currently runs on **`nousresearch/hermes-4-405b`** — a single model for the whole fleet, set as config in `scripts/seed/_shared.ts` (`ACQU_AGENT_MODEL`) and enforced fleet-wide by the seeders. This **intentionally supersedes the per-tier split and the can't-fail "never Hermes" rule below** for Acqu. The Claude **Agent SDK remains the runtime/backend** (`backend = claude-agent-sdk`); only the routed model changed. The tier table below is retained for rationale and as the fallback policy — do **not** re-tier agents back to Claude without an explicit operator instruction. (Tier still drives `thinking_level` + roster grouping.)
+
 | Tier | Model (OpenRouter slug) | Use for |
 |---|---|---|
 | **T-trivial** *(optional 5th tier)* | `nousresearch/hermes-2-pro-llama-3-8b` | Highest-frequency near-zero-reasoning pings (binary up/down, dedupe, field extraction). Only add if a 3rd tier earns its complexity — 70B is already cheap. |

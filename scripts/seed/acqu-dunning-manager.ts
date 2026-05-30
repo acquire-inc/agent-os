@@ -58,7 +58,7 @@ export async function seedDunningManager(db: Db) {
     autonomy: "propose", // comms gated; account-pause escalation always human
     knowledgeScopeJson: { folders: ["finance", "clients"], tags: ["acqu"] },
     budgetCapUsd: "0.40",
-    escalationPolicy: null,
+    escalationPolicy: "Comms templates pre-approved; pause-account escalation routes to the founder.",
     runnerKind: "local",
     enabled: true,
     templateId: null,

@@ -57,7 +57,7 @@ export async function seedMemoryConsolidator(db: Db) {
     autonomy: "propose", // policy/SOP writes gated; append-only logs are execute_safe at tool layer
     knowledgeScopeJson: { folders: ["run-logs"], tags: ["acqu"], write: "all-kb-scoped" },
     budgetCapUsd: "2.00", // per-run/day cap; $5.00 weekly deep-pass cap tracked at cadence layer
-    escalationPolicy: null,
+    escalationPolicy: "Writes that change a policy, SOP, or threshold require approval.",
     runnerKind: "local",
     enabled: true,
     templateId: null,

@@ -29,6 +29,8 @@ import {
   parseTriggers,
   parseMcpKeys,
   parseSkillKeys,
+  parseKnowledgeScope,
+  parseApprovalGate,
 } from "./_doctrine.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -140,6 +142,8 @@ export async function seedAgentFromSpec(db: Db, spec: AgentSpec): Promise<SeedRe
   const autonomy = parseAutonomy(block.fields["Autonomy"]);
   const budget = parseBudget(block.fields["Budget"]);
   const { triggers, defaulted } = parseTriggers(block.fields["Trigger"], spec.key);
+  const knowledgeScope = parseKnowledgeScope(block.fields["Knowledge scope"]);
+  const escalationPolicy = parseApprovalGate(block.fields["Approval gate"]);
 
   // ── Agent row (persona mirrors the verbatim prompt) ──
   const agent = await upsertAgent(db, spec.key, {
@@ -149,9 +153,9 @@ export async function seedAgentFromSpec(db: Db, spec: AgentSpec): Promise<SeedRe
     model,
     thinkingLevel: THINKING[spec.tier],
     autonomy,
-    knowledgeScopeJson: { folders: [], tags: ["acqu"] },
+    knowledgeScopeJson: knowledgeScope,
     budgetCapUsd: budget,
-    escalationPolicy: null,
+    escalationPolicy,
     runnerKind: "local",
     enabled: true,
     templateId: null,

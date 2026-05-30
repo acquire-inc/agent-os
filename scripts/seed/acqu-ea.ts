@@ -72,7 +72,7 @@ export async function seedEa(db: Db) {
     autonomy: "propose", // outbound proposed; reads execute_safe at tool/hook layer
     knowledgeScopeJson: { folders: ["founder"], tags: ["acqu"] },
     budgetCapUsd: "0.50",
-    escalationPolicy: null,
+    escalationPolicy: "Outbound messages require an approval tap.",
     runnerKind: "local",
     enabled: true,
     templateId: null,
