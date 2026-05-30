@@ -115,6 +115,29 @@ export const agentMcps = pgTable(
   (t) => [primaryKey({ columns: [t.agentId, t.mcpId] })],
 );
 
+// Tool registry (build-spec §3): shared, deterministic tools agents bind to.
+export const tools = pgTable("tools", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  toolKey: text("tool_key").notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  kind: text("kind").notNull().default("custom"),
+  requiresApproval: boolean("requires_approval").notNull().default(false),
+  reversible: boolean("reversible").notNull().default(true),
+  status: text("status").notNull().default("planned"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const agentTools = pgTable(
+  "agent_tools",
+  {
+    agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+    toolId: uuid("tool_id").notNull().references(() => tools.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.agentId, t.toolId] })],
+);
+
 export const jobs = pgTable("jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),

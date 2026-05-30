@@ -235,6 +235,21 @@ export async function setMcps(db: Db, agentId: string, mcpIds: string[]) {
   for (const id of mcpIds) await bindMcp(db, agentId, id);
 }
 
+export async function bindTool(db: Db, agentId: string, toolId: string) {
+  await db.execute(sql`insert into agent_tools (agent_id, tool_id) values (${agentId}, ${toolId}) on conflict do nothing`);
+}
+
+/** Make an agent's tool bindings EXACTLY the given set — prune strays, then add the declared ones.
+ *  Idempotent + doctrine-clean (least privilege): an agent may only call the tools it declares. */
+export async function setTools(db: Db, agentId: string, toolIds: string[]) {
+  await db.delete(schema.agentTools).where(
+    toolIds.length
+      ? and(eq(schema.agentTools.agentId, agentId), notInArray(schema.agentTools.toolId, toolIds))
+      : eq(schema.agentTools.agentId, agentId),
+  );
+  for (const id of toolIds) await bindTool(db, agentId, id);
+}
+
 /** Read back a seeded agent's bound skills/mcps/triggers/prompt for the verification line. */
 export async function summarizeAgent(db: Db, agentId: string) {
   const [agent] = await db.select().from(schema.agents).where(eq(schema.agents.id, agentId));
