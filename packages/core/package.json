@@ -9,6 +9,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "tsx src/integration.test.ts",
+    "test:tools-schema": "tsx src/integration.test.ts",
     "test:architect": "tsx src/architect/architect.test.ts"
   },
   "dependencies": {

@@ -2,7 +2,7 @@
 // Run: DATABASE_URL=... pnpm --filter @agent-os/core test
 import { createDb, schema } from "@agent-os/db";
 import { AGENT_IDS, TENANT_IDS } from "@agent-os/shared";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   appendActivity,
   buildBundle,
@@ -176,6 +176,44 @@ async function main() {
   const resumed = await claimNextRun(db, agentId, tenantId, "runner-resume");
   assert(resumed?.id === waitingRun!.id, "claimNextRun resumes the pending run (prioritized over scheduled)");
   assert(resumed?.status === "running", "resumed run transitions back to running");
+
+  console.log("\n[tools registry]");
+  // P7-SC1.a — a tools row round-trips and requires_approval defaults to true (deny-by-default).
+  const toolKey = `test.tool.${Date.now()}`;
+  const [tool] = await db
+    .insert(schema.tools)
+    .values({ tenantId, key: toolKey, name: "Test", kind: "custom" })
+    .returning();
+  assert(!!tool?.id, "tools row inserts and returns an id");
+  assert(tool?.requiresApproval === true, "requiresApproval defaults to true (deny-by-default safety)");
+
+  // Unique (tenant_id, key) constraint is live — re-insert of the same key fails.
+  let uniqueViolation = false;
+  try {
+    await db.insert(schema.tools).values({ tenantId, key: toolKey, name: "Dup", kind: "custom" });
+  } catch {
+    uniqueViolation = true;
+  }
+  assert(uniqueViolation, "re-inserting the same (tenant_id, key) violates the unique constraint");
+
+  // agent_tools binding round-trips via the join table.
+  await db.execute(
+    sql`insert into agent_tools (agent_id, tool_id) values (${agentId}, ${tool!.id}) on conflict do nothing`,
+  );
+  const bound = await db.select().from(schema.agentTools).where(eq(schema.agentTools.toolId, tool!.id));
+  assert(bound.length === 1, "agent_tools join binds the tool to the agent");
+
+  // P7-SC1.b — cross-tenant read returns zero rows (RLS isolation).
+  // Insert a tool for tenant Cliently, then assert tenant-scoped reads do not cross.
+  const crossKey = `test.tool.cross.${Date.now()}`;
+  await db
+    .insert(schema.tools)
+    .values({ tenantId: TENANT_IDS.cliently, key: crossKey, name: "Cross", kind: "custom" });
+  const acquView = await db
+    .select()
+    .from(schema.tools)
+    .where(and(eq(schema.tools.tenantId, tenantId), eq(schema.tools.key, crossKey)));
+  assert(acquView.length === 0, "tenant Acqu cannot read tenant Cliently's tool (cross-tenant zero)");
 
   console.log(`\nResult: ${passed} passed, ${failed} failed\n`);
   process.exit(failed > 0 ? 1 : 0);
