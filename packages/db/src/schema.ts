@@ -115,6 +115,16 @@ export const agentMcps = pgTable(
   (t) => [primaryKey({ columns: [t.agentId, t.mcpId] })],
 );
 
+// Mirrors supabase/migrations/0007_tools_registry.sql (agent_tools join).
+export const agentTools = pgTable(
+  "agent_tools",
+  {
+    agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+    toolId: uuid("tool_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.agentId, t.toolId] })],
+);
+
 export const jobs = pgTable("jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
@@ -202,6 +212,22 @@ export const mcps = pgTable("mcps", {
   scope: text("scope").notNull().default("global"),
   status: text("status").notNull().default("disconnected"),
   lastHealthCheck: timestamp("last_health_check", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Mirrors supabase/migrations/0007_tools_registry.sql (tools registry).
+export const tools = pgTable("tools", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  kind: text("kind").notNull(),
+  mcpId: uuid("mcp_id").references(() => mcps.id, { onDelete: "set null" }),
+  inputSchema: jsonb("input_schema").notNull().default({}),
+  requiresApproval: boolean("requires_approval").notNull().default(true),
+  reversible: boolean("reversible").notNull().default(false),
+  status: text("status").notNull().default("active"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
