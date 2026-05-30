@@ -19,7 +19,9 @@
     "phase-4": "tsx seed-remaining-phases.ts 'Phase 4'",
     "phase-5": "tsx seed-remaining-phases.ts 'Phase 5'",
     "phases-2-5": "tsx seed-remaining-phases.ts",
-    "all": "tsx acqu-vitals.ts && tsx seed-phase-1.ts && tsx seed-remaining-phases.ts",
+    "everything": "tsx seed-everything.ts",
+    "chains": "tsx seed-chains.ts",
+    "all": "tsx acqu-vitals.ts && tsx seed-phase-1.ts && tsx seed-remaining-phases.ts && tsx seed-everything.ts && tsx seed-chains.ts",
     "test": "tsx _doctrine.test.ts"
   },
   "dependencies": {
