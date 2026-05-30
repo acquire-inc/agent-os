@@ -28,16 +28,21 @@ Control plane (this repo) = registries (agents/tools/MCP/tenants) + knowledge (p
 
 TypeScript (strict) · TanStack Router SPA + Hono API · Postgres + pgvector (Supabase) · Drizzle · `@anthropic-ai/claude-agent-sdk` *(target gateway: OpenRouter — `ANTHROPIC_BASE_URL=https://openrouter.ai/api`; build delta per Main §1.2/§6)* · MCP connectors (Close, Pipeboard×Meta, Slack, Google Drive, Gmail, GitHub, n8n, plus the expanded catalog seeded in fixtures). Anthropic auth via **API key** (Cliently is customer-facing; subscription auth isn't allowed there).
 
-## Model tiering — CANONICAL (model is CONFIG, not code; start T-cheap, promote only on eval failure)
+## Model tiering — CANONICAL (model is CONFIG, not code; start at the cheapest safe tier, promote only on eval failure)
 
 | Tier | Model (OpenRouter slug) | Use for |
 |---|---|---|
-| **T-cheap** (default) | `nousresearch/hermes-4-70b` | Monitors, watchers, triage, classification, summarization, single-step tool calls |
-| **T-reason** | `nousresearch/hermes-4-405b` | Heavier non-critical analysis (reporting, synthesis) |
-| **T-work** | `anthropic/claude-sonnet-4.6` (or `haiku-4-5` for lighter) | Multi-step orchestration, client-facing content, dependable tool sequencing |
-| **T-critical** | `anthropic/claude-opus-4.8` / `claude-sonnet-4.6` — **NEVER Hermes** | High-stakes judgment + safety (can't-fail list below) |
+| **T-trivial** *(optional 5th tier)* | `nousresearch/hermes-2-pro-llama-3-8b` | Highest-frequency near-zero-reasoning pings (binary up/down, dedupe, field extraction). Only add if a 3rd tier earns its complexity — 70B is already cheap. |
+| **T-cheap — volume default** | `nousresearch/hermes-4-70b` | Where most *runs* happen: monitors, watchers, triage, classification, templated summaries, single-step tool calls. Cheap enough to run always-on. |
+| **T-reason — reasoning workhorse ⭐** | `nousresearch/hermes-4-405b` | Multi-step analysis, synthesis, anything where reasoning moves the output. **Preferred whenever reasoning matters** — but reserve for thinking tasks. |
+| **T-work — reliable agentic** | `anthropic/claude-sonnet-4.6` (or `haiku-4-5` lighter) | Multi-step *tool* orchestration, client-facing content, anything where Hermes is less reliable at complex tool sequencing. |
+| **T-critical — can't-fail** | `anthropic/claude-opus-4.8` / `claude-sonnet-4.6` — **NEVER Hermes** | High-stakes judgment + safety (can't-fail list below). |
 
-> Supersedes the earlier 3-tier Claude-only tiering. Per Main doctrine §1.4: start at T-cheap; promote only when the agent's eval suite shows the cheaper model fails the task.
+> **70B carries volume; 405B carries thinking.** Reserve 405B for where reasoning earns it — most runs are bounded monitors/triage where 70B output is indistinguishable at ~7× lower cost.
+> **Skip Hermes 3 in production** — Hermes 4 supersedes it at both 70B and 405B.
+> **Rerank 4 Pro** (not a chat model) goes into the pgvector retrieval path as a relevance lever — independent of the tier plan.
+>
+> See `/docs/main-acqu-agent-doctrine.md` §1.4 for the full rationale and §1.5 for the per-agent matrix.
 
 ## Can't-fail agents — ALWAYS Claude (T-critical), never Hermes
 

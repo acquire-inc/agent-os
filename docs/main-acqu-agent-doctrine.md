@@ -63,16 +63,23 @@ Confirmed against current docs and the SDK issue tracker:
 
 ### 1.4 The model-tiering policy
 
-Three tiers. Default to the cheapest that's safe for the task.
+Default to the cheapest tier that's safe for the task. The two Hermes tiers carry most of the system; Claude carries the rest.
 
 | Tier | Model (OpenRouter slug) | ~Cost / M (in/out) | Use for |
 |---|---|---|---|
-| **T-cheap (default)** | `nousresearch/hermes-4-70b` | ~$0.13 / $0.40 | Monitors, watchers, triage, classification, summarization, single-step tool calls, high-volume low-stakes work |
-| **T-reason (cheap reasoning)** | `nousresearch/hermes-4-405b` | ~$1 / $3 | Heavier analysis that's still not safety-critical (some reporting, some synthesis) |
-| **T-work (reliable agentic)** | `anthropic/claude-sonnet-4.6` (or `haiku-4-5` for lighter) | check current Anthropic pricing | Multi-step tool orchestration, client-facing content, anything needing dependable tool sequencing |
-| **T-critical (can't-fail)** | `anthropic/claude-opus-4.8` / `claude-sonnet-4.6` — **never Hermes** | check current | High-stakes judgment + safety. The list in 1.5. |
+| **T-trivial** *(optional)* | `nousresearch/hermes-2-pro-llama-3-8b` | lowest | Highest-frequency near-zero-reasoning pings: binary up/down, dedupe, field extraction. Only add if a third tier earns its complexity — 70B is already cheap. |
+| **T-cheap — volume default** | `nousresearch/hermes-4-70b` | ~$0.13 / $0.40 | Where most *runs* happen: monitors, watchers, triage, classification, templated summaries, single-step tool calls. Cheap enough to run always-on. |
+| **T-reason — reasoning workhorse** ⭐ | `nousresearch/hermes-4-405b` | ~$1 / $3 | The genuinely-hard non-critical work: synthesis, multi-step analysis, anything where reasoning moves the output. **Preferred model whenever reasoning matters** — used most often *among thinking tasks*, but not as a blanket default (see below). |
+| **T-work — reliable agentic** | `anthropic/claude-sonnet-4.6` (or `haiku-4-5` lighter) | check current Anthropic pricing | Multi-step *tool* orchestration, client-facing content, anything needing dependable tool sequencing where Hermes is less reliable. |
+| **T-critical — can't-fail** | `anthropic/claude-opus-4.8` / `claude-sonnet-4.6` — **never Hermes** | check current | High-stakes judgment + safety. The list in §1.5. |
 
-Rule: **start an agent at T-cheap, then promote a tier only when its eval suite shows the cheaper model fails the task.** This is the same earn-it discipline as the autonomy ladder — applied to model choice. The `agent-evaluator` (D7.1) measures it; don't guess.
+**On 405B as "preferred":** it *is* the best Hermes model and the one to reach for whenever a task involves real reasoning — but "most often" splits by axis. Most *runs* in the system are bounded monitors/triage where 70B output is indistinguishable from 405B at ~7× lower cost, so **70B carries volume**; **405B carries thinking.** Concrete: `connector-health-monitor` fires ~2,880×/month — ~$1/mo on 70B vs ~$7.50/mo on 405B for an identical up/down check. Across ~15 always-on monitors that's ~$15 vs ~$110/mo *internally*, before multiplying by client tenants. Reserve 405B for where reasoning earns it; this directly serves the cash constraint.
+
+**Skip Hermes 3 in production.** Hermes 4 supersedes it at both 70B and 405B — running 3 is an older model for no reason. The "Hermes 3 405B (free)" tier rate-limits and rotates models; fine for throwaway dev experiments, a reliability landmine under an always-on fleet.
+
+**Rerank 4 Pro (separate from the chat tiers):** it's a reranker, not a chat model. After pgvector retrieves candidate knowledge chunks, run them through Rerank 4 Pro so agents get the *most relevant* context, not just nearest-vector. Wire into the retrieval path as a quality lever on every agent's knowledge — independent of the tier plan.
+
+Rule: **start an agent at the cheapest safe tier, promote only when its eval suite shows the cheaper model fails the task.** Same earn-it discipline as the autonomy ladder, applied to model choice. The `agent-evaluator` (D7.1) measures it; don't guess.
 
 ### 1.5 Per-agent model assignment (the matrix)
 
@@ -88,11 +95,11 @@ The **can't-fail list — always Claude (T-critical), never Hermes:**
 - `risk-register-keeper` (D6.1) — risk judgment.
 - `cliently.dev` code-writing (D5.1) — on Claude (with GSD); QA can be cheaper.
 
-**Default to T-cheap (Hermes 70B):** every monitor and watcher — `connector-health-monitor`, `runner-ops`, `rate-limit-guardian`, `pixel-watcher`, `funnel-monitor`, `expense-tracker`, `expense-anomaly`, `ar-aging-monitor`, `cash-position-monitor`, `client-health`, `event-schema-guardian`, `billing-runner`, `attribution-reconciler`, `loyalty-rewarder`, `booking-concierge`, `lead-triage`.
+**T-cheap / volume default (Hermes 70B):** every monitor and watcher — `connector-health-monitor`, `runner-ops`, `rate-limit-guardian`, `pixel-watcher`, `funnel-monitor`, `expense-tracker`, `expense-anomaly`, `ar-aging-monitor`, `cash-position-monitor`, `client-health`, `event-schema-guardian`, `billing-runner`, `attribution-reconciler`, `loyalty-rewarder`, `booking-concierge`, `lead-triage`, and `vitals` (read-only daily summary — *corrected from earlier T-work listing*; promote to Claude only if Hermes narratives read weak).
 
-**T-work (Claude Sonnet/Haiku) — reliable multi-step:** `ad-ops`, `creative-studio`, `creative-miner`, `launcher`, `client-comms`, `weekly-report`, `onboarding-runner`, `churn-risk-detector`, `save-play`, `dunning-manager`, `discovery-prep`, `call-summarizer`, `case-study-builder`, `memory-consolidator`, `intel`, `vitals`, `briefing`, `ea`.
+**T-work (Claude Sonnet/Haiku) — reliable multi-step tool orchestration / client-facing:** `ad-ops`, `creative-studio`, `creative-miner`, `launcher`, `client-comms`, `weekly-report`, `onboarding-runner`, `churn-risk-detector`, `save-play`, `dunning-manager`, `discovery-prep`, `call-summarizer`, `case-study-builder`, `intel`, `ea`.
 
-**T-reason (Hermes 405B) — heavier but not critical:** `unit-economics`, `forecast-runner`, `competitor-watchtower`, `market-signal-scanner`, `packaging-experimenter`, `expansion-finder`, `vertical-scout`.
+**T-reason (Hermes 405B) — reasoning-heavy but not safety-critical:** `unit-economics`, `forecast-runner`, `competitor-watchtower`, `market-signal-scanner`, `packaging-experimenter`, `expansion-finder`, `vertical-scout`, `briefing` (read-only synthesis/ranking), `memory-consolidator` (synthesis + *proposes* changes, so human-gated — 405B-first, promote to Claude if lesson quality is weak).
 
 Encode this as the default `model` value when each agent is seeded. It's overridable per agent from the OS and adjusted by eval results.
 
