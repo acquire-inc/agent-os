@@ -50,6 +50,9 @@ export interface GateCtx {
   escalationPolicy: string | null;
   agentName: string;
   sdkSessionId?: string;
+  /** tool_key → requires_approval, from the agent's bound catalog tools. Consulted when a
+   *  runtime tool name matches a key (authoritative over the heuristic). */
+  toolApproval?: Record<string, boolean>;
 }
 
 /**
@@ -74,6 +77,7 @@ export function buildPreToolUseHook(api: ApiClient, runId: string, ctx: GateCtx)
       toolName,
       autonomy: ctx.autonomy,
       escalationPolicy: ctx.escalationPolicy,
+      requiresApproval: ctx.toolApproval?.[toolName],
     });
     if (decision === "allow") return { decision: "allow" };
     if (decision === "propose") {

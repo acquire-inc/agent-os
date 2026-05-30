@@ -20,12 +20,18 @@ export interface IrreversibilityCtx {
   toolName: string;
   autonomy: string;
   escalationPolicy?: string | null;
+  /** Registry signal from `tools.requires_approval`, when the runtime tool resolves to a
+   *  catalog row. Authoritative when known: overrides the verb heuristic. Undefined = unknown
+   *  (e.g. an MCP tool with no catalog mapping yet) → fall back to the heuristic. */
+  requiresApproval?: boolean;
 }
 
 /**
- * Heuristic irreversibility check. Read-only verbs (read/get/list/search/...) are
- * always reversible. The escalation policy can include `always_allow: tool1,tool2`
- * to override irreversibility for specific tools the operator has pre-approved.
+ * Irreversibility check. Order of authority:
+ *  1. Operator `always_allow: t1,t2` in the escalation policy → pre-approved, never gate.
+ *  2. Registry `requiresApproval` (from the tools catalog) when known → authoritative.
+ *  3. Heuristic: read-only verbs (read/get/list/search/...) are reversible; everything else
+ *     is treated as irreversible.
  */
 export function isIrreversibleTool(ctx: IrreversibilityCtx): boolean {
   const ep = (ctx.escalationPolicy ?? "").toLowerCase();
@@ -34,6 +40,7 @@ export function isIrreversibleTool(ctx: IrreversibilityCtx): boolean {
     const list = allowMatch[1].split(",").map((s) => s.trim()).filter(Boolean);
     if (list.some((t) => ctx.toolName.toLowerCase() === t)) return false;
   }
+  if (ctx.requiresApproval !== undefined) return ctx.requiresApproval;
   return !READ_ONLY_VERBS.has(parseToolVerb(ctx.toolName));
 }
 

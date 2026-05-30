@@ -28,6 +28,7 @@ pnpm --filter @agent-os/core exec tsx src/provision.test.ts | grep -E "Result:"
 pnpm --filter @agent-os/vault test | grep -E "Result:"
 pnpm --filter @agent-os/registry test | grep -E "Result:"
 pnpm --filter @agent-os/api test | grep -E "Result:"
+pnpm --filter @agent-os/runner test | grep -E "Result:"
 
 echo "▸ Control-plane build…"
 pnpm --filter control-plane build >/dev/null && echo "  build ok"

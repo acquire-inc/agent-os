@@ -60,14 +60,22 @@ Plans:
 - [x] 06-01: Schema — migration `0006_tools_registry.sql` + Drizzle `tools`/`agentTools` + `_shared` bind helpers
 - [x] 06-02: Catalog + bindings — `_tools.ts` metadata + `seed-tools.ts` (derive from prompts, classify, bind), run + verify
 
-#### Phase 7: Runner execution path
-**Goal**: Wire the `Runner` interface so `vitals` runs end-to-end as data, behind the safety hooks (Session A acceptance test: read metrics → post Slack snapshot, audited).
+#### Phase 7: Runner execution path  ✅ COMPLETE (2026-05-30)
+**Goal**: Verify the (already-built) Runner executes an agent end-to-end behind the safety hooks,
+and wire Phase 6's tool registry into execution. *Recon finding: `apps/runner` + `apps/api` +
+`apps/scheduler` + `packages/core` already implement the Runner + hooks 1a/1b/1c — so this phase
+is GSD verification + closing the registry integration gap, not a rebuild.*
 **Depends on**: Phase 6
-**Success Criteria**:
-  1. `Runner.run()` resolves an agent's prompt + tools + scope and executes one turn.
-  2. PreToolUse/PostToolUse/Stop/SessionEnd hooks fire; a run-summary lands in `run_summaries`.
-  3. `vitals` produces its snapshot through the OS, with tool calls audited.
-Plans: TBD
+**Success Criteria** (what must be TRUE):
+  1. ✓ `buildBundle` resolves `agent_tools` → a `tools` field on the Bundle (key/name/kind/requiresApproval/reversible); runner Bundle carries it.
+  2. ✓ Bound tools surface in the system prompt (approval-gated tools flagged).
+  3. ✓ `autonomyGate` honors registry `requiresApproval` (authoritative over the verb heuristic; operator `always_allow` still wins) — unit-tested, non-breaking for today's MCP tools.
+  4. ✓ Vitals runs end-to-end via `executeRun` (dryRun): tools in prompt, activity + autonomy events recorded, gate proposes under execute_safe → waiting, resume completes.
+  5. ✓ Workspace typecheck clean; core integration 50/0; runner dryRun e2e 11/0; runner test added to `test-all.sh`.
+Plans:
+- [x] 07-01: Wire `agent_tools` → bundle + system prompt; registry-ready `autonomyGate` (bundle.ts, autonomy.ts, api-client.ts, execute.ts, hooks.ts)
+- [x] 07-02: Verification — extend core integration test (bundle.tools + gate override) + new runner dryRun e2e test
+**Residual gaps (→ roadmap):** `tool_key → runtime SDK tool-name` map (for true registry-driven gating + SDK `allowedTools` restriction); structured `run_summaries` table / SessionEnd hook.
 
 #### Phase 8: Eval suites
 **Goal**: Per-agent eval cases so `agent-evaluator` drives promotion/demotion from metrics.
@@ -94,5 +102,5 @@ Phases TBD — gated on `tenant-isolation-tester` passing, `ad-claim-compliance`
 | 4. Entire doctrine | v1 | done | Complete | 2026-05 |
 | 5. Optimize + chains | v1 | done | Complete | 2026-05-30 |
 | 6. Tool Registry | v2 | 2/2 | Complete | 2026-05-30 |
-| 7. Runner path | v2 | 0/? | Not started | - |
+| 7. Runner path | v2 | 2/2 | Complete | 2026-05-30 |
 | 8. Eval suites | v2 | 0/? | Not started | - |

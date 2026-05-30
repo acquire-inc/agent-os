@@ -14,6 +14,7 @@ export interface Bundle {
     thinkingLevel: string; autonomy: string; escalationPolicy: string | null; budgetCapUsd: number | null; runnerKind: string;
   };
   skills: { key: string; name: string; description: string }[];
+  tools: { key: string; name: string; description: string; kind: string; requiresApproval: boolean; reversible: boolean }[];
   mcpServers: { name: string; transport: string; endpoint: string | null; authType: string; credentials: { vaultRef?: string; token?: string; ttlSeconds: number } | null }[];
   knowledge: { chunk: string; source: string }[];
   envVars: Record<string, string>;

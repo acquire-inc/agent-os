@@ -2,7 +2,7 @@ import { schema, type Db } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { and, eq, inArray } from "drizzle-orm";
 
-const { agents, agentMcps, agentSkills, documents, envVars, jobRefs, jobs, mcps, runs, skills } = schema;
+const { agents, agentMcps, agentSkills, agentTools, documents, envVars, jobRefs, jobs, mcps, runs, skills, tools } = schema;
 
 export interface Bundle {
   run: {
@@ -27,6 +27,7 @@ export interface Bundle {
   };
   docs: { id: string; name: string; type: string }[];
   skills: { key: string; name: string; description: string; version: string; source: string; repoPath: string | null }[];
+  tools: { key: string; name: string; description: string; kind: string; requiresApproval: boolean; reversible: boolean }[];
   mcpServers: {
     name: string;
     transport: string;
@@ -81,13 +82,16 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
 
   const agentSkillRows = await db.select().from(agentSkills).where(eq(agentSkills.agentId, agent.id));
   const agentMcpRows = await db.select().from(agentMcps).where(eq(agentMcps.agentId, agent.id));
+  const agentToolRows = await db.select().from(agentTools).where(eq(agentTools.agentId, agent.id));
   const skillIds = agentSkillRows.map((r) => r.skillId);
   const mcpIds = agentMcpRows.map((r) => r.mcpId);
+  const toolIds = agentToolRows.map((r) => r.toolId);
 
-  const [docRows, skillRows, mcpRows, envRows] = await Promise.all([
+  const [docRows, skillRows, mcpRows, toolRows, envRows] = await Promise.all([
     docRefIds.length ? db.select().from(documents).where(inArray(documents.id, docRefIds)) : Promise.resolve([]),
     skillIds.length ? db.select().from(skills).where(inArray(skills.id, skillIds)) : Promise.resolve([]),
     mcpIds.length ? db.select().from(mcps).where(inArray(mcps.id, mcpIds)) : Promise.resolve([]),
+    toolIds.length ? db.select().from(tools).where(inArray(tools.id, toolIds)) : Promise.resolve([]),
     envRefIds.length
       ? db.select().from(envVars).where(and(eq(envVars.tenantId, run.tenantId), inArray(envVars.id, envRefIds)))
       : db.select().from(envVars).where(and(eq(envVars.tenantId, run.tenantId), eq(envVars.pinned, true))),
@@ -131,6 +135,14 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
       version: s.version,
       source: s.source,
       repoPath: s.repoPath,
+    })),
+    tools: toolRows.map((t) => ({
+      key: t.toolKey,
+      name: t.name,
+      description: t.description,
+      kind: t.kind,
+      requiresApproval: t.requiresApproval,
+      reversible: t.reversible,
     })),
     mcpServers: await Promise.all(
       mcpRows.map(async (m) => {

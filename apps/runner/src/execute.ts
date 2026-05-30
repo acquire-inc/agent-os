@@ -12,11 +12,16 @@ export interface RunResult {
   sdkSessionId?: string;
 }
 
-function buildSystemPrompt(b: Bundle): string {
+export function buildSystemPrompt(b: Bundle): string {
   const lines = [
     b.agent.persona ?? `You are ${b.agent.name}, an autonomous agent.`,
     b.job ? `\n## Your task\n${b.job.instructions}` : "",
     b.skills.length ? `\n## Skills available\n${b.skills.map((s) => `- ${s.name}: ${s.description}`).join("\n")}` : "",
+    b.tools.length
+      ? `\n## Deterministic tools\n${b.tools
+          .map((t) => `- ${t.key} (${t.name})${t.requiresApproval ? " — requires approval" : ""}`)
+          .join("\n")}`
+      : "",
     b.mcpServers.length ? `\n## Connectors\n${b.mcpServers.map((m) => `- ${m.name} (${m.transport})`).join("\n")}` : "",
     b.agent.escalationPolicy ? `\n## Escalation policy\n${b.agent.escalationPolicy}` : "",
     `\n## Autonomy: ${b.autonomy}`,
@@ -130,6 +135,10 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<Ru
           escalationPolicy: b.agent.escalationPolicy,
           agentName: b.agent.name,
           sdkSessionId: b.run.sdkSessionId ?? undefined,
+          // Registry-driven gating: when a runtime tool name matches a bound catalog
+          // tool_key, its requires_approval is authoritative over the verb heuristic.
+          // (MCP tools have no key match yet → heuristic; see 07-PLAN out-of-scope.)
+          toolApproval: Object.fromEntries(b.tools.map((t) => [t.key, t.requiresApproval])),
         }),
       ],
       PostToolUse: [buildPostToolUseHook(api, runId)],

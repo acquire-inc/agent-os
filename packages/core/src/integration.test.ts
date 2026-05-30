@@ -89,6 +89,19 @@ async function main() {
   });
   assert(bundleK!.knowledge.length === 1 && bundleK!.knowledge[0]!.source === "acqu/memory", "bundle injects retrieved knowledge when a retriever is supplied");
 
+  // Tool registry → bundle (Phase 6/7 integration): bind a catalog tool to the agent and
+  // confirm buildBundle resolves it through agent_tools onto the bundle.
+  assert(Array.isArray(bundle!.tools), "bundle carries a tools array");
+  const [toolRow] = await db
+    .insert(schema.tools)
+    .values({ tenantId, toolKey: "tool.test-gate", name: "Test Gate Tool", description: "fixture", kind: "custom", requiresApproval: true, reversible: false, status: "active" })
+    .returning({ id: schema.tools.id });
+  await db.insert(schema.agentTools).values({ agentId, toolId: toolRow!.id }).onConflictDoNothing();
+  const bundleT = await buildBundle(db, runId, "https://api.example.com");
+  const boundTool = bundleT!.tools.find((t) => t.key === "tool.test-gate");
+  assert(boundTool !== undefined, "bundle resolves agent_tools onto bundle.tools");
+  assert(boundTool?.requiresApproval === true && boundTool?.reversible === false, "bundle tool carries requires_approval + reversible from the registry");
+
   console.log("\n[lifecycle]");
   await appendActivity(db, runId, tenantId, "tool", "close.get_metrics()");
   const acts = await db.select().from(schema.runActivity).where(eq(schema.runActivity.runId, runId));
@@ -162,6 +175,24 @@ async function main() {
   assert(
     isIrreversibleTool({ toolName: "close.update_lead", autonomy: "propose", escalationPolicy: "always_allow: close.update_lead" }) === false,
     "escalation policy 'always_allow' overrides irreversibility",
+  );
+
+  // Registry requires_approval (build-spec §5): authoritative over the verb heuristic when known.
+  assert(
+    isIrreversibleTool({ toolName: "metrics.read", autonomy: "propose", requiresApproval: true }) === true,
+    "registry requiresApproval=true gates a read-verb tool (overrides heuristic)",
+  );
+  assert(
+    isIrreversibleTool({ toolName: "close.update_lead", autonomy: "propose", requiresApproval: false }) === false,
+    "registry requiresApproval=false clears a mutation-verb tool (overrides heuristic)",
+  );
+  assert(
+    isIrreversibleTool({ toolName: "close.update_lead", autonomy: "propose", escalationPolicy: "always_allow: close.update_lead", requiresApproval: true }) === false,
+    "operator always_allow still wins over registry requiresApproval",
+  );
+  assert(
+    autonomyGate({ toolName: "metrics.read", autonomy: "execute_safe", requiresApproval: true }) === "propose",
+    "execute_safe: registry-gated read → propose",
   );
 
   assert(autonomyGate({ toolName: "close.read", autonomy: "propose" }) === "allow", "propose: read → allow");
