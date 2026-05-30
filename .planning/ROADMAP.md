@@ -90,10 +90,24 @@ Plans:
 - [x] 08-01: Schema (0007) + `metrics.ts` (computeAgentMetrics + proposeAutonomyChange) + core test
 - [x] 08-02: `_evals.ts` manifest + `seed-evals.ts` (seed cases + compute scorecards), joined to `all`
 
-### 📋 v3 — Productize Externally (Planned, gated)
+### 🚧 v3 — Stack Alignment (In Progress)
 
-**Milestone Goal:** External multi-tenant Cliently, behind the three hard gates.
-Phases TBD — gated on `tenant-isolation-tester` passing, `ad-claim-compliance` live, `dunning-manager` shipped (the latter two already seeded).
+**Milestone Goal:** Align how we build agents to the uploaded `agentic-templates` repo (a Python
+autonomous client-build factory) — see `.planning/ASSESSMENT-stack-alignment.md`. Sequence A→G→B→D→E, then C, F.
+
+- [x] **A — SDK-native agent export** (commit c29e881/2a406d7): `exports/agents/<key>.md` (frontmatter name/description/model/tools + prompt body) + `exports/managed-agents-registry.json` (93 agents). Generated from the registry; portable to the Agent SDK / Managed Agents.
+- [x] **D — brand-voice gate** (commit 1d5ce30/2a406d7): `packages/core/voice-lint.ts` (lintVoice/isVoiceClean) — em-dash + 18 banned phrases, ReDoS-guarded. Tested 4/4.
+- [ ] **G** — JSON Schema for agent/tool/skill records (validate seeds).
+- [ ] **B** — skill `allowed-tools` (skill→tool least privilege).
+- [ ] **E** — cost-ceiling PAUSE (re-approval, not just kill) at `budget_cap_usd`.
+- [ ] **C** — credential namespacing `AGENTIC_*` / `CLIENT_<tenant>_*` in vault/connector layer.
+- [ ] **F** — `ManagedAgentsRunner` backend behind the Runner interface (beta header).
+- [ ] **D-wire** — bind `tool.voice-lint` to content agents + enforce in a PostToolUse gate.
+
+### 📋 v4 — Productize Externally (Planned, gated)
+
+**Milestone Goal:** External multi-tenant Cliently, behind the three hard gates
+(`tenant-isolation-tester` passing, `ad-claim-compliance` live, `dunning-manager` shipped).
 
 ## Progress
 
