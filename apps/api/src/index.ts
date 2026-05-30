@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { createDb, schema } from "@agent-os/db";
 import {
+  AUTONOMY_EVENT_KINDS,
   appendActivity,
   buildBundle,
   checkBudget,
@@ -11,6 +12,7 @@ import {
   indexDocument,
   peekNextRun,
   provisionClientTenant,
+  recordAutonomyEvent,
   raiseApproval,
   resolveApproval,
   retrieve,
@@ -186,6 +188,26 @@ app.post("/api/approvals/:id/decide", async (c) => {
   if (approval.status !== "open") return c.json({ error: "approval already decided" }, 409);
   const updated = await resolveApproval(db, id, String(b.optionKey), b.decidedBy ?? null);
   return c.json({ approval: updated, runStatus: "pending" });
+});
+
+// Autonomy gate event (PreToolUse/PostToolUse/Stop/SessionEnd decision target).
+app.post("/api/runs/:id/autonomy-event", async (c) => {
+  const { tenantId } = c.get("auth");
+  const run = await ownedRun(tenantId, c.req.param("id"));
+  if (!run) return c.json({ error: "run not found" }, 404);
+  const b = await c.req.json().catch(() => ({}));
+  if (!b.kind || !(AUTONOMY_EVENT_KINDS as readonly string[]).includes(b.kind)) {
+    return c.json({ error: "invalid kind", valid: AUTONOMY_EVENT_KINDS }, 400);
+  }
+  const row = await recordAutonomyEvent(db, {
+    tenantId,
+    runId: run.id,
+    agentId: run.agentId,
+    kind: b.kind,
+    toolName: b.toolName ?? null,
+    rationale: b.rationale ?? null,
+  });
+  return c.json({ event: row }, 201);
 });
 
 // Audit log (PostToolUse hook target).

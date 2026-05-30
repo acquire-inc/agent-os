@@ -1,5 +1,6 @@
 import type { ApiClient, Bundle } from "./api-client.js";
 import type { RunnerConfig } from "./config.js";
+import { buildPostToolUseHook, recordToolUse } from "./hooks.js";
 
 export interface RunResult {
   status: "done" | "failed" | "waiting";
@@ -42,8 +43,8 @@ async function dryRun(api: ApiClient, b: Bundle): Promise<RunResult> {
   for (const m of b.mcpServers.slice(0, 2)) {
     const tool = `${m.name.toLowerCase().split(/\s|×/)[0]}.read`;
     await api.postActivity(runId, "tool", `${tool}(...)  [simulated]`);
-    // PostToolUse hook → immutable audit log.
-    await api.postAudit(runId, { toolName: tool, result: "ok" });
+    // Same PostToolUse path used in live runs: audit + autonomy_event ('allow').
+    await recordToolUse(api, runId, { toolName: tool, result: "ok" });
   }
   const summary = b.job
     ? `Simulated completion of "${b.job.name}". No Anthropic key set — wire ANTHROPIC_API_KEY for live execution.`
@@ -66,6 +67,11 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<Ru
     systemPrompt: buildSystemPrompt(b),
     permissionMode: permissionMode(b.autonomy),
     maxTurns: 12,
+    // Safety hooks (Step 1a): every executed tool gets audited + logged as
+    // an `allow` autonomy event. 1b/1c will extend this map.
+    hooks: {
+      PostToolUse: [buildPostToolUseHook(api, runId)],
+    },
   };
   if (b.run.sdkSessionId) options.resume = b.run.sdkSessionId; // resume waiting→pending
 

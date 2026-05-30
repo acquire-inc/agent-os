@@ -13,6 +13,7 @@ import {
   hashEmbedder,
   peekNextRun,
   raiseApproval,
+  recordAutonomyEvent,
   resolveApproval,
   retrieve,
   setRunStatus,
@@ -129,6 +130,14 @@ async function main() {
   await setRunStatus(db, memRun!.id, { status: "done", summary: "Northwind renewal churn risk: usage decline and unanswered emails; proposed a save play." }, embedder);
   const memHits = await retrieve(db, embedder, { tenantId, query: "Northwind renewal churn risk save play", namespaces: [`tenant/${tenantId}/memory`], limit: 3 });
   assert(memHits.length >= 1, "completed run's summary is vector-indexed into memory and retrievable");
+
+  console.log("\n[autonomy events]");
+  const allowEv = await recordAutonomyEvent(db, { tenantId, runId: memRun!.id, agentId, kind: "allow", toolName: "close.update_lead" });
+  assert(allowEv?.kind === "allow", "recordAutonomyEvent writes an 'allow' event");
+  const denyEv = await recordAutonomyEvent(db, { tenantId, runId: memRun!.id, agentId, kind: "deny", toolName: "close.delete", rationale: "irreversible under propose" });
+  assert(denyEv?.kind === "deny" && denyEv.rationale === "irreversible under propose", "records 'deny' with rationale");
+  const evs = await db.select().from(schema.autonomyEvents).where(eq(schema.autonomyEvents.runId, memRun!.id));
+  assert(evs.length >= 2, "events queryable by run");
 
   console.log("\n[resume: pending runs are claimable]");
   // The decided run (now pending) must be re-claimable by the runner, else it strands.

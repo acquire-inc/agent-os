@@ -56,6 +56,14 @@ async function main() {
   const okJob = await app.request("/api/admin/jobs", { method: "POST", headers: ah, body: JSON.stringify({ agentId: ADOPS, name: "apitest job", scheduleCron: "0 9 * * *" }) });
   assert(okJob.status === 201, "admin creates a job for its own agent (201)");
 
+  console.log("\n[autonomy events]");
+  const ev = await app.request(`/api/runs/${runId}/autonomy-event`, { method: "POST", headers: rh, body: JSON.stringify({ kind: "allow", toolName: "close.update_lead", rationale: "in allow-list" }) });
+  assert(ev.status === 201, "POST autonomy-event 'allow' (201)");
+  const evBad = await app.request(`/api/runs/${runId}/autonomy-event`, { method: "POST", headers: rh, body: JSON.stringify({ kind: "what" }) });
+  assert(evBad.status === 400, "invalid kind rejected (400)");
+  const evCross = await app.request(`/api/runs/${otherRun!.id}/autonomy-event`, { method: "POST", headers: rh, body: JSON.stringify({ kind: "allow" }) });
+  assert(evCross.status === 404, "cross-tenant autonomy-event rejected (404)");
+
   console.log("\n[cost + knowledge]");
   const cost = (await (await app.request("/api/cost", { headers: rh })).json()) as { summary: { total: number }; budget: { level: string } };
   assert(typeof cost.summary.total === "number" && ["ok", "warn", "over"].includes(cost.budget.level), "GET /api/cost returns summary + budget");

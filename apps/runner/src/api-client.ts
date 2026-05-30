@@ -70,4 +70,13 @@ export class ApiClient {
       body: JSON.stringify(body),
     }).catch(() => {});
   }
+
+  /** Autonomy gate decision record (allow/propose/deny/escalate/stop/budget_cap/session_end). */
+  async postAutonomyEvent(runId: string, body: { kind: string; toolName?: string; rationale?: string }): Promise<void> {
+    await fetch(`${this.cfg.apiUrl}/api/runs/${runId}/autonomy-event`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  }
 }

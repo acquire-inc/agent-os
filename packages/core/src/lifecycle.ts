@@ -3,7 +3,18 @@ import type { ApprovalOption } from "@agent-os/shared";
 import { eq } from "drizzle-orm";
 import { indexDocument, type Embedder } from "./knowledge.js";
 
-const { approvals, documents, runs, runActivity } = schema;
+const { approvals, autonomyEvents, documents, runs, runActivity } = schema;
+
+export const AUTONOMY_EVENT_KINDS = [
+  "allow",
+  "propose",
+  "deny",
+  "escalate",
+  "stop",
+  "budget_cap",
+  "session_end",
+] as const;
+export type AutonomyEventKind = (typeof AUTONOMY_EVENT_KINDS)[number];
 
 const TERMINAL = new Set(["done", "failed", "skipped"]);
 
@@ -93,6 +104,36 @@ export async function resolveApproval(db: Db, approvalId: string, optionKey: str
     await appendActivity(db, approval.runId, approval.tenantId, "decision", `Human chose: ${optionKey}`);
   }
   return approval;
+}
+
+/**
+ * Record a single decision from the autonomy gate. Fires per PreToolUse /
+ * PostToolUse / Stop / SessionEnd outcome. Cheap, append-only, indexed by
+ * (tenant, run, kind) — these are the rows that prove what the gate did.
+ */
+export async function recordAutonomyEvent(
+  db: Db,
+  args: {
+    tenantId: string;
+    runId?: string | null;
+    agentId: string;
+    kind: AutonomyEventKind;
+    toolName?: string | null;
+    rationale?: string | null;
+  },
+) {
+  const [row] = await db
+    .insert(autonomyEvents)
+    .values({
+      tenantId: args.tenantId,
+      runId: args.runId ?? null,
+      agentId: args.agentId,
+      kind: args.kind,
+      toolName: args.toolName ?? null,
+      rationale: args.rationale ?? null,
+    })
+    .returning();
+  return row;
 }
 
 /** Autonomous memory: persist a run summary as an agent-generated document and,
