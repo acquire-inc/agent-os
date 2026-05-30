@@ -38,6 +38,17 @@ export async function setRunStatus(db: Db, runId: string, update: StatusUpdate, 
   if (TERMINAL.has(update.status)) patch.endedAt = new Date();
 
   const [row] = await db.update(runs).set(patch).where(eq(runs.id, runId)).returning();
+  if (row && TERMINAL.has(update.status)) {
+    // Exactly one session_end event per terminal transition — the SessionEnd
+    // hook target on the live path, the same event in dry-run.
+    await recordAutonomyEvent(db, {
+      tenantId: row.tenantId,
+      runId: row.id,
+      agentId: row.agentId,
+      kind: "session_end",
+      rationale: update.status,
+    });
+  }
   if (row && update.status === "done") await writeRunMemory(db, row, embedder);
   return row ?? null;
 }

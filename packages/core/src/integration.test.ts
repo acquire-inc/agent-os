@@ -2,7 +2,7 @@
 // Run: DATABASE_URL=... pnpm --filter @agent-os/core test
 import { createDb, schema } from "@agent-os/db";
 import { AGENT_IDS, TENANT_IDS } from "@agent-os/shared";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   appendActivity,
   buildBundle,
@@ -130,6 +130,15 @@ async function main() {
   await setRunStatus(db, memRun!.id, { status: "done", summary: "Northwind renewal churn risk: usage decline and unanswered emails; proposed a save play." }, embedder);
   const memHits = await retrieve(db, embedder, { tenantId, query: "Northwind renewal churn risk save play", namespaces: [`tenant/${tenantId}/memory`], limit: 3 });
   assert(memHits.length >= 1, "completed run's summary is vector-indexed into memory and retrievable");
+
+  console.log("\n[session_end on terminal]");
+  // The done run above must have produced exactly one session_end event.
+  const seEvs = await db
+    .select()
+    .from(schema.autonomyEvents)
+    .where(and(eq(schema.autonomyEvents.runId, memRun!.id), eq(schema.autonomyEvents.kind, "session_end")));
+  assert(seEvs.length === 1, "setRunStatus records exactly one session_end on terminal");
+  assert(seEvs[0]?.rationale === "done", "session_end rationale carries the terminal status");
 
   console.log("\n[autonomy events]");
   const allowEv = await recordAutonomyEvent(db, { tenantId, runId: memRun!.id, agentId, kind: "allow", toolName: "close.update_lead" });

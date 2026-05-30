@@ -115,12 +115,40 @@ app.put("/api/runs/:id/status", async (c) => {
   if (!run) return c.json({ error: "run not found" }, 404);
   const body = await c.req.json().catch(() => ({}));
   if (!RUN_STATUSES.includes(body.status)) return c.json({ error: "invalid status", valid: RUN_STATUSES }, 400);
+
+  // Server-side budget enforcement (Step 1b, backend-agnostic). If the run's
+  // reported cost meets/exceeds the agent's budgetCapUsd, override to 'failed'
+  // and record a budget_cap autonomy event. This is the defense-in-depth that
+  // protects against a runner forgetting to enforce its own max_budget_usd.
+  let status: string = body.status;
+  let summary: string | undefined = body.summary;
+  if (typeof body.costUsd === "number") {
+    const [agent] = await db
+      .select({ budgetCapUsd: schema.agents.budgetCapUsd })
+      .from(schema.agents)
+      .where(eq(schema.agents.id, run.agentId))
+      .limit(1);
+    const cap = agent?.budgetCapUsd ? Number(agent.budgetCapUsd) : null;
+    if (cap !== null && body.costUsd >= cap) {
+      status = "failed";
+      const note = `over budget: $${body.costUsd.toFixed(4)} / $${cap.toFixed(2)}`;
+      summary = summary ? `${summary} (${note})` : note;
+      await recordAutonomyEvent(db, {
+        tenantId,
+        runId: run.id,
+        agentId: run.agentId,
+        kind: "budget_cap",
+        rationale: note,
+      });
+    }
+  }
+
   const updated = await setRunStatus(
     db,
     run.id,
     {
-      status: body.status,
-      summary: body.summary,
+      status,
+      summary,
       tokensIn: body.tokensIn,
       tokensOut: body.tokensOut,
       costUsd: body.costUsd,

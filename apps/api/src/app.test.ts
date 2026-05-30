@@ -2,6 +2,7 @@
 // Run: DATABASE_URL=... pnpm --filter @agent-os/api test
 import { createApiKey } from "@agent-os/core";
 import { schema } from "@agent-os/db";
+import { eq } from "drizzle-orm";
 import { AGENT_IDS, TENANT_IDS } from "@agent-os/shared";
 import { app, db } from "./index.js";
 
@@ -55,6 +56,31 @@ async function main() {
   assert((await app.request("/api/admin/agents", { method: "POST", headers: rh, body: JSON.stringify({ key: "x", name: "X" }) })).status === 403, "runner key cannot use admin API (403)");
   const okJob = await app.request("/api/admin/jobs", { method: "POST", headers: ah, body: JSON.stringify({ agentId: ADOPS, name: "apitest job", scheduleCron: "0 9 * * *" }) });
   assert(okJob.status === 201, "admin creates a job for its own agent (201)");
+
+  console.log("\n[budget enforcement (Step 1b)]");
+  // Insert a fresh scheduled run, claim it, post over-cap cost — server flips
+  // it to 'failed' and writes both budget_cap and session_end events.
+  const [overRun] = await db.insert(schema.runs).values({ tenantId: ACQU, agentId: ADOPS, status: "scheduled", triggerSource: "manual", scheduledFor: new Date() }).returning();
+  await app.request(`/api/agents/${ADOPS}/next`, { headers: rh }); // claim
+  const overRes = await app.request(`/api/runs/${overRun!.id}/status`, { method: "PUT", headers: rh, body: JSON.stringify({ status: "done", summary: "blew the cap", costUsd: 9999.99 }) });
+  assert(overRes.status === 200, "over-budget status update accepted (200)");
+  const overFinal = (await overRes.json()) as { run: { status: string; summary: string } };
+  assert(overFinal.run.status === "failed", "server overrode status to 'failed' on over-budget");
+  assert(/over budget/i.test(overFinal.run.summary), "summary annotated with 'over budget'");
+  const overEvs = await db.select().from(schema.autonomyEvents).where(eq(schema.autonomyEvents.runId, overRun!.id));
+  const kinds = new Set(overEvs.map((e) => e.kind));
+  assert(kinds.has("budget_cap"), "budget_cap autonomy event written");
+  assert(kinds.has("session_end"), "session_end autonomy event written");
+
+  // Under-cap control: same cap, small cost → no override, no budget_cap event.
+  const [underRun] = await db.insert(schema.runs).values({ tenantId: ACQU, agentId: ADOPS, status: "scheduled", triggerSource: "manual", scheduledFor: new Date() }).returning();
+  await app.request(`/api/agents/${ADOPS}/next`, { headers: rh });
+  const underRes = await app.request(`/api/runs/${underRun!.id}/status`, { method: "PUT", headers: rh, body: JSON.stringify({ status: "done", summary: "tiny cost", costUsd: 0.01 }) });
+  const underFinal = (await underRes.json()) as { run: { status: string } };
+  assert(underFinal.run.status === "done", "under-budget run stays 'done'");
+  const underEvs = await db.select().from(schema.autonomyEvents).where(eq(schema.autonomyEvents.runId, underRun!.id));
+  assert(underEvs.some((e) => e.kind === "session_end"), "under-budget done still records session_end");
+  assert(!underEvs.some((e) => e.kind === "budget_cap"), "no spurious budget_cap on under-budget run");
 
   console.log("\n[autonomy events]");
   const ev = await app.request(`/api/runs/${runId}/autonomy-event`, { method: "POST", headers: rh, body: JSON.stringify({ kind: "allow", toolName: "close.update_lead", rationale: "in allow-list" }) });
