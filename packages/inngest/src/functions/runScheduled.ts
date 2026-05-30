@@ -17,11 +17,12 @@ export const runScheduledAgent = inngest.createFunction(
     // Agent SDK allowedTools (Pitfall 5, Plan 06). It caps how many scheduled-run
     // claims execute in parallel so a burst of cron events can't stampede the DB.
     concurrency: { limit: 5 },
+    // Triggers belong in the first argument since inngest@4.5.
+    triggers: [{ event: "agent/scheduled.run" }],
   },
-  { event: "agent/scheduled.run" },
   async ({ event, step }) => {
-    const agentId = event.data?.agentId as string | undefined;
-    const tenantId = event.data?.tenantId as string | undefined;
+    const data = (event.data ?? {}) as { agentId?: string; tenantId?: string };
+    const { agentId, tenantId } = data;
     if (!agentId || !tenantId) {
       return { claimed: null, reason: "missing agentId/tenantId in event.data" };
     }
