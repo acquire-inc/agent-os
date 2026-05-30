@@ -1,0 +1,25 @@
+{
+  "name": "@agent-os/inngest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx src/inngest.test.ts"
+  },
+  "dependencies": {
+    "@agent-os/core": "workspace:*",
+    "@agent-os/db": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "inngest": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
