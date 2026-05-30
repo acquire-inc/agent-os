@@ -10,6 +10,7 @@ import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
 import { Avatar, Input, Separator } from "#/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
+import { clearAdminKey, getAdminKey, getApiUrl, setAdminKey, setApiUrl } from "#/lib/api";
 import { useApp } from "#/lib/app-context";
 import { useAuth } from "#/lib/auth";
 import { data } from "#/lib/data";
@@ -49,6 +50,7 @@ function SettingsPage() {
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="projects">Projects</TabsTrigger>
           <TabsTrigger value="apikeys">API Keys</TabsTrigger>
+          <TabsTrigger value="api">API Connection</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
         </TabsList>
 
@@ -236,6 +238,11 @@ function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* ── API Connection ─────────────────────────────────────────── */}
+        <TabsContent value="api">
+          <ApiConnectionPanel />
+        </TabsContent>
+
         {/* ── Tags ────────────────────────────────────────────────────── */}
         <TabsContent value="tags">
           <Card className="max-w-2xl">
@@ -257,6 +264,55 @@ function SettingsPage() {
         </TabsContent>
       </Tabs>
     </Page>
+  );
+}
+
+function ApiConnectionPanel() {
+  const [url, setUrl] = useState(getApiUrl());
+  const [key, setKey] = useState(getAdminKey() ?? "");
+  const [saved, setSaved] = useState(false);
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader>
+        <CardTitle>API Connection</CardTitle>
+        <CardDescription>
+          The Architect and other admin tools call the Hono API directly. Paste an admin-kind key
+          minted via <span className="font-mono">POST /api/admin/keys</span> (or seeded for demo).
+          Stored only in this browser's localStorage.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">API URL</label>
+          <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:8787" />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Admin API key</label>
+          <Input
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder="aos_admin_…"
+            type="password"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              setApiUrl(url);
+              if (key.trim()) setAdminKey(key.trim());
+              else clearAdminKey();
+              setSaved(true);
+              setTimeout(() => setSaved(false), 1500);
+            }}
+          >
+            Save
+          </Button>
+          {saved && <span className="text-xs text-muted-foreground">Saved.</span>}
+          {!key && <span className="text-xs text-muted-foreground">No key set — /architect is read-only.</span>}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

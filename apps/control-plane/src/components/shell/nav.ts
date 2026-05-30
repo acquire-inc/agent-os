@@ -10,6 +10,7 @@ import {
   Repeat,
   Settings,
   Sparkles,
+  Wand2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Runs", icon: Activity },
   { to: "/jobs", label: "Jobs", icon: LayoutGrid },
   { to: "/agents", label: "Agents", icon: Boxes },
+  { to: "/architect", label: "Architect", icon: Wand2 },
   { to: "/routines", label: "Routines", icon: Repeat },
   { to: "/skills", label: "Skills", icon: Sparkles },
   { to: "/mcps", label: "MCPs", icon: Cable },
