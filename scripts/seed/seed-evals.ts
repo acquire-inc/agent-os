@@ -7,10 +7,14 @@ import { createDb, schema } from "@agent-os/db";
 import { and, eq } from "drizzle-orm";
 import { TENANT_ID } from "./_shared.js";
 import { EVAL_CASES } from "./_evals.js";
+import { assertValid, validateEvalCase } from "./_schema.js";
 
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL required");
   const db = createDb(process.env.DATABASE_URL);
+
+  // G: validate the eval-case manifest before touching the DB (fail loud on drift).
+  assertValid(EVAL_CASES.flatMap((c) => validateEvalCase(c)), "eval-case validation");
 
   // Resolve which referenced agents exist (cases are keyed by stable agent_key).
   const agents = await db.select({ id: schema.agents.id, key: schema.agents.key }).from(schema.agents).where(eq(schema.agents.tenantId, TENANT_ID));

@@ -3,13 +3,17 @@ import { createDb, schema } from "@agent-os/db";
 import { TENANT_IDS } from "@agent-os/shared";
 import { eq } from "drizzle-orm";
 import {
+  classifyCredential,
   decrypt,
   encrypt,
   generateVaultKey,
   makeBundleTokenResolver,
+  parseClientCredential,
   resolveAccessToken,
+  resolveCredential,
   setEnvVar,
   storeCredential,
+  tenantCredToken,
 } from "./index.js";
 
 let passed = 0,
@@ -80,6 +84,21 @@ async function main() {
   const ev = await setEnvVar(db, key, { tenantId, key: "STRIPE_KEY", value: "sk_test_xyz", pinned: true });
   assert(ev !== undefined && !ev.encryptedValue.includes("sk_test_xyz"), "env var stored encrypted");
   assert(decrypt(ev!.encryptedValue, key) === "sk_test_xyz", "env var decrypts to original");
+
+  console.log("\n[credential namespacing (v3 C)]");
+  assert(classifyCredential("AGENTIC_N8N_API_KEY") === "infra", "AGENTIC_* classified infra");
+  assert(classifyCredential("CLIENT_ACQU_STRIPE_KEY") === "client", "CLIENT_* classified client");
+  assert(classifyCredential("RANDOM_KEY") === "unknown", "unprefixed classified unknown");
+  assert(tenantCredToken("william-roofing") === "WILLIAM_ROOFING", "tenant token uppercases + underscores");
+  assert(parseClientCredential("CLIENT_ACQU_STRIPE_KEY")?.name === "STRIPE_KEY", "client cred name parsed");
+  // infra present → ok; infra missing → fail loud
+  assert((await resolveCredential("AGENTIC_X", "acqu", async () => "v")).status === "ok", "infra present → ok");
+  assert((await resolveCredential("AGENTIC_X", "acqu", async () => null)).status === "fail", "infra missing → fail loud");
+  // client missing → pause; client present → ok; wrong tenant → fail
+  assert((await resolveCredential("CLIENT_ACQU_KEY", "acqu", async () => null)).status === "pause", "client missing → pause for paste-back");
+  assert((await resolveCredential("CLIENT_ACQU_KEY", "acqu", async () => "v")).status === "ok", "client present → ok");
+  assert((await resolveCredential("CLIENT_OTHER_KEY", "acqu", async () => "v")).status === "fail", "cross-tenant client cred → fail");
+  assert((await resolveCredential("WAT", "acqu", async () => "v")).status === "fail", "unknown class → fail loud");
 
   console.log(`\nResult: ${passed} passed, ${failed} failed\n`);
   process.exit(failed > 0 ? 1 : 0);

@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { decrypt, encrypt } from "./crypto.js";
 
 export * from "./crypto.js";
+export * from "./credentials.js";
 
 const { oauthCredentials, envVars, mcps } = schema;
 

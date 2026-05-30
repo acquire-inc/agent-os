@@ -15,6 +15,7 @@ import {
   extractToolKeys,
   toolMeta,
 } from "./_tools.js";
+import { assertValid, validateTool } from "./_schema.js";
 
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL required");
@@ -45,6 +46,8 @@ async function main() {
   const idByKey = new Map<string, string>();
   for (const toolKey of [...catalog].sort()) {
     const meta = toolMeta(toolKey);
+    // G: validate each catalog record before upsert (fail loud on drift / unsafe combos).
+    assertValid(validateTool({ toolKey, name: meta.name, kind: meta.kind, status: "active", requiresApproval: meta.requiresApproval, reversible: meta.reversible }), "tool validation");
     const [existing] = await db
       .select({ id: schema.tools.id })
       .from(schema.tools)
