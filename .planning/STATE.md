@@ -3,10 +3,10 @@ gsd_state_version: '1.0'
 status: in_progress
 progress:
   total_phases: 8
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 2
-  completed_plans: 0
-  percent: 62
+  completed_plans: 2
+  percent: 75
 ---
 
 # Project State
@@ -16,16 +16,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-30)
 
 **Core value:** Adding a doctrine agent is configuration — zero new application code.
-**Current focus:** Phase 6 — Tool Registry.
+**Current focus:** Phase 7 — Runner execution path (next).
 
 ## Current Position
 
-Phase: 6 of 8 (Tool Registry)
-Plan: 06-01 of 06-02
-Status: Ready to execute
-Last activity: 2026-05-30 — Adopted GSD (brownfield): created PROJECT/ROADMAP/STATE/config. Opened Phase 6.
+Phase: 6 of 8 (Tool Registry) — COMPLETE; Phase 7 next
+Plan: 06-02 done
+Status: Phase complete
+Last activity: 2026-05-30 — Phase 6 shipped: tool registry (62 tools, 92 agents, 271 bindings) derived from seeded prompts. Migration 0006, schema + seeder, idempotent, joined to `all`.
 
-Progress: [██████░░░░] 62% (5/8 phases; v1 milestone shipped)
+Progress: [███████░░░] 75% (6/8 phases; v1 shipped, v2 in progress)
 
 ## Accumulated Context
 
@@ -33,13 +33,13 @@ Progress: [██████░░░░] 62% (5/8 phases; v1 milestone shipped
 
 Full log in PROJECT.md Key Decisions. Recent / affecting current work:
 
-- [Phase 6]: Tool registry derived from seeded prompts — catalog + bindings are data-driven, no hand-mapping.
-- [Phase 6]: Tools resolved at agent granularity; tool.1/17/18 are kind=mcp (Pipeboard/Slack/Close), rest custom.
+- [Phase 6 ✓]: Tool registry derived from seeded prompts — catalog + bindings are data-driven, no hand-mapping. Ranges (`tool.1–tool.22`) filtered to the real numbered universe so they can't invent undescribed slots.
+- [Phase 6 ✓]: tool.1/17/18 = kind=mcp (Pipeboard/Slack/Close); action tools (launcher, senders, payment/contract/billing) carry requires_approval + reversible=false for the safety hooks.
 - [Phase 5]: Handoff chains = subscriber `agent_triggers`; emitter side stays behavioral.
 
 ### Pending Todos
 
-- Phase 7: wire Runner so `vitals` runs end-to-end (Session A acceptance test).
+- Phase 7 (next): wire Runner so `vitals` runs end-to-end (Session A acceptance test). The Runner now has everything to resolve: prompt + skills + mcps + **tools** + knowledge scope + triggers.
 - Phase 8: author eval cases for can't-fail agents.
 
 ### Blockers/Concerns

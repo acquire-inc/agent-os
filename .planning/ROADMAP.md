@@ -45,20 +45,20 @@ Plans: [x] knowledge-scope + approval-gate parsing (72 scoped / 40 gated) · [x]
 **Milestone Goal:** The seeded agents stop being inert config and become executable — they
 resolve real tools, run through the Runner behind safety hooks, and are measured by evals.
 
-#### Phase 6: Tool Registry  ← CURRENT
+#### Phase 6: Tool Registry  ✅ COMPLETE (2026-05-30)
 **Goal**: Every `tool.*` an agent's prompt references becomes a real `tools` registry row, and
 each agent is bound to the tools it may call (`agent_tools`). Derived from the seeded prompts.
 **Depends on**: Phase 5
 **Requirements**: build-spec §3 (tools, agent_tool_bindings), one-rule (deterministic tools are the only per-agent code)
 **Success Criteria** (what must be TRUE):
-  1. A `tools` table + `agent_tools` join table exist with RLS, mirrored in Drizzle schema.
-  2. The full tool catalog referenced across all agent prompts is seeded (numbered `tool.1..22` + named tools), classified by kind (custom/mcp), `requires_approval`, `reversible`.
-  3. Every agent is bound to exactly the tools its prompt references (ranges expanded), idempotently.
-  4. A query resolves any agent → its callable tools, and any tool → its consumers.
-  5. Seeder is idempotent and joins the `... all` pipeline; typecheck + parser test green.
+  1. ✓ A `tools` table + `agent_tools` join table exist with RLS, mirrored in Drizzle schema.
+  2. ✓ The full referenced catalog is seeded — **62 tools** (numbered `tool.1..22` + named), classified by kind (3 mcp), `requires_approval` (7), `reversible`.
+  3. ✓ Every agent bound to exactly its declared tools (ranges filtered to the real numbered universe) — **92 agents, 271 bindings**, idempotent.
+  4. ✓ Resolves both directions: agent→tools (`ad-ops → tool.1,4,5,11,17,21,22`) and tool→consumers (`tool.2` Ad Launcher → `launcher` only).
+  5. ✓ Seeder idempotent (62/92/271 stable on re-run), joined to `... all`; typecheck + parser test (17/0) green.
 Plans:
-- [ ] 06-01: Schema — migration `0006_tools_registry.sql` + Drizzle `tools`/`agentTools` + `_shared` bind helpers
-- [ ] 06-02: Catalog + bindings — `_tools.ts` metadata + `seed-tools.ts` (derive from prompts, classify, bind), run + verify
+- [x] 06-01: Schema — migration `0006_tools_registry.sql` + Drizzle `tools`/`agentTools` + `_shared` bind helpers
+- [x] 06-02: Catalog + bindings — `_tools.ts` metadata + `seed-tools.ts` (derive from prompts, classify, bind), run + verify
 
 #### Phase 7: Runner execution path
 **Goal**: Wire the `Runner` interface so `vitals` runs end-to-end as data, behind the safety hooks (Session A acceptance test: read metrics → post Slack snapshot, audited).
@@ -93,6 +93,6 @@ Phases TBD — gated on `tenant-isolation-tester` passing, `ad-claim-compliance`
 | 3. §1.5 roster | v1 | done | Complete | 2026-05 |
 | 4. Entire doctrine | v1 | done | Complete | 2026-05 |
 | 5. Optimize + chains | v1 | done | Complete | 2026-05-30 |
-| 6. Tool Registry | v2 | 0/2 | In progress | - |
+| 6. Tool Registry | v2 | 2/2 | Complete | 2026-05-30 |
 | 7. Runner path | v2 | 0/? | Not started | - |
 | 8. Eval suites | v2 | 0/? | Not started | - |
