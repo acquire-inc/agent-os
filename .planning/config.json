@@ -1,0 +1,20 @@
+{
+  "mode": "interactive",
+  "granularity": "standard",
+  "brownfield": true,
+  "workflow": {
+    "research": true,
+    "plan_check": true,
+    "verifier": true,
+    "auto_advance": false
+  },
+  "planning": {
+    "commit_docs": true
+  },
+  "safety": {
+    "always_confirm_destructive": true,
+    "always_confirm_external_services": true
+  },
+  "notes": "GSD adopted brownfield for agent-os (see github.com/open-gsd/get-shit-done-redux). Artifacts are the source of truth across ephemeral remote sessions; commit messages are not. Read STATE.md first every session.",
+  "claude_md_path": "./CLAUDE.md"
+}
