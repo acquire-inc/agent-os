@@ -257,6 +257,28 @@ importers:
         specifier: ^5.7.3
         version: 5.9.3
 
+  scripts/seed:
+    dependencies:
+      '@agent-os/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@agent-os/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(postgres@3.4.9)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
 packages:
 
   '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.150':
