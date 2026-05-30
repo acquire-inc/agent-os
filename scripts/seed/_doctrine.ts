@@ -79,6 +79,17 @@ export function getAgentBlock(doc: "v1" | "v2", key: string): DoctrineBlock {
   return pick;
 }
 
+/** List every agent in a doc that has a real fenced system prompt (stubs excluded). */
+export function listPromptAgents(doc: "v1" | "v2"): { key: string; promptLen: number }[] {
+  const seen = new Map<string, number>();
+  for (const b of parseDoc(doc)) {
+    if (!b.systemPrompt) continue;
+    const len = b.systemPrompt.length;
+    if (!seen.has(b.key) || len > seen.get(b.key)!) seen.set(b.key, len);
+  }
+  return [...seen.entries()].map(([key, promptLen]) => ({ key, promptLen }));
+}
+
 // ── parsers for the prose field lines ──────────────────────────────────────
 
 /** Parse the **Autonomy:** line → the conservative gate (propose if any propose appears). */
