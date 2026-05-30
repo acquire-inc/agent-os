@@ -3,10 +3,10 @@ gsd_state_version: '1.0'
 status: in_progress
 progress:
   total_phases: 8
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 2
   completed_plans: 2
-  percent: 88
+  percent: 100
 ---
 
 # Project State
@@ -16,40 +16,44 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-30)
 
 **Core value:** Adding a doctrine agent is configuration — zero new application code.
-**Current focus:** Phase 8 — Eval suites (next, last of v2).
+**Current focus:** v2 milestone COMPLETE. Next: v3 — stack alignment (see ASSESSMENT-stack-alignment.md).
 
 ## Current Position
 
-Phase: 7 of 8 (Runner execution path) — COMPLETE; Phase 8 next
-Plan: 07-02 done
-Status: Phase complete
-Last activity: 2026-05-30 — Phase 7 shipped: recon found the Runner already built (apps/runner+api+scheduler+core, hooks 1a/1b/1c). Wired Phase 6 tool registry into execution (bundle.tools + system prompt), made autonomyGate registry-ready (requiresApproval override). Verified: core 50/0, runner dryRun e2e 11/0.
+Phase: 8 of 8 (Eval suites) — COMPLETE. **v2 "Make Agents Runnable" milestone done.**
+Status: Milestone complete; v3 (stack alignment to the uploaded `agentic-templates` repo) is queued.
+Last activity: 2026-05-30 — Phase 8 shipped: eval_cases + agent_metrics (migration 0007), computeAgentMetrics + proposeAutonomyChange, 12 eval cases (8 critical), 93 scorecards. core 59/0, full seed all green, typecheck clean.
 
-Progress: [█████████░] 88% (7/8 phases; v1 shipped, v2 nearly done)
+Progress: [██████████] 100% of v2 (8/8 phases). v1 + v2 shipped.
 
 ## Accumulated Context
 
 ### Decisions
 
-Full log in PROJECT.md Key Decisions. Recent / affecting current work:
+Full log in PROJECT.md. Recent:
 
-- [Phase 7 ✓]: The Runner was already built (apps/runner liveRun/dryRun + apps/api + apps/scheduler + core bundle/gate). Phase 7 became verification + tool-registry integration, not a rebuild.
-- [Phase 7 ✓]: `buildBundle` now resolves `agent_tools` → `bundle.tools`; tools surface in the system prompt. `autonomyGate` honors registry `requiresApproval` (operator `always_allow` still wins).
-- [Phase 6 ✓]: Tool registry derived from seeded prompts; ranges filtered to the real numbered universe; tool.1/17/18 = mcp; action tools carry requires_approval + reversible=false.
+- [Phase 8 ✓]: Eval cases are DATA keyed by `agent_key` (survive reseeds); metrics are a daily rollup of runs/approvals/autonomy_events; `proposeAutonomyChange` is a pure threshold fn (demote on success<0.8 @≥10 runs; promote on success≥0.95 & approval≥0.9 @≥20 runs).
+- [Phase 7 ✓]: Runner already existed; wired tool registry into the bundle + gate.
+- [Phase 6 ✓]: Tool registry derived from prompts.
 
-### Pending Todos
+### Pending Todos — v3 (stack alignment)
 
-- Phase 8 (next): author eval cases for the can't-fail agents + high-volume monitors so `agent-evaluator` can score runs. Last phase of the v2 milestone.
-- Residual from Phase 7: build a `tool_key → runtime SDK tool-name` map → enables true registry-driven gating + SDK `allowedTools`. And a structured `run_summaries` table / SessionEnd hook (currently `runs.summary` text).
+From `.planning/ASSESSMENT-stack-alignment.md` (uploaded repo = a Python autonomous client-build
+factory; reuse its real patterns). Sequenced **A → G → B → D → E**, then C, F:
+- **A** SDK-native agent export: `.claude/agents/<key>.md` (frontmatter name/description/model/tools) + `managed-agents-registry.json` manifest. (keystone)
+- **G** JSON Schema for agent/tool/skill records.
+- **B** skill `allowed-tools` (skill→tool least privilege).
+- **D** `tool.voice-lint` brand-voice gate for content agents.
+- **E** cost-ceiling pause (re-approval, not just kill).
+- **C** credential namespacing AGENTIC_*/CLIENT_<tenant>_*; **F** ManagedAgentsRunner backend.
 
 ### Blockers/Concerns
 
-- Postgres is in-container and reset per session — re-seed with `pnpm --filter @agent-os/seed all` (doctrine) or `pnpm --filter @agent-os/db seed` (fixtures, used by tests) before DB work.
-- `scripts/test-all.sh` resets the schema; run it (or the targeted reset) to validate — it now includes the runner suite.
+- Postgres is in-container, reset per session — re-seed with `pnpm --filter @agent-os/seed all` (doctrine) or `pnpm --filter @agent-os/db seed` (fixtures for tests).
+- Tooling note: large Bash outputs persist to a file (2KB preview); keep outputs modest and Read files.
 
 ## Session Continuity
 
 Last session: 2026-05-30
-Stopped at: GSD artifacts written; about to execute Phase 6 (schema → catalog → bindings).
-Resume file: None — read this STATE.md, then .planning/ROADMAP.md Phase 6, then continue.
+Stopped at: Phase 8 complete + committed. v3 stack-alignment assessment written; ready to execute enhancement A.
 Branch: claude/seed-phase-1-agents

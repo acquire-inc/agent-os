@@ -138,6 +138,39 @@ export const agentTools = pgTable(
   (t) => [primaryKey({ columns: [t.agentId, t.toolId] })],
 );
 
+// Eval suites (Phase 8): per-agent eval cases the agent-evaluator replays.
+export const evalCases = pgTable("eval_cases", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  agentKey: text("agent_key").notNull(),
+  name: text("name").notNull(),
+  input: text("input").notNull(),
+  assertion: text("assertion").notNull(),
+  kind: text("kind").notNull().default("output_contains"),
+  severity: text("severity").notNull().default("normal"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Daily metrics rollup per agent (the scorecard agent-evaluator reads).
+export const agentMetrics = pgTable("agent_metrics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  runs: integer("runs").notNull().default(0),
+  successes: integer("successes").notNull().default(0),
+  failures: integer("failures").notNull().default(0),
+  successRate: numeric("success_rate", { precision: 5, scale: 4 }).notNull().default("0"),
+  approvalsRequested: integer("approvals_requested").notNull().default(0),
+  approvalsGranted: integer("approvals_granted").notNull().default(0),
+  approvalRate: numeric("approval_rate", { precision: 5, scale: 4 }).notNull().default("0"),
+  interventions: integer("interventions").notNull().default(0),
+  costUsd: numeric("cost_usd", { precision: 12, scale: 4 }).notNull().default("0"),
+  avgLatencyMs: integer("avg_latency_ms").notNull().default(0),
+  computedAt: timestamp("computed_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const jobs = pgTable("jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),

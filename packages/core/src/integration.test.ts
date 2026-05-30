@@ -11,6 +11,8 @@ import {
   evaluateDueJobs,
   autonomyGate,
   buildApprovalOptions,
+  computeAgentMetrics,
+  proposeAutonomyChange,
   hashApiKey,
   hashEmbedder,
   isIrreversibleTool,

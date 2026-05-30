@@ -22,7 +22,8 @@
     "everything": "tsx seed-everything.ts",
     "chains": "tsx seed-chains.ts",
     "tools": "tsx seed-tools.ts",
-    "all": "tsx acqu-vitals.ts && tsx seed-phase-1.ts && tsx seed-remaining-phases.ts && tsx seed-everything.ts && tsx seed-chains.ts && tsx seed-tools.ts",
+    "evals": "tsx seed-evals.ts",
+    "all": "tsx acqu-vitals.ts && tsx seed-phase-1.ts && tsx seed-remaining-phases.ts && tsx seed-everything.ts && tsx seed-chains.ts && tsx seed-tools.ts && tsx seed-evals.ts",
     "test": "tsx _doctrine.test.ts"
   },
   "dependencies": {

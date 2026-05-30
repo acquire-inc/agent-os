@@ -77,13 +77,18 @@ Plans:
 - [x] 07-02: Verification — extend core integration test (bundle.tools + gate override) + new runner dryRun e2e test
 **Residual gaps (→ roadmap):** `tool_key → runtime SDK tool-name` map (for true registry-driven gating + SDK `allowedTools` restriction); structured `run_summaries` table / SessionEnd hook.
 
-#### Phase 8: Eval suites
+#### Phase 8: Eval suites  ✅ COMPLETE (2026-05-30) — v2 milestone done
 **Goal**: Per-agent eval cases so `agent-evaluator` drives promotion/demotion from metrics.
 **Depends on**: Phase 7
-**Success Criteria**:
-  1. Eval cases exist for the can't-fail agents + the high-volume monitors.
-  2. `agent-evaluator` can score an agent run against its cases and write a scorecard.
-Plans: TBD
+**Success Criteria** (what must be TRUE):
+  1. ✓ `eval_cases` + `agent_metrics` tables (migration 0007) with RLS, mirrored in Drizzle.
+  2. ✓ Eval cases seeded for the can't-fail agents + high-volume monitors — **12 cases (8 critical), 11 agents**, idempotent.
+  3. ✓ `computeAgentMetrics` rolls up runs/approvals/autonomy_events into a daily scorecard (upsert by agent+date) — **93 scorecards** computed.
+  4. ✓ `proposeAutonomyChange` (pure) turns a scorecard into promote/demote/hold (demotion automatic on success-rate drop; promotion earned on volume+rates).
+  5. ✓ Verified: core integration 59/0 (incl. metrics aggregation, idempotency, the 4 recommendation thresholds); full `seed all` green; workspace typecheck clean.
+Plans:
+- [x] 08-01: Schema (0007) + `metrics.ts` (computeAgentMetrics + proposeAutonomyChange) + core test
+- [x] 08-02: `_evals.ts` manifest + `seed-evals.ts` (seed cases + compute scorecards), joined to `all`
 
 ### 📋 v3 — Productize Externally (Planned, gated)
 
@@ -103,4 +108,4 @@ Phases TBD — gated on `tenant-isolation-tester` passing, `ad-claim-compliance`
 | 5. Optimize + chains | v1 | done | Complete | 2026-05-30 |
 | 6. Tool Registry | v2 | 2/2 | Complete | 2026-05-30 |
 | 7. Runner path | v2 | 2/2 | Complete | 2026-05-30 |
-| 8. Eval suites | v2 | 0/? | Not started | - |
+| 8. Eval suites | v2 | 2/2 | Complete | 2026-05-30 |
