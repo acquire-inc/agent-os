@@ -3,7 +3,7 @@ status: In Progress
 current_phase: 7
 current_phase_name: Tools registry + Inngest scheduler + Browserbase tool.browser
 plans_total: 7
-plans_complete: 1
+plans_complete: 2
 last_activity: 2026-05-30
 ---
 
@@ -18,6 +18,7 @@ last_activity: 2026-05-30
 - Phase 1–6: complete (doctrine seeded through fulfillment + revenue ops; Architect feature + remix shipped).
 - Phase 7: plans verified by gsd-plan-checker (iteration 2 PASSED). Executing.
 - 07-01 (tools registry schema): COMPLETE — migration 0007 + Drizzle mirror + RLS tests. `supabase db push` deferred to operator (sandbox has no DB; see 07-01-SUMMARY.md Operator follow-ups). 1/7 plans done.
+- 07-02 (seedAgent tools extension + Bundle): COMPLETE — ensureTool/bindTool/AgentSpec.tools (optional) + Bundle.tools[] + backward-compat test. typecheck 10/10, architect 31/31. 2/7 plans done.
 
 ## Sandbox constraints (executors MUST honor)
 

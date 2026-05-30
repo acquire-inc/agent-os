@@ -109,7 +109,7 @@ Plans:
   2. Inngest scheduler replaces the in-process scheduler; pg_cron remains as the trigger that calls Inngest.
   3. `tool.browser` (Browserbase + Stagehand) registered; the dev agent can use it for headless web automation.
 
-**Plans:** 7 plans
+**Plans:** 2/7 plans executed
 
 Plans:
 **Wave 1**
@@ -118,7 +118,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-02-PLAN.md — seedAgent + Bundle extended with tools field; backward-compatible AgentSpec (SC-7-1)
+- [x] 07-02-PLAN.md — seedAgent + Bundle extended with tools field; backward-compatible AgentSpec (SC-7-1)
 - [ ] 07-03-PLAN.md — @agent-os/inngest workspace: client + runScheduledAgent + unit test (SC-7-2)
 - [ ] 07-05-PLAN.md — @agent-os/tool-browser workspace: SSRF denylist + Stagehand wrapper + unit tests (SC-7-3)
 
