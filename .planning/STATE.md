@@ -16,7 +16,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-30)
 
 **Core value:** Adding a doctrine agent is configuration — zero new application code.
-**Current focus:** v2 COMPLETE + v3 started (A SDK-export, D voice-lint done). Next v3: G, B, E, C, F.
+**Current focus:** v3 Stack-Alignment COMPLETE (A,D,G,C,E,B,F all shipped + verified). Next: D-wire (voice-lint PostToolUse gate), then v4 external multi-tenant (gated).
+
+### v3 completion (2026-05-30, verified ground-truth after sandbox rollback)
+All 7 enhancements re-built one-at-a-time with per-step verification (the earlier batch was
+rolled back by a container reset; commits 2f00d68 G+C, 0f13de4 E, 85a30d0 B, 1156ad1 F).
+Final from-scratch verify: 8 migrations; workspace typecheck 0; schema 14/0; core 69/0;
+runner 13/0; vault 25/0; seed all green (93 agents, 63 tools, 13 eval cases, 93 scorecards);
+93 SDK-native exports. NOTE: registry test has 1 PRE-EXISTING failure (`superpowers` —
+missing /tmp/superpowers fixture, unrelated to any of this work).
 
 ## Current Position
 

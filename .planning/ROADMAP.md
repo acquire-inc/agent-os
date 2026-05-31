@@ -90,19 +90,20 @@ Plans:
 - [x] 08-01: Schema (0007) + `metrics.ts` (computeAgentMetrics + proposeAutonomyChange) + core test
 - [x] 08-02: `_evals.ts` manifest + `seed-evals.ts` (seed cases + compute scorecards), joined to `all`
 
-### 🚧 v3 — Stack Alignment (In Progress)
+### ✅ v3 — Stack Alignment (COMPLETE 2026-05-30)
 
 **Milestone Goal:** Align how we build agents to the uploaded `agentic-templates` repo (a Python
-autonomous client-build factory) — see `.planning/ASSESSMENT-stack-alignment.md`. Sequence A→G→B→D→E, then C, F.
+autonomous client-build factory) — see `.planning/ASSESSMENT-stack-alignment.md`. All 7 shipped.
 
-- [x] **A — SDK-native agent export** (commit c29e881/2a406d7): `exports/agents/<key>.md` (frontmatter name/description/model/tools + prompt body) + `exports/managed-agents-registry.json` (93 agents). Generated from the registry; portable to the Agent SDK / Managed Agents.
-- [x] **D — brand-voice gate** (commit 1d5ce30/2a406d7): `packages/core/voice-lint.ts` (lintVoice/isVoiceClean) — em-dash + 18 banned phrases, ReDoS-guarded. Tested 4/4.
-- [ ] **G** — JSON Schema for agent/tool/skill records (validate seeds).
-- [ ] **B** — skill `allowed-tools` (skill→tool least privilege).
-- [ ] **E** — cost-ceiling PAUSE (re-approval, not just kill) at `budget_cap_usd`.
-- [ ] **C** — credential namespacing `AGENTIC_*` / `CLIENT_<tenant>_*` in vault/connector layer.
-- [ ] **F** — `ManagedAgentsRunner` backend behind the Runner interface (beta header).
-- [ ] **D-wire** — bind `tool.voice-lint` to content agents + enforce in a PostToolUse gate.
+- [x] **A — SDK-native agent export**: `exports/agents/<key>.md` (frontmatter name/description/model/tools + prompt body) + `exports/managed-agents-registry.json` (93 agents). Generated from the registry; portable to the Agent SDK / Managed Agents.
+- [x] **D — brand-voice gate**: `packages/core/voice-lint.ts` (lintVoice/isVoiceClean) — em-dash + 18 banned phrases, ReDoS-guarded.
+- [x] **G — record validators** (commit 2f00d68): `scripts/seed/_schema.ts` validates agent/tool/eval records (model allowlist, autonomy/backend enums, key shapes, irreversible⇒requires_approval). Wired into seed-tools + seed-evals (fail loud). Test 14/0.
+- [x] **C — credential namespacing** (commit 2f00d68): `packages/vault/credentials.ts` — AGENTIC_* infra (fail loud) vs CLIENT_<tenant>_* (pause for paste-back); resolveCredential ok/fail/pause; cross-tenant rejected.
+- [x] **E — cost-ceiling pause** (commit 0f13de4): `budgetDecision()` ok/pause/kill at cap×1.5; API status endpoint pauses for re-approval over the soft cap, kills only at the hard ceiling.
+- [x] **B — skill → allowed-tools** (commit 85a30d0): migration 0008 `skills.allowed_tools_json`; parsed from SKILL.md frontmatter; surfaced on `bundle.skills[].allowedTools`. morning-vitals carries [tool.1,18,17,21,22]. (Also fixed scripts/seed missing @agent-os/core dep.)
+- [x] **F — ManagedAgentsRunner** (commit 1156ad1): `apps/runner/execute.ts` routes on `agent.backend` — managed-agents → Sessions API (beta header), else SDK. Same hook/budget contract; fails soft when runtime absent.
+
+**Follow-ups (queued):** D-wire — bind a `tool.voice-lint` and enforce it in a PostToolUse content gate; declare `allowed-tools` on more SKILL.md files; resolve the pre-existing registry `superpowers` test (missing /tmp fixture).
 
 ### 📋 v4 — Productize Externally (Planned, gated)
 
