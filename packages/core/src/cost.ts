@@ -57,6 +57,30 @@ export async function checkBudget(db: Db, tenantId: string): Promise<BudgetStatu
   return { monthlyBudgetUsd: budget, monthSpendUsd: monthSpend, pct, level };
 }
 
+export type BudgetVerdict = "ok" | "pause" | "kill";
+
+/**
+ * v3 enhancement E — cost-ceiling PAUSE before kill (mirrors the uploaded repo's
+ * $15k hard-halt-with-re-approval policy). Pure decision over reported spend vs the
+ * agent's budget cap:
+ *  - ok    : at/under cap
+ *  - pause : over cap but under the hard ceiling (cap × killMultiple) → suspend for
+ *            human re-approval rather than discard the spend already incurred
+ *  - kill  : at/over the hard ceiling → stop the run outright
+ */
+export function budgetDecision(
+  spendUsd: number,
+  capUsd: number | null,
+  opts: { killMultiple?: number } = {},
+): { verdict: BudgetVerdict; spendUsd: number; capUsd: number | null; hardCeilingUsd: number | null } {
+  const killMultiple = opts.killMultiple ?? 1.5;
+  if (capUsd == null) return { verdict: "ok", spendUsd, capUsd, hardCeilingUsd: null };
+  const hardCeilingUsd = capUsd * killMultiple;
+  if (spendUsd >= hardCeilingUsd) return { verdict: "kill", spendUsd, capUsd, hardCeilingUsd };
+  if (spendUsd > capUsd) return { verdict: "pause", spendUsd, capUsd, hardCeilingUsd };
+  return { verdict: "ok", spendUsd, capUsd, hardCeilingUsd };
+}
+
 /** Append an immutable audit-log entry (the PostToolUse hook target). */
 export async function writeAudit(
   db: Db,

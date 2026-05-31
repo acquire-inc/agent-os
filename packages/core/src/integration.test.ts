@@ -11,6 +11,7 @@ import {
   evaluateDueJobs,
   autonomyGate,
   buildApprovalOptions,
+  budgetDecision,
   computeAgentMetrics,
   proposeAutonomyChange,
   lintVoice,
@@ -234,6 +235,13 @@ async function main() {
   assert(!isVoiceClean("Let's leverage synergy to elevate your brand."), "banned phrases are caught");
   assert(lintVoice("A great option — really.").some((h) => h.kind === "em-dash"), "em-dash is caught");
   assert(lintVoice("Leverage and leverage again").filter((h) => h.kind === "banned-phrase").length === 2, "all occurrences reported");
+
+  console.log("\n[cost-ceiling pause (v3 E)]");
+  assert(budgetDecision(0.2, 0.4).verdict === "ok", "under cap → ok");
+  assert(budgetDecision(0.5, 0.4).verdict === "pause", "over cap, under hard ceiling → pause");
+  assert(budgetDecision(0.7, 0.4).verdict === "kill", "at/over cap×1.5 → kill");
+  assert(budgetDecision(99, null).verdict === "ok", "no cap → never blocks");
+  assert(Math.abs(budgetDecision(0.5, 0.4).hardCeilingUsd! - 0.6) < 1e-9, "hard ceiling is cap×1.5");
 
   console.log("\n[resume: pending runs are claimable]");
   // The decided run (now pending) must be re-claimable by the runner, else it strands.

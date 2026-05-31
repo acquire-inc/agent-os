@@ -3,7 +3,9 @@ import { createDb, schema } from "@agent-os/db";
 import {
   AUTONOMY_EVENT_KINDS,
   appendActivity,
+  buildApprovalOptions,
   buildBundle,
+  budgetDecision,
   checkBudget,
   claimNextRun,
   costSummary,
@@ -129,16 +131,23 @@ app.put("/api/runs/:id/status", async (c) => {
       .where(eq(schema.agents.id, run.agentId))
       .limit(1);
     const cap = agent?.budgetCapUsd ? Number(agent.budgetCapUsd) : null;
-    if (cap !== null && body.costUsd >= cap) {
+    // E: cost-ceiling pause before kill. Over the soft cap (but under cap×1.5)
+    // suspends the run for human re-approval; only the hard ceiling kills it.
+    const decision = budgetDecision(body.costUsd, cap);
+    if (decision.verdict === "kill") {
       status = "failed";
-      const note = `over budget: $${body.costUsd.toFixed(4)} / $${cap.toFixed(2)}`;
+      const note = `budget hard ceiling: $${body.costUsd.toFixed(4)} >= $${Number(decision.hardCeilingUsd).toFixed(2)}`;
       summary = summary ? `${summary} (${note})` : note;
-      await recordAutonomyEvent(db, {
-        tenantId,
-        runId: run.id,
-        agentId: run.agentId,
-        kind: "budget_cap",
-        rationale: note,
+      await recordAutonomyEvent(db, { tenantId, runId: run.id, agentId: run.agentId, kind: "budget_cap", rationale: note });
+    } else if (decision.verdict === "pause") {
+      status = "waiting";
+      const note = `over budget: $${body.costUsd.toFixed(4)} / cap $${Number(cap).toFixed(2)} (hard ceiling $${Number(decision.hardCeilingUsd).toFixed(2)})`;
+      summary = summary ? `${summary} (${note})` : note;
+      await recordAutonomyEvent(db, { tenantId, runId: run.id, agentId: run.agentId, kind: "budget_cap", rationale: `pause for re-approval: ${note}` });
+      await raiseApproval(db, {
+        runId: run.id, tenantId, agentId: run.agentId,
+        context: note, proposedAction: "continue-over-budget",
+        options: buildApprovalOptions("continue-over-budget"),
       });
     }
   }
