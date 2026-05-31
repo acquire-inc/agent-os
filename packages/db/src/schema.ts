@@ -29,6 +29,9 @@ export const tenants = pgTable("tenants", {
   type: text("type").notNull().default("internal"),
   status: text("status").notNull().default("active"),
   monthlyBudgetUsd: numeric("monthly_budget_usd", { precision: 12, scale: 2 }),
+  // When set, seedAgent rewrites spec.model -> this value on insert/update for
+  // every agent belonging to this tenant. Migration 0009 (autonomous-team).
+  defaultModelOverride: text("default_model_override"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -82,6 +85,10 @@ export const agents = pgTable("agents", {
   escalationPolicy: text("escalation_policy"),
   runnerKind: text("runner_kind").notNull().default("local"),
   enabled: boolean("enabled").notNull().default(true),
+  // Richer state machine for autonomous-team operation. draft = new agent
+  // awaiting approval; active = running normally; paused = temporarily off
+  // (manager can resume); archived = retired (history kept). Migration 0009.
+  lifecycleState: text("lifecycle_state").notNull().default("active"),
   templateId: uuid("template_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

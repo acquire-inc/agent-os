@@ -365,11 +365,29 @@ export async function seedAgent(
     (spec.tools ?? []).map((t) => ensureTool(db, spec.tenantId, t)),
   );
 
+  // Tenant-level model override (migration 0009 — autonomous-team primitive).
+  // When tenants.default_model_override is set, it rewrites spec.model at seed
+  // time. Doctrine defaults stay in the script literals; the override is a
+  // deliberate per-tenant policy choice (e.g. "use hermes-4-405b everywhere").
+  // Reversible: clear the column and re-seed to restore doctrine defaults.
+  const [tenant] = await db
+    .select({ defaultModelOverride: schema.tenants.defaultModelOverride })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, spec.tenantId))
+    .limit(1);
+  const effectiveModel = tenant?.defaultModelOverride ?? spec.model;
+  if (effectiveModel !== spec.model) {
+    console.warn(
+      `[seedAgent] ${spec.key}: tenant model override rewrites ${spec.model} -> ${effectiveModel}. ` +
+        `If this agent is on the can't-fail list (CLAUDE.md), confirm this is intentional.`,
+    );
+  }
+
   const agent = await upsertAgent(db, spec.tenantId, spec.key, {
     name: spec.name,
     persona: spec.systemPrompt,
     backend: spec.backend ?? "claude-agent-sdk",
-    model: spec.model,
+    model: effectiveModel,
     thinkingLevel: spec.thinkingLevel ?? "low",
     autonomy: spec.autonomy,
     knowledgeScopeJson: spec.knowledgeScope,

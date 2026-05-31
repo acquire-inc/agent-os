@@ -123,6 +123,11 @@ app.get("/api/agents/:id/next", async (c) => {
 
   const [agent] = await db.select().from(schema.agents).where(and(eq(schema.agents.id, agentId), eq(schema.agents.tenantId, tenantId))).limit(1);
   if (!agent) return c.json({ error: "agent not found" }, 404);
+  // Migration 0009: paused/archived/draft agents don't receive work. enabled=false
+  // (a separate hard kill) is still enforced via the existing flag.
+  if (agent.lifecycleState !== "active" || !agent.enabled) {
+    return c.json({ hasWork: false, lifecycleState: agent.lifecycleState, enabled: agent.enabled }, 200);
+  }
 
   if (peek) {
     const run = await peekNextRun(db, agentId, tenantId);
@@ -452,6 +457,65 @@ app.post("/api/admin/architect/seed", requireAdmin, async (c) => {
     }
     throw e;
   }
+});
+
+// ============================ Agent lifecycle (Migration 0009) ============================
+// The autonomous-team primitive: a manager agent (or a human operator) can
+// transition an agent through draft -> active -> paused -> archived without
+// deleting rows. The runner's /next path will refuse work for any agent
+// whose lifecycle_state != 'active'.
+const LIFECYCLE_TRANSITIONS = {
+  activate: "active",
+  pause: "paused",
+  archive: "archived",
+  draft: "draft",
+} as const;
+
+for (const [verb, state] of Object.entries(LIFECYCLE_TRANSITIONS)) {
+  app.post(`/api/admin/agents/:id/${verb}`, requireAdmin, async (c) => {
+    const { tenantId } = c.get("auth");
+    const agentId = c.req.param("id");
+    const [updated] = await db
+      .update(schema.agents)
+      .set({ lifecycleState: state })
+      .where(and(eq(schema.agents.id, agentId), eq(schema.agents.tenantId, tenantId)))
+      .returning({ id: schema.agents.id, key: schema.agents.key, lifecycleState: schema.agents.lifecycleState });
+    if (!updated) return c.json({ error: "agent not found" }, 404);
+    return c.json({ agent: updated });
+  });
+}
+
+// PUT /api/admin/tenants/me/model-override  { model: "nousresearch/hermes-4-405b" | null }
+// When set, all future seedAgent calls for this tenant rewrite spec.model to
+// the override. Existing agent rows are unchanged until re-seeded — call
+// /api/admin/tenants/me/apply-model-override to rewrite them in bulk.
+app.put("/api/admin/tenants/me/model-override", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const b = await c.req.json().catch(() => ({}));
+  const newOverride: string | null = typeof b.model === "string" && b.model.length ? b.model : null;
+  const [updated] = await db
+    .update(schema.tenants)
+    .set({ defaultModelOverride: newOverride })
+    .where(eq(schema.tenants.id, tenantId))
+    .returning({ id: schema.tenants.id, defaultModelOverride: schema.tenants.defaultModelOverride });
+  return c.json({ tenant: updated });
+});
+
+app.post("/api/admin/tenants/me/apply-model-override", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const [tenant] = await db.select().from(schema.tenants).where(eq(schema.tenants.id, tenantId)).limit(1);
+  if (!tenant?.defaultModelOverride)
+    return c.json({ error: "no default_model_override set on this tenant" }, 400);
+  const updated = await db
+    .update(schema.agents)
+    .set({ model: tenant.defaultModelOverride })
+    .where(eq(schema.agents.tenantId, tenantId))
+    .returning({ id: schema.agents.id, key: schema.agents.key, model: schema.agents.model });
+  return c.json({
+    applied: tenant.defaultModelOverride,
+    rewritten: updated.length,
+    agents: updated.map((a) => ({ key: a.key, model: a.model })),
+  });
 });
 
 // ============================ Connections ============================
