@@ -1,6 +1,7 @@
 import { autonomyGate, buildApprovalOptions } from "@agent-os/core";
 import type { ApiClient, Bundle } from "./api-client.js";
 import type { RunnerConfig } from "./config.js";
+import { deriveAllowedTools } from "./custom-tools.js";
 import { buildPostToolUseHook, buildPreToolUseHook, recordToolUse } from "./hooks.js";
 
 export interface RunResult {
@@ -118,6 +119,10 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<Ru
     model: b.agent.model,
     systemPrompt: buildSystemPrompt(b),
     permissionMode: permissionMode(b.autonomy),
+    // Pitfall 5 (07-RESEARCH.md): explicit allowlist from the Bundle's tool +
+    // MCP bindings. Never leave allowedTools unset — that lets the model call
+    // any tool. Empty when the agent has no bindings.
+    allowedTools: deriveAllowedTools(b),
     maxTurns: 12,
     // Safety hooks:
     //  1a — PostToolUse audits every executed tool + logs 'allow' autonomy event

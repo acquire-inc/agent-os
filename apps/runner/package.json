@@ -7,11 +7,13 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "once": "RUNNER_ONCE=1 tsx src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx src/custom-tools.test.ts"
   },
   "dependencies": {
     "@agent-os/core": "workspace:*",
     "@agent-os/shared": "workspace:*",
+    "@agent-os/tool-browser": "workspace:*",
     "@anthropic-ai/claude-agent-sdk": "^0.3.150"
   },
   "devDependencies": {
