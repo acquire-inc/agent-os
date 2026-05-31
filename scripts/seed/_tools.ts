@@ -37,6 +37,15 @@ export const KNOWN_TOOLS: Record<string, ToolMeta> = {
   // ── Universal infra tools (bound to every agent) ──
   "tool.21": { name: "Vector DB", description: "pgvector retrieval, scoped per tenant/project.", kind: "custom", requiresApproval: false, reversible: true },
   "tool.22": { name: "Run-Summary Writer", description: "Forces the run-summary contract into run_summaries (needed by every agent).", kind: "custom", requiresApproval: false, reversible: true },
+
+  // ── Workforce / org-design tools (the agent-architect's hands) ──
+  // The registry read is safe; every MUTATION is approval-gated + irreversible so the autonomy
+  // gate forces a human to sign off before the team can hire/bench/fire — even on full autonomy.
+  "tool.agent-registry": { name: "Agent Registry", description: "Source-of-truth read over every agent (key, status, autonomy, model, KPIs, last run).", kind: "custom", requiresApproval: false, reversible: true },
+  "tool.spawn-agent": { name: "Spawn Agent", description: "Hire: create a new agent as DATA, landing 'proposed' + disabled until a human approves it.", kind: "custom", requiresApproval: true, reversible: false },
+  "tool.pause-agent": { name: "Pause Agent", description: "Bench an agent (status=paused, disabled). Reversible, keeps its config.", kind: "custom", requiresApproval: true, reversible: false },
+  "tool.archive-agent": { name: "Archive Agent", description: "Fire/retire an agent (status=archived, disabled). Terminal unless reactivated.", kind: "custom", requiresApproval: true, reversible: false },
+  "tool.reactivate-agent": { name: "Reactivate Agent", description: "Bring a benched/retired agent back to active (enabled).", kind: "custom", requiresApproval: true, reversible: false },
 };
 
 // Named tools whose action is clearly side-effecting/external → approval + irreversible.
@@ -45,6 +54,11 @@ export const ACTION_TOOLS = new Set<string>([
   "tool.bill-pay-bridge",
   "tool.contract-engine",
   "tool.billing-engine",
+  // Workforce mutations — hiring/benching/firing agents is high-stakes by definition.
+  "tool.spawn-agent",
+  "tool.pause-agent",
+  "tool.archive-agent",
+  "tool.reactivate-agent",
 ]);
 
 // Bound to every agent regardless of prompt refs.

@@ -83,6 +83,9 @@ export const agents = pgTable("agents", {
   escalationPolicy: text("escalation_policy"),
   runnerKind: text("runner_kind").notNull().default("local"),
   enabled: boolean("enabled").notNull().default(true),
+  // Workforce lifecycle (migration 0009): proposed | active | paused | archived.
+  // `enabled` is the runtime on/off; `status` is the org-design intent the workforce tools set.
+  status: text("status").notNull().default("active"),
   templateId: uuid("template_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
