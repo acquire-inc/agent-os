@@ -26,7 +26,7 @@ export interface Bundle {
     runnerKind: string;
   };
   docs: { id: string; name: string; type: string }[];
-  skills: { key: string; name: string; description: string; version: string; source: string; repoPath: string | null }[];
+  skills: { key: string; name: string; description: string; version: string; source: string; repoPath: string | null; allowedTools: string[] }[];
   tools: { key: string; name: string; description: string; kind: string; requiresApproval: boolean; reversible: boolean }[];
   mcpServers: {
     name: string;
@@ -135,6 +135,7 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
       version: s.version,
       source: s.source,
       repoPath: s.repoPath,
+      allowedTools: (s.allowedToolsJson as string[]) ?? [],
     })),
     tools: toolRows.map((t) => ({
       key: t.toolKey,

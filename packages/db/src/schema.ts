@@ -244,6 +244,7 @@ export const skills = pgTable("skills", {
   source: text("source").notNull().default("custom"),
   repoPath: text("repo_path"),
   scope: text("scope").notNull().default("global"),
+  allowedToolsJson: jsonb("allowed_tools_json").notNull().default([]),
   enabled: boolean("enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

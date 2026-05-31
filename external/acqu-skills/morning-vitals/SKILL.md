@@ -1,6 +1,7 @@
 ---
 name: morning-vitals
 description: Use every morning at 06:30 to assemble the founder's one-screen vitals snapshot — yesterday/WTD/MTD numbers against quarter targets, two things to watch, one to celebrate.
+allowed-tools: [tool.1, tool.18, tool.17, tool.21, tool.22]
 ---
 # Morning Vitals
 

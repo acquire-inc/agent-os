@@ -85,6 +85,7 @@ async function main() {
   const bundle = await buildBundle(db, runId, "https://api.example.com");
   assert(bundle?.agent.key === "ad-ops", "bundle resolves the agent");
   assert(bundle!.skills.length >= 1, `bundle includes attached skills (${bundle!.skills.length})`);
+  assert(bundle!.skills.every((s) => Array.isArray(s.allowedTools)), "bundle skills carry allowedTools (v3 B)");
   assert(bundle!.mcpServers.length >= 1, `bundle includes MCP servers (${bundle!.mcpServers.length})`);
   assert(bundle!.api.statusUrl.endsWith(`/api/runs/${runId}/status`), "bundle carries callback URLs");
   assert(bundle!.api.validStatuses.includes("waiting"), "bundle lists valid statuses");

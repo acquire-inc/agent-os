@@ -28,6 +28,7 @@
     "test": "tsx _doctrine.test.ts"
   },
   "dependencies": {
+    "@agent-os/core": "workspace:*",
     "@agent-os/db": "workspace:*",
     "@agent-os/shared": "workspace:*",
     "drizzle-orm": "^0.45.2"

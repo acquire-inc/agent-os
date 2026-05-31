@@ -70,6 +70,10 @@ async function ensureSkillFromDir(db: Db, args: { key: string; name: string }) {
   // Front-matter description (first description: line after ---).
   const descMatch = /\ndescription:\s*(.+)/.exec(content);
   const description = (descMatch?.[1] ?? "").replace(/^"|"$/g, "");
+  // B: parse `allowed-tools` from the SKILL.md frontmatter (least privilege).
+  const allowedTools: string[] = [];
+  const inline = /\nallowed-tools:\s*\[([^\]]*)\]/.exec(content);
+  if (inline?.[1]) for (const m of inline[1].matchAll(/tool\.[a-z0-9][a-z0-9-]*/g)) allowedTools.push(m[0]);
 
   if (!existing) {
     const [row] = await db
@@ -84,15 +88,16 @@ async function ensureSkillFromDir(db: Db, args: { key: string; name: string }) {
         source: "github",
         repoPath: `acqu-skills/${args.key}`,
         scope: "global",
+        allowedToolsJson: allowedTools,
         enabled: true,
       })
       .returning();
     return row!;
   }
-  if (content && existing.version !== version) {
+  if (content && (existing.version !== version || JSON.stringify((existing.allowedToolsJson as string[]) ?? []) !== JSON.stringify(allowedTools))) {
     const [row] = await db
       .update(schema.skills)
-      .set({ name: args.name, description, version })
+      .set({ name: args.name, description, version, allowedToolsJson: allowedTools })
       .where(eq(schema.skills.id, existing.id))
       .returning();
     return row!;

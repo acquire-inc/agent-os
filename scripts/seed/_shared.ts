@@ -47,6 +47,10 @@ export async function ensureSkillFromDir(db: Db, args: { key: string; name: stri
   const version = createHash("sha256").update(content).digest("hex").slice(0, 12);
   const descMatch = /\ndescription:\s*(.+)/.exec(content);
   const description = (descMatch?.[1] ?? "").replace(/^"|"$/g, "");
+  // B: parse `allowed-tools` from the SKILL.md frontmatter (least privilege at the skill
+  // layer). Supports an inline list `allowed-tools: [tool.a, tool.b]` or a YAML block of
+  // `- tool.x` lines. Only tool.* keys are kept.
+  const allowedTools = parseAllowedTools(content);
 
   if (!existing) {
     const [row] = await db
@@ -61,20 +65,38 @@ export async function ensureSkillFromDir(db: Db, args: { key: string; name: stri
         source: "github",
         repoPath: `acqu-skills/${args.key}`,
         scope: "global",
+        allowedToolsJson: allowedTools,
         enabled: true,
       })
       .returning();
     return row!;
   }
-  if (existing.version !== version || existing.description !== description || existing.name !== args.name) {
+  const existingTools = JSON.stringify((existing.allowedToolsJson as string[]) ?? []);
+  if (
+    existing.version !== version ||
+    existing.description !== description ||
+    existing.name !== args.name ||
+    existingTools !== JSON.stringify(allowedTools)
+  ) {
     const [row] = await db
       .update(schema.skills)
-      .set({ name: args.name, description, version })
+      .set({ name: args.name, description, version, allowedToolsJson: allowedTools })
       .where(eq(schema.skills.id, existing.id))
       .returning();
     return row!;
   }
   return existing;
+}
+
+/** Parse tool.* keys from a SKILL.md `allowed-tools` frontmatter entry (inline list or YAML block). */
+function parseAllowedTools(content: string): string[] {
+  const keys = new Set<string>();
+  const inline = /\nallowed-tools:\s*\[([^\]]*)\]/.exec(content);
+  if (inline?.[1]) for (const m of inline[1].matchAll(/tool\.[a-z0-9][a-z0-9-]*/g)) keys.add(m[0]);
+  // YAML block form: `allowed-tools:` followed by `  - tool.x` lines.
+  const block = /\nallowed-tools:\s*\n((?:\s*-\s*tool\.[a-z0-9-]+\s*\n?)+)/.exec(content);
+  if (block?.[1]) for (const m of block[1].matchAll(/tool\.[a-z0-9][a-z0-9-]*/g)) keys.add(m[0]);
+  return [...keys];
 }
 
 export async function findMcpByName(db: Db, name: string) {
