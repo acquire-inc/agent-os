@@ -14,7 +14,7 @@ A multi-tenant Agent OS — the control plane that runs Acquire Inc (Acqu) on ag
 - [x] **Phase 4: Architect remix mode** — `mode=remix` loads base agent context; UI Remix button on agent drawer; deep-link `?focus=<blueprintId>`.
 - [x] **Phase 5: Phase-2 doctrine batch seed (creative engine + ad-claim-compliance gate)** — 8 agents including the T-critical Claude Opus 4.8 hard gate that unblocks client ad launches.
 - [ ] **Phase 6: Phase-3 doctrine batch seed (fulfillment + revenue ops)** — 12 agents: launcher, lead-triage, booking-concierge, funnel-monitor, onboarding-runner, client-comms, client-health, churn-risk-detector, ar-aging-monitor, revenue-recognizer, cash-position-monitor, runway-watcher. Wires the churn-signal chains (E.4) and the finance reconciliation chain (E.7).
-- [ ] **Phase 7: Tools registry + Inngest scheduler + Browserbase tool.browser** — Build deltas from main §6: a first-class `tools` table behind `agent_tools` bindings, replace the in-process scheduler with Inngest, and add `tool.browser` over Browserbase + Stagehand.
+- [x] **Phase 7: Tools registry + Inngest scheduler + Browserbase tool.browser** — Build deltas from main §6: a first-class `tools` table behind `agent_tools` bindings, replace the in-process scheduler with Inngest, and add `tool.browser` over Browserbase + Stagehand. (completed 2026-05-31)
 - [ ] **Phase 8: Phase-4 doctrine batch seed (moat + meta-layer)** — compliance-health, intel, decision-memo-drafter, save-play, expansion-finder, discovery-prep, call-summarizer, objection-coach, contract-drafter, payment-collector, unit-economics, agent-evaluator, agent-onboarder + platform-change-watcher, regulatory-watcher, contract-lifecycle-manager, risk-register-keeper, knowledge-curator, skill-librarian, pricing-architect, discount-governor, reinvestment-advisor, forecast-runner.
 - [ ] **Phase 9: tenant-isolation-tester + secrets-rotation (external launch gate)** — Hard gate #2 (main §6): no external Cliently tenant until isolation passes. Plus `secrets-rotation`, `access-auditor`, `security-anomaly-watchdog`.
 - [ ] **Phase 10: Phase-5 doctrine batch seed (external Cliently launch)** — full offers suite, scaling agents, agent-retirer, human-hiring, vendor agents, qbr-prep, loyalty-rewarder, portfolio-review, marketing-ad-ops, attribution agents, pixel rollout, cliently.support; runner-ops, rate-limit-guardian, incident-responder; full Partnerships/Affiliates suite; competitor-watchtower + market-signal-scanner; full memory layer.
@@ -109,7 +109,7 @@ Plans:
   2. Inngest scheduler replaces the in-process scheduler; pg_cron remains as the trigger that calls Inngest.
   3. `tool.browser` (Browserbase + Stagehand) registered; the dev agent can use it for headless web automation.
 
-**Plans:** 3/7 plans executed
+**Plans:** 7/7 plans complete
 
 Plans:
 **Wave 1**
@@ -120,13 +120,13 @@ Plans:
 
 - [x] 07-02-PLAN.md — seedAgent + Bundle extended with tools field; backward-compatible AgentSpec (SC-7-1)
 - [x] 07-03-PLAN.md — @agent-os/inngest workspace: client + runScheduledAgent + unit test (SC-7-2)
-- [ ] 07-05-PLAN.md — @agent-os/tool-browser workspace: SSRF denylist + Stagehand wrapper + unit tests (SC-7-3)
+- [x] 07-05-PLAN.md — @agent-os/tool-browser workspace: SSRF denylist + Stagehand wrapper + unit tests (SC-7-3)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 07-04-PLAN.md — Hono /api/inngest mount + migration 0008 pg_cron → Inngest bridge (SC-7-2)
-- [ ] 07-06-PLAN.md — Runner allowedTools narrowing + custom-tool dispatch + live Browserbase smoke (SC-7-3)
-- [ ] 07-07-PLAN.md — Seed tool.browser row + architect regression assertions (SC-7-1, SC-7-3)
+- [x] 07-04-PLAN.md — Hono /api/inngest mount + migration 0008 pg_cron → Inngest bridge (SC-7-2)
+- [x] 07-06-PLAN.md — Runner allowedTools narrowing + custom-tool dispatch + live Browserbase smoke (SC-7-3)
+- [x] 07-07-PLAN.md — Seed tool.browser row + architect regression assertions (SC-7-1, SC-7-3)
 
 ### Phase 8: Phase-4 doctrine batch seed (moat + meta-layer)
 

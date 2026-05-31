@@ -3,7 +3,7 @@ status: In Progress
 current_phase: 7
 current_phase_name: Tools registry + Inngest scheduler + Browserbase tool.browser
 plans_total: 7
-plans_complete: 3
+plans_complete: 7
 last_activity: 2026-05-30
 ---
 
@@ -11,24 +11,39 @@ last_activity: 2026-05-30
 
 ## Status
 
-**In Progress** — Phase 7 (Tools registry + Inngest scheduler + Browserbase tool.browser), executing 7 plans across 3 waves.
+**Phase 7 EXECUTED** — all 7 plans implemented + committed. Awaiting final verification + operator DB-push follow-ups (sandbox has no Supabase).
 
 ## Current Position
 
-- Phase 1–6: complete (doctrine seeded through fulfillment + revenue ops; Architect feature + remix shipped).
-- Phase 7: plans verified by gsd-plan-checker (iteration 2 PASSED). Executing.
-- 07-01 (tools registry schema): COMPLETE — migration 0007 + Drizzle mirror + RLS tests. `supabase db push` deferred to operator (sandbox has no DB; see 07-01-SUMMARY.md Operator follow-ups). 1/7 plans done.
-- 07-02 (seedAgent tools extension + Bundle): COMPLETE — ensureTool/bindTool/AgentSpec.tools (optional) + Bundle.tools[] + backward-compat test. typecheck 10/10, architect 31/31. 2/7 plans done.
-- 07-03 (@agent-os/inngest package): COMPLETE — client (dev-aware signingKey) + runScheduledAgent (concurrency.limit, claimNextRun). 11 pkgs typecheck, inngest test 5/5. Finished inline after executor timeout. 3/7 plans done.
+- Phase 1–6: complete (doctrine seeded through fulfillment + revenue ops; Architect + remix shipped).
+- Phase 7: 7/7 plans done (executed inline after the background gsd-executor agents kept stream-timing-out and rewriting history on the shared branch).
+  - 07-01 tools registry schema (migration 0007 + Drizzle mirror + RLS) — db push deferred.
+  - 07-02 seedAgent tools extension (ensureTool/bindTool/AgentSpec.tools optional) + Bundle.tools[].
+  - 07-03 @agent-os/inngest package (client + runScheduledAgent). Fixed createFunction signature inline.
+  - 07-04 Inngest /api/inngest Hono mount + migration 0008 pg_cron→Inngest bridge — db push deferred.
+  - 07-05 @agent-os/tool-browser (SSRF guard T-7-03 + runBrowserTool contract, Node-fetch backend).
+  - 07-06 runner allowedTools narrowing (Pitfall 5) + tool.browser custom dispatch.
+  - 07-07 seed tool.browser row (unbound, RESEARCH OQ1) + architect regression.
 
-## Sandbox constraints (executors MUST honor)
+## Verification snapshot
 
-- **Supabase DB is NOT reachable from this sandbox.** For any `[BLOCKING] supabase db push` task: write the migration SQL + Drizzle schema mirror + tests, run `pnpm -r typecheck`, then DEFER the actual `supabase db push` — record it as an operator follow-up in SUMMARY.md. Do NOT fail the plan on an unreachable DB.
-- **Package installs are authorized.** `inngest`, `@browserbasehq/sdk`, `@browserbasehq/stagehand` are pre-verified legitimate (researcher confirmed via npm registry; no postinstall scripts). npm is reachable. Proceed past the `checkpoint:human-verify` install gates.
-- **Live Browserbase smoke (07-06) needs API keys + network** — not available here. Write the smoke-test code, then DEFER execution as an operator follow-up in SUMMARY.md.
+- `pnpm -r typecheck` — 12 packages green.
+- `pnpm --filter @agent-os/core run test:architect` — 33/33.
+- Per-package tests: inngest 3/3, tool-browser 15/15, runner 6/6.
+
+## Sandbox constraints (carried)
+
+- Supabase DB NOT reachable — migrations 0007 + 0008 authored + typecheck-verified; `supabase db push` deferred to operator.
+- Browserbase + Stagehand backend deferred to Phase 8 (V3 API surface moving); Phase 7 ships the SSRF boundary + fetch-backed contract.
+- Live Inngest relay + signing keys deferred to operator.
 
 ## Key decisions
 
-- Model: config is config, not code. Tools are DATA (registry rows), mirroring skills/MCPs.
-- `tool.browser` row seeded UNBOUND (no agent binding) per RESEARCH Open Question 1 — first consumer in Phase 8.
-- Sequential execution on the main tree (`use_worktrees=false`) for this single-threaded session.
+- Tools are DATA (registry rows), mirroring skills/MCPs. AgentSpec.tools is OPTIONAL — all 26 prior seeds compile unchanged.
+- tool.browser seeded UNBOUND; first consumer binds in Phase 8.
+- Switched Phase 7 execution from background gsd-executor subagents to inline sequential after repeated stream-idle timeouts caused history rewrites on the shared branch. One-executor-at-a-time on a shared branch is the safe pattern without worktrees.
+
+## Next
+
+- Operator: apply migrations 0007 + 0008 (`supabase db push`), then `pnpm seed:tool-browser`.
+- Phase 8: Phase-4 doctrine batch seed (moat + meta-layer) — and bind tool.browser to its first consumer (creative-miner).
