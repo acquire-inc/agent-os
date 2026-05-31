@@ -36,7 +36,8 @@
     "acqu-revenue-recognizer": "tsx acqu-revenue-recognizer.ts",
     "acqu-cash-position-monitor": "tsx acqu-cash-position-monitor.ts",
     "acqu-runway-watcher": "tsx acqu-runway-watcher.ts",
-    "phase-3": "tsx seed-phase-3.ts"
+    "phase-3": "tsx seed-phase-3.ts",
+    "tool-browser": "tsx seed-tool-browser.ts"
   },
   "dependencies": {
     "@agent-os/core": "workspace:*",

@@ -244,6 +244,18 @@ async function main() {
   assert(remixNoBase.includes("REMIX request"), "remix branch still labels the request when base unknown");
   assert(remixNoBase.includes("not found on tenant"), "remix branch flags missing base agent");
 
+  console.log("• tools feature does not leak into the architect path (07-07 regression)");
+  // The optional AgentSpec.tools field added in 07-02 must not have leaked a required
+  // field into blueprint parse/hydrate. A normal blueprint still hydrates to 3 specs,
+  // and the architect never emits tools (binding is hand-authored / Phase 8).
+  const reParsed = parse(validProposalJson);
+  const reHydrated = hydrate(TENANT, reParsed, resolver);
+  assert(reHydrated.agents.length === 3, "blueprint still hydrates 3 agents with AgentSpec.tools present");
+  assert(
+    reHydrated.agents.every((a) => (a as { tools?: unknown[] }).tools === undefined || ((a as { tools?: unknown[] }).tools?.length ?? 0) === 0),
+    "hydrated specs carry no tools (architect does not emit tools — Phase 8 binds them)",
+  );
+
   console.log("");
   console.log(`Results: ${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
