@@ -19,7 +19,8 @@
     "seed:phase-2": "pnpm --filter @agent-os/seed run phase-2",
     "seed:phase-3": "pnpm --filter @agent-os/seed run phase-3",
     "verify": "bash scripts/test-all.sh",
-    "seed:tool-browser": "pnpm --filter @agent-os/seed run tool-browser"
+    "seed:tool-browser": "pnpm --filter @agent-os/seed run tool-browser",
+    "seed:phase-4": "pnpm --filter @agent-os/seed run phase-4"
   },
   "devDependencies": {
     "typescript": "^5.7.3"
