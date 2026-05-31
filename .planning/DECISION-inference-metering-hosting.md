@@ -8,7 +8,7 @@ committing spend — these move. Sources linked inline.*
 | Question | Recommendation | Why |
 |---|---|---|
 | **Model** | **Keep Hermes 4 405B as fleet default**; Claude only for the can't-fail list | $1/$3 vs Sonnet $3/$15 — ~5× cheaper output at the volume tier |
-| **Gateway** | **Keep OpenRouter** — but verify ≥2 Hermes providers for real failover | No token markup; 5.5% deposit fee buys multi-provider failover on a thinly-served model |
+| **Gateway** | **Keep OpenRouter** — for *model* failover + unified billing, NOT provider failover | VERIFIED: Hermes 405B & 70B are single-sourced (Nebius FP8 only). No provider redundancy exists; gateway value is cross-model fallback + one bill across the Hermes/Claude split |
 | **Metering/credits** | **OpenMeter (self-hosted)** | OSS, first-class LLM-token metering + per-model cost; ingests our existing per-run `cost_usd` |
 | **VPS** | **Hetzner + Coolify** for cost; **Railway** if speed-to-ship matters more | Hetzner ~$4–10/mo self-host PG; Railway ~$10–15/mo, already in stack doctrine |
 | **Self-host Hermes?** | **No** | Break-even is tens–hundreds of M tokens/mo + 2.5–3× hidden cost |
@@ -28,18 +28,30 @@ These are two separate decisions: what model we *run* vs what gateway we *route 
 The operator's "best Hermes" choice is sound. Keep the doctrine split: Hermes for volume,
 Claude (T-critical) for the can't-fail agents.
 
-**The real risk is Hermes availability, not price.** Hermes 4 405B is served by very few
-providers (Nebius FP8 + Nous direct, per [Artificial Analysis](https://artificialanalysis.ai/models/hermes-4-llama-3-1-405b/providers)).
-That thin supply is the strongest argument **for** keeping a gateway.
+**The real risk is Hermes availability, not price — and it's worse than assumed (VERIFIED).**
+As of 2026-05, **both Hermes 4 405B and 70B are single-sourced: Nebius (FP8) is the only API
+provider** for each on OpenRouter's tracked benchmarks
+([405B](https://artificialanalysis.ai/models/hermes-4-llama-3-1-405b/providers),
+[70B](https://artificialanalysis.ai/models/hermes-4-llama-3-1-70b/providers)). So there is **no
+provider redundancy today** — a Nebius outage takes the whole Hermes fleet down regardless of
+gateway. This is a real single-point-of-failure to note in ops.
 
-**OpenRouter economics** ([pricing](https://openrouter.ai/pricing)): **no markup on token rates**;
-revenue is a **5.5% credit-purchase fee** on top-ups; BYOK free for first 1M req/mo then 5%.
-Net Hermes cost ≈ $1/$3 + ~5.5% on deposits — cheap for multi-provider failover.
+**What this does to the gateway rationale:** OpenRouter's classic selling point (multi-provider
+failover) **does not apply to Hermes right now**. The honest reasons to keep it are:
+1. **Cross-*model* fallback** — one API, swap the slug Hermes→Claude/Llama if Nebius drops. This
+   is the failover that actually exists for us, and it matters precisely *because* Hermes is
+   single-sourced.
+2. **Unified billing across the Hermes/Claude split** — one bill instead of Nebius + Anthropic.
+3. **Zero token markup** ([pricing](https://openrouter.ai/pricing)) — revenue is a **5.5%
+   credit-purchase fee** on top-ups (BYOK free to 1M req/mo, then 5%). Net Hermes ≈ $1/$3 + ~5.5%
+   on deposits.
 
-**Action (when we build):** confirm OpenRouter lists **≥2** Hermes-4-405B providers. If it's
-single-provider, the gateway's main benefit (failover) is moot → consider going direct to
-Nebius/Nous, or keep OpenRouter purely for the unified-billing + model-swap convenience. Either
-way the `Runner` stays gateway-agnostic (`ANTHROPIC_BASE_URL`), so this is a config flip, not code.
+**Recommendation:** keep OpenRouter for (1)+(2)+(3); going direct to Nebius would save ~5.5% but
+buys no redundancy (same single provider) and loses the cross-model fallback + unified bill.
+**Add an ops note: Hermes is single-sourced on Nebius — wire a cross-model fallback slug
+(e.g. → `anthropic/claude-haiku-4.5` or a Llama-3.1-405B provider) in the `Runner` so a Nebius
+outage degrades gracefully instead of halting the fleet.** The `Runner` stays gateway-agnostic
+(`ANTHROPIC_BASE_URL`), so all of this is config, not code.
 
 ## 2. Crediting & Tokenizing / Metering
 
@@ -85,7 +97,12 @@ The VPS hosts the control plane; inference is API/gateway.
 ---
 
 ## Open items to resolve before building any of this
-1. Confirm OpenRouter Hermes-4-405B provider count (≥2 = keep gateway; 1 = reconsider direct).
-2. Decide self-host vs managed for OpenMeter (recommend self-host on the same VPS).
-3. Pick the first deploy target (Railway recommended for v1).
-4. These are all **config/infra**, not agent code — consistent with "agents are data."
+1. ~~Confirm OpenRouter Hermes-4-405B provider count.~~ **RESOLVED 2026-05-30: single-sourced
+   (Nebius FP8 only), for both 405B and 70B.** → keep OpenRouter for model-fallback + unified
+   billing, and wire a cross-model fallback slug for the Nebius SPOF (new item 2).
+2. **NEW (raised by item 1):** choose + configure the cross-model fallback slug in the `Runner`
+   for a Nebius outage (candidate: `anthropic/claude-haiku-4.5`, or a Llama-3.1-405B provider to
+   stay cheap). Config-only.
+3. Decide self-host vs managed for OpenMeter (recommend self-host on the same VPS).
+4. Pick the first deploy target (Railway recommended for v1).
+5. All of the above are **config/infra**, not agent code — consistent with "agents are data."
