@@ -1,4 +1,6 @@
 import { serve } from "@hono/node-server";
+import { serve as inngestServe } from "inngest/hono";
+import { inngest, runScheduledAgent } from "@agent-os/inngest";
 import { createDb, schema } from "@agent-os/db";
 import {
   ArchitectError,
@@ -85,9 +87,15 @@ app.get("/health", (c) => c.json({ ok: true }));
 app.get("/api/guide", (c) => c.json(apiGuide));
 app.get("/api/admin-guide", (c) => c.json(adminGuide));
 
+// --- Inngest webhook (Plan 07-04) ---
+// Mounted BEFORE the /api/* api-key middleware: Inngest authenticates inbound
+// calls with INNGEST_SIGNING_KEY via its own serve handler, not the project
+// bearer key, so this route must not pass through verifyApiKey.
+app.on(["GET", "POST", "PUT"], "/api/inngest", inngestServe({ client: inngest, functions: [runScheduledAgent] }));
+
 // --- API key auth for everything else under /api ---
 app.use("/api/*", async (c, next) => {
-  if (c.req.path === "/api/guide" || c.req.path === "/api/admin-guide") return next();
+  if (c.req.path === "/api/guide" || c.req.path === "/api/admin-guide" || c.req.path === "/api/inngest") return next();
   const header = c.req.header("authorization");
   const raw = header?.toLowerCase().startsWith("bearer ") ? header.slice(7) : c.req.header("x-api-key");
   const auth = await verifyApiKey(db, raw ?? "");

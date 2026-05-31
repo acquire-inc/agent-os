@@ -20,6 +20,9 @@ importers:
       '@agent-os/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@agent-os/inngest':
+        specifier: workspace:*
+        version: link:../../packages/inngest
       '@agent-os/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -35,6 +38,9 @@ importers:
       hono:
         specifier: ^4.12.23
         version: 4.12.23
+      inngest:
+        specifier: ^4.5.0
+        version: 4.5.0(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1))(express@5.2.1)(hono@4.12.23)(react@19.2.6)(typescript@5.9.3)(zod@4.4.3)
     devDependencies:
       '@types/node':
         specifier: ^22.10.5

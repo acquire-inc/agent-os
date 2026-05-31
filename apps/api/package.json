@@ -12,11 +12,13 @@
   "dependencies": {
     "@agent-os/core": "workspace:*",
     "@agent-os/db": "workspace:*",
+    "@agent-os/inngest": "workspace:*",
     "@agent-os/shared": "workspace:*",
     "@agent-os/vault": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.23"
+    "hono": "^4.12.23",
+    "inngest": "^4.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

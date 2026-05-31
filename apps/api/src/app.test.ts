@@ -30,6 +30,25 @@ async function main() {
   assert((await app.request(`/api/agents/${ADOPS}/next`)).status === 401, "agent API rejects missing key (401)");
   assert((await app.request(`/api/agents/${ADOPS}/next`, { headers: { Authorization: "Bearer nope" } })).status === 401, "rejects bogus key");
 
+  console.log("\n[inngest mount (07-04)]");
+  // The Inngest serve handler is mounted ABOVE the /api/* api-key middleware, so
+  // it must respond WITHOUT a bearer key (Inngest authenticates via its own
+  // signing key). Force a deterministic env contract, then restore.
+  {
+    const savedDev = process.env.INNGEST_DEV;
+    const savedKey = process.env.INNGEST_SIGNING_KEY;
+    try {
+      process.env.INNGEST_DEV = "";
+      process.env.INNGEST_SIGNING_KEY = "signkey-test-deterministic";
+      const res = await app.request("/api/inngest", { method: "GET" });
+      assert(res.status !== 401, "GET /api/inngest is NOT blocked by the api-key middleware");
+      assert(res.status >= 200 && res.status < 500, "GET /api/inngest reachable (Inngest serve handler responds)");
+    } finally {
+      if (savedDev === undefined) delete process.env.INNGEST_DEV; else process.env.INNGEST_DEV = savedDev;
+      if (savedKey === undefined) delete process.env.INNGEST_SIGNING_KEY; else process.env.INNGEST_SIGNING_KEY = savedKey;
+    }
+  }
+
   console.log("\n[claim + bundle + status]");
   const [run] = await db.insert(schema.runs).values({ tenantId: ACQU, agentId: ADOPS, status: "scheduled", triggerSource: "manual", scheduledFor: new Date() }).returning();
   const nextRes = await app.request(`/api/agents/${ADOPS}/next`, { headers: rh });
