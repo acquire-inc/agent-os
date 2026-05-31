@@ -83,6 +83,19 @@ async function main() {
   assert(r3.status === "done", "execute_full run completes without proposing");
   assert(!full.calls.some((c) => c.method === "postApproval"), "no approval raised under execute_full");
 
+  console.log("\n[backend switch — managed-agents routes to its backend (v3 F)]");
+  const mb = vitalsBundle("execute_safe");
+  mb.agent.backend = "managed-agents";
+  const managed = stubApi();
+  // Non-dry: routes to managedAgentsRun. With no Anthropic runtime/network it fails soft
+  // (status failed) but must post the Managed Agents start activity, proving the switch.
+  const rm = await executeRun(managed.api, mb, { dryRun: false, apiKey: "x", apiUrl: "x", runnerId: "t" } as unknown as RunnerConfig);
+  assert(
+    managed.calls.some((c) => c.method === "postActivity" && /Managed Agents backend/.test(String(c.args[2]))),
+    "managed-agents backend posts its start activity (routed, not SDK path)",
+  );
+  assert(rm.status === "done" || rm.status === "failed", "managed-agents run resolves (soft-fails without runtime)");
+
   console.log(`\nResult: ${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);
 }

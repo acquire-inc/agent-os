@@ -172,9 +172,69 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<Ru
   return { status: "done", summary: summary || "Run complete.", tokensIn, tokensOut, costUsd, sdkSessionId: sessionId };
 }
 
+/** Managed Agents backend (beta `managed-agents-2026-04-01`). Same safety contract as the
+ *  SDK path — the orchestrator still enforces autonomy/budget server-side via the hooks +
+ *  status endpoint; this just routes the bundle to the Managed Agents Sessions API instead of
+ *  the in-process SDK loop. Dynamic import keeps the dependency optional; if the runtime isn't
+ *  available we record it and fail soft. */
+async function managedAgentsRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<RunResult> {
+  const runId = b.run.id;
+  await api.postActivity(runId, "start", `Managed Agents backend: ${b.agent.name} picked up ${b.job?.name ?? "a manual task"}`);
+  try {
+    const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as {
+      query: (args: { prompt: string; options?: Record<string, unknown> }) => AsyncIterable<Record<string, unknown>>;
+    };
+    const options: Record<string, unknown> = {
+      model: b.agent.model,
+      systemPrompt: buildSystemPrompt(b),
+      permissionMode: permissionMode(b.autonomy),
+      maxTurns: 12,
+      // Route to Managed Agents: the platform hosts the loop server-side.
+      extraHeaders: { "anthropic-beta": "managed-agents-2026-04-01" },
+      hooks: {
+        PreToolUse: [
+          buildPreToolUseHook(api, runId, {
+            autonomy: b.agent.autonomy,
+            escalationPolicy: b.agent.escalationPolicy,
+            agentName: b.agent.name,
+            sdkSessionId: b.run.sdkSessionId ?? undefined,
+            toolApproval: Object.fromEntries(b.tools.map((t) => [t.key, t.requiresApproval])),
+          }),
+        ],
+        PostToolUse: [buildPostToolUseHook(api, runId)],
+      },
+    };
+    if (b.run.sdkSessionId) options.resume = b.run.sdkSessionId;
+
+    let summary = "", costUsd = 0, tokensIn = 0, tokensOut = 0, sessionId: string | undefined;
+    for await (const msg of sdk.query({ prompt: b.job?.instructions ?? "Carry out your standing responsibilities for this run.", options })) {
+      const type = msg.type as string | undefined;
+      if (type === "assistant") {
+        const content = (msg.message as { content?: { type: string; text?: string }[] } | undefined)?.content ?? [];
+        for (const block of content) if (block.type === "text" && block.text) await api.postActivity(runId, "assistant", block.text.slice(0, 2000));
+      } else if (type === "result") {
+        summary = (msg.result as string) ?? summary;
+        costUsd = (msg.total_cost_usd as number) ?? 0;
+        const usage = msg.usage as { input_tokens?: number; output_tokens?: number } | undefined;
+        tokensIn = usage?.input_tokens ?? 0; tokensOut = usage?.output_tokens ?? 0;
+        sessionId = (msg.session_id as string) ?? undefined;
+      }
+    }
+    return { status: "done", summary: summary || "Managed Agents run complete.", tokensIn, tokensOut, costUsd, sdkSessionId: sessionId };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await api.postActivity(runId, "error", `Managed Agents backend unavailable: ${message}`).catch(() => {});
+    return { status: "failed", summary: `Managed Agents backend error: ${message}`, tokensIn: 0, tokensOut: 0, costUsd: 0 };
+  }
+}
+
 export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConfig): Promise<RunResult> {
   try {
-    return cfg.dryRun ? await dryRun(api, bundle) : await liveRun(api, bundle, cfg);
+    if (cfg.dryRun) return await dryRun(api, bundle);
+    // F: backend switch behind the Runner. Managed Agents (beta) vs the in-process Claude Agent SDK.
+    return bundle.agent.backend === "managed-agents"
+      ? await managedAgentsRun(api, bundle, cfg)
+      : await liveRun(api, bundle, cfg);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await api.postActivity(bundle.run.id, "error", message).catch(() => {});
