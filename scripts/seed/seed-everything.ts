@@ -12,6 +12,7 @@ import { ACQU_AGENT_MODEL } from "./_shared.js";
 import { listPromptAgents, getAgentBlock } from "./_doctrine.js";
 import { seedRoster, type AgentSpec, type Tier } from "./_generic.js";
 import { PHASE_2, PHASE_3, PHASE_4, PHASE_5 } from "./_roster.js";
+import { seedAgentArchitect } from "./acqu-agent-architect.js";
 
 const TENANT_ID = TENANT_IDS.acqu;
 
@@ -53,6 +54,12 @@ async function main() {
   console.log(`Already seeded: ${ALREADY.size}. Remainder to seed now: ${remainder.length}.\n`);
 
   const reports = await seedRoster(db, remainder, "Everything-else (full doctrine remainder)");
+
+  // Meta-layer org-design agent — DATA, but new (not discoverable from the doctrine), so
+  // seeded by its dedicated script. Idempotent: safe alongside the roster pass.
+  await seedAgentArchitect(db);
+  console.log("  + agent-architect (org-design meta-agent) seeded.");
+
   const authored = reports.filter((r) => r.authoredSkill).length;
   const defaulted = reports.filter((r) => r.defaultedTriggers.length).map((r) => `${r.key}: ${r.defaultedTriggers.join("; ")}`);
   const skipped = reports.filter((r) => r.skippedMcps.length).map((r) => `${r.key}: ${r.skippedMcps.join(", ")}`);
