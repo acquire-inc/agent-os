@@ -50,6 +50,13 @@ export interface GateCtx {
   escalationPolicy: string | null;
   agentName: string;
   sdkSessionId?: string;
+  /**
+   * Wave D: emit tool.dispatched on the allow path. Best-effort — the SDK is
+   * about to invoke the tool regardless; a Relay failure must not block the
+   * dispatch (we can't un-dispatch). The callback logs on failure rather than
+   * swallowing silently. Optional so dry-run / tests can omit it.
+   */
+  onDispatch?: (toolName: string) => Promise<void>;
 }
 
 /**
@@ -75,7 +82,12 @@ export function buildPreToolUseHook(api: ApiClient, runId: string, ctx: GateCtx)
       autonomy: ctx.autonomy,
       escalationPolicy: ctx.escalationPolicy,
     });
-    if (decision === "allow") return { decision: "allow" };
+    if (decision === "allow") {
+      // tool.dispatched — the SDK is about to invoke this tool. Fire-and-await
+      // best-effort; onDispatch never throws into the run.
+      if (ctx.onDispatch) await ctx.onDispatch(toolName);
+      return { decision: "allow" };
+    }
     if (decision === "propose") {
       await Promise.allSettled([
         api.postApproval(runId, {

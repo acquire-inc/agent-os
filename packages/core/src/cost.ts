@@ -1,5 +1,6 @@
 import { schema, type Db } from "@agent-os/db";
 import { sql } from "drizzle-orm";
+import { emit } from "./relay/emit.js";
 
 export interface CostSummary {
   total: number;
@@ -57,14 +58,51 @@ export async function checkBudget(db: Db, tenantId: string): Promise<BudgetStatu
   return { monthlyBudgetUsd: budget, monthSpendUsd: monthSpend, pct, level };
 }
 
-/** Append an immutable audit-log entry (the PostToolUse hook target). */
+/** Append an immutable audit-log entry (the PostToolUse hook target).
+ *
+ * Wave D: mirrors to relay_events.tool.result in the SAME transaction.
+ * Conservative payload (the cross-tenant aggregation view + future Pixel SDK
+ * read this stream): tool_name + input_hash + result only. The raw tool input
+ * NEVER lands here — writeAudit only ever receives the hash, so the event is
+ * conservative by construction. pii_class stays 'none' because no client PII
+ * crosses into the payload. */
 export async function writeAudit(
   db: Db,
-  args: { tenantId: string; runId?: string | null; toolName: string; inputHash?: string | null; result?: string | null },
+  args: {
+    tenantId: string;
+    runId?: string | null;
+    agentId?: string | null;
+    toolName: string;
+    inputHash?: string | null;
+    result?: string | null;
+  },
 ) {
-  const [row] = await db
-    .insert(schema.auditLog)
-    .values({ tenantId: args.tenantId, runId: args.runId ?? null, toolName: args.toolName, inputHash: args.inputHash ?? null, result: args.result ?? null })
-    .returning();
-  return row;
+  return await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(schema.auditLog)
+      .values({
+        tenantId: args.tenantId,
+        runId: args.runId ?? null,
+        toolName: args.toolName,
+        inputHash: args.inputHash ?? null,
+        result: args.result ?? null,
+      })
+      .returning();
+    if (!row) throw new Error("writeAudit: insert returned no row");
+
+    await emit(tx, {
+      tenantId: args.tenantId,
+      eventName: "tool.result",
+      actor: "agent",
+      agentId: args.agentId ?? null,
+      runId: args.runId ?? null,
+      payload: {
+        tool_name: args.toolName,
+        input_hash: args.inputHash ?? null,
+        result: args.result ?? null,
+      },
+    });
+
+    return row;
+  });
 }

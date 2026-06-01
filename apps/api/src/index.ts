@@ -30,6 +30,7 @@ import {
   setRunStatus,
   verifyApiKey,
   writeAudit,
+  emit,
   type ApiKeyContext,
   type LlmClient,
 } from "@agent-os/core";
@@ -141,6 +142,23 @@ app.get("/api/agents/:id/next", async (c) => {
     decryptEnv: vaultKey ? (blob) => decryptEnvValue(blob, vaultKey!) : undefined,
     retrieveKnowledge: async (query, namespaces) => {
       const hits = await retrieve(db, embedder, { tenantId, query, namespaces: namespaces.length ? namespaces : undefined, limit: 5 });
+      // Wave D: emit knowledge.retrieved. Best-effort — this is a read-path
+      // enrichment with no legacy write to keep atomic with; a Relay failure
+      // must not block the bundle from being served. Log on failure (never
+      // swallow silently — but never fail the run either).
+      await emit(db, {
+        tenantId,
+        eventName: "knowledge.retrieved",
+        actor: "system",
+        agentId: claimed.agentId,
+        runId: claimed.id,
+        payload: {
+          namespaces: namespaces.length ? namespaces : null,
+          hit_count: hits.length,
+        },
+      }).catch((e) => {
+        console.error(`[api] knowledge.retrieved emit failed for run ${claimed.id}: ${(e as Error).message}`);
+      });
       return hits.map((h) => ({ chunk: h.content, source: h.vectorNamespace ?? "knowledge" }));
     },
   });
@@ -283,7 +301,7 @@ app.post("/api/runs/:id/audit", async (c) => {
   if (!run) return c.json({ error: "run not found" }, 404);
   const b = await c.req.json().catch(() => ({}));
   if (!b.toolName) return c.json({ error: "toolName required" }, 400);
-  const row = await writeAudit(db, { tenantId, runId: run.id, toolName: String(b.toolName), inputHash: b.inputHash ?? null, result: b.result ?? null });
+  const row = await writeAudit(db, { tenantId, runId: run.id, agentId: run.agentId, toolName: String(b.toolName), inputHash: b.inputHash ?? null, result: b.result ?? null });
   return c.json({ audit: row }, 201);
 });
 

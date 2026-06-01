@@ -15,6 +15,7 @@
     "test:security": "tsx src/security/findings.test.ts && tsx src/security/vault-rotate.test.ts && tsx src/security/access-audit.test.ts && tsx src/security/anomaly.test.ts",
     "test:relay": "tsx src/relay/relay.test.ts",
     "test:mirror": "tsx src/relay/mirror.test.ts",
+    "test:waved": "tsx src/relay/waved.test.ts",
     "test:cantfail": "tsx src/seed/seedAgent.cantfail.test.ts"
   },
   "dependencies": {

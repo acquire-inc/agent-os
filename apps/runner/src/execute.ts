@@ -23,6 +23,35 @@ function relayDb(): Db | null {
 }
 
 /**
+ * Wave D: build the tool.dispatched emitter for a run's PreToolUse allow path.
+ * Best-effort — the SDK is about to invoke the tool regardless; a Relay write
+ * failure is logged, never thrown into the run (we can't un-dispatch). Returns
+ * undefined when DATABASE_URL is unset so the hook simply skips emission.
+ *
+ * Conservative payload (per the operator's Wave D call): tool_name only, no raw
+ * input. The PreToolUse hook sees the raw input but we never persist it here —
+ * the input_hash lands later in tool.result via writeAudit.
+ */
+function makeDispatchEmitter(b: Bundle): ((toolName: string) => Promise<void>) | undefined {
+  const db = relayDb();
+  if (!db) return undefined;
+  return async (toolName: string) => {
+    await emit(db, {
+      tenantId: b.agent.tenantId,
+      eventName: "tool.dispatched",
+      actor: "agent",
+      agentId: b.agent.id,
+      runId: b.run.id,
+      payload: { tool_name: toolName },
+    }).catch((e) => {
+      console.error(
+        `[runner] tool.dispatched emit failed for run ${b.run.id} tool ${toolName}: ${(e as Error).message}`,
+      );
+    });
+  };
+}
+
+/**
  * SessionStart safety check: if the agent is on the can't-fail list, the
  * resolved model MUST be in T_CRITICAL_MODEL_ALLOWLIST. Returns a terminal
  * RunResult (with the violation event already emitted) if blocked; null
@@ -193,6 +222,7 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<Ru
           escalationPolicy: b.agent.escalationPolicy,
           agentName: b.agent.name,
           sdkSessionId: b.run.sdkSessionId ?? undefined,
+          onDispatch: makeDispatchEmitter(b),
         }),
       ],
       PostToolUse: [buildPostToolUseHook(api, runId)],
