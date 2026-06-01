@@ -1,4 +1,4 @@
-import { autonomyGate, buildApprovalOptions } from "@agent-os/core";
+import { autonomyGate, buildApprovalOptions, planModelFallback } from "@agent-os/core";
 import type { ApiClient, Bundle } from "./api-client.js";
 import type { RunnerConfig } from "./config.js";
 import { buildPostToolUseHook, buildPreToolUseHook, recordToolUse } from "./hooks.js";
@@ -110,8 +110,9 @@ async function dryRun(api: ApiClient, b: Bundle): Promise<RunResult> {
   return { status: "done", summary, tokensIn: 1200, tokensOut: 180, costUsd: 0.01, sdkSessionId: sessionId };
 }
 
-/** Live run via the Claude Agent SDK. */
-async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<RunResult> {
+/** Live run via the Claude Agent SDK. `modelOverride` lets the fallback path re-run on a
+ *  different model (Nebius SPOF — see executeRun's catch). */
+async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig, modelOverride?: string): Promise<RunResult> {
   const runId = b.run.id;
   // Dynamic import keeps the SDK out of the dry-run path / type surface.
   const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as {
@@ -120,7 +121,7 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<Ru
 
   const prompt = b.job?.instructions ?? "Carry out your standing responsibilities for this run.";
   const options: Record<string, unknown> = {
-    model: b.agent.model,
+    model: modelOverride ?? b.agent.model,
     systemPrompt: buildSystemPrompt(b),
     permissionMode: permissionMode(b.autonomy),
     maxTurns: 12,
@@ -236,6 +237,19 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
       ? await managedAgentsRun(api, bundle, cfg)
       : await liveRun(api, bundle, cfg);
   } catch (err) {
+    // Nebius SPOF (decision doc): Hermes is single-sourced, so an availability error would
+    // otherwise halt the agent. Retry ONCE on a cross-provider fallback model before failing.
+    const plan = planModelFallback({ model: bundle.agent.model, error: err, alreadyFellBack: false });
+    if (plan.retry && plan.model && !cfg.dryRun && bundle.agent.backend !== "managed-agents") {
+      await api.postActivity(bundle.run.id, "fallback", plan.reason ?? `Falling back to ${plan.model}`).catch(() => {});
+      try {
+        return await liveRun(api, bundle, cfg, plan.model);
+      } catch (err2) {
+        const m2 = err2 instanceof Error ? err2.message : String(err2);
+        await api.postActivity(bundle.run.id, "error", `fallback ${plan.model} also failed: ${m2}`).catch(() => {});
+        return { status: "failed", summary: `Run failed (primary + fallback): ${m2}`, tokensIn: 0, tokensOut: 0, costUsd: 0 };
+      }
+    }
     const message = err instanceof Error ? err.message : String(err);
     await api.postActivity(bundle.run.id, "error", message).catch(() => {});
     return { status: "failed", summary: `Run failed: ${message}`, tokensIn: 0, tokensOut: 0, costUsd: 0 };

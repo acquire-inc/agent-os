@@ -13,3 +13,4 @@ export * from "./metrics.js";
 export * from "./voice-lint.js";
 export * from "./workforce.js";
 export * from "./metering.js";
+export * from "./model-fallback.js";
