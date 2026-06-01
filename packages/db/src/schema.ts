@@ -175,6 +175,46 @@ export const agentMetrics = pgTable("agent_metrics", {
   computedAt: timestamp("computed_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ── Metering + credits (migration 0010) ──────────────────────────────────────
+// Derived billing ledger over `runs` (the system-of-record). See packages/core/src/metering.ts.
+
+// Per-tenant billing config + materialized credit balance.
+export const tenantCredits = pgTable("tenant_credits", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => tenants.id, { onDelete: "cascade" }),
+  balanceCredits: numeric("balance_credits", { precision: 16, scale: 4 }).notNull().default("0"),
+  markupMultiple: numeric("markup_multiple", { precision: 8, scale: 4 }).notNull().default("1.0"),
+  usdPerCredit: numeric("usd_per_credit", { precision: 12, scale: 6 }).notNull().default("1.0"),
+  enforceBalance: boolean("enforce_balance").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// One billable usage event per completed run (idempotent on run_id).
+export const usageEvents = pgTable("usage_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  runId: uuid("run_id").notNull().references(() => runs.id, { onDelete: "cascade" }).unique(),
+  agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  model: text("model").notNull(),
+  tokensIn: bigint("tokens_in", { mode: "number" }).notNull().default(0),
+  tokensOut: bigint("tokens_out", { mode: "number" }).notNull().default(0),
+  rawCostUsd: numeric("raw_cost_usd", { precision: 12, scale: 4 }).notNull().default("0"),
+  billableUsd: numeric("billable_usd", { precision: 12, scale: 4 }).notNull().default("0"),
+  credits: numeric("credits", { precision: 16, scale: 4 }).notNull().default("0"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Append-only credit ledger (topups +, usage burns -). Balance in tenant_credits is the sum.
+export const creditLedger = pgTable("credit_ledger", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // topup | usage | adjustment | refund
+  deltaCredits: numeric("delta_credits", { precision: 16, scale: 4 }).notNull(),
+  balanceAfter: numeric("balance_after", { precision: 16, scale: 4 }).notNull(),
+  usageEventId: uuid("usage_event_id").references(() => usageEvents.id, { onDelete: "set null" }),
+  reference: text("reference"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const jobs = pgTable("jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),

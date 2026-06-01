@@ -23,6 +23,10 @@ import {
   setRunStatus,
   verifyApiKey,
   writeAudit,
+  usageStatement,
+  getTenantCredits,
+  setTenantBilling,
+  addCredits,
   type ApiKeyContext,
 } from "@agent-os/core";
 import { RUN_STATUSES } from "@agent-os/shared";
@@ -264,6 +268,43 @@ app.get("/api/cost", async (c) => {
   const sinceDays = Number(c.req.query("sinceDays") ?? 14);
   const [summary, budget] = await Promise.all([costSummary(db, tenantId, sinceDays), checkBudget(db, tenantId)]);
   return c.json({ summary, budget });
+});
+
+// ── Metering + credits (the Cliently billing surface; billing-runner reads these) ──
+// Current-month billable statement: usage rolled up + the live credit balance.
+app.get("/api/billing/statement", async (c) => {
+  const { tenantId } = c.get("auth");
+  return c.json(await usageStatement(db, tenantId));
+});
+
+// The tenant's billing config + balance.
+app.get("/api/billing/credits", async (c) => {
+  const { tenantId } = c.get("auth");
+  return c.json(await getTenantCredits(db, tenantId));
+});
+
+// Set the billing config (markup / credit peg / prepaid enforcement). Admin-only.
+app.post("/api/admin/billing/config", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const body = await c.req.json().catch(() => ({}));
+  const row = await setTenantBilling(db, tenantId, {
+    markupMultiple: body.markupMultiple != null ? Number(body.markupMultiple) : undefined,
+    usdPerCredit: body.usdPerCredit != null ? Number(body.usdPerCredit) : undefined,
+    enforceBalance: typeof body.enforceBalance === "boolean" ? body.enforceBalance : undefined,
+  });
+  return c.json({ ok: true, credits: row });
+});
+
+// Add prepaid credits (topup / refund / adjustment). Admin-only — a real payment webhook would
+// call this after a successful charge; the `reference` carries the payment id.
+app.post("/api/admin/billing/topup", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const body = await c.req.json().catch(() => ({}));
+  const credits = Number(body.credits);
+  if (!Number.isFinite(credits) || credits <= 0) return c.json({ error: "credits must be a positive number" }, 400);
+  const kind = ["topup", "refund", "adjustment"].includes(body.kind) ? body.kind : "topup";
+  const res = await addCredits(db, { tenantId, credits, kind, reference: body.reference ?? null });
+  return c.json({ ok: true, ...res });
 });
 
 app.post("/api/docs", async (c) => {

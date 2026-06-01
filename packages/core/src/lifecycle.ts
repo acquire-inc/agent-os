@@ -2,6 +2,7 @@ import { schema, type Db } from "@agent-os/db";
 import type { ApprovalOption } from "@agent-os/shared";
 import { eq } from "drizzle-orm";
 import { indexDocument, type Embedder } from "./knowledge.js";
+import { recordRunUsage } from "./metering.js";
 
 const { approvals, autonomyEvents, documents, runs, runActivity } = schema;
 
@@ -50,6 +51,26 @@ export async function setRunStatus(db: Db, runId: string, update: StatusUpdate, 
     });
   }
   if (row && update.status === "done") await writeRunMemory(db, row, embedder);
+  // Metering: a completed run becomes one billable usage event + credit burn (idempotent per
+  // run). Best-effort — billing must never block the run's terminal transition. Only `done`
+  // runs bill (a failed/skipped run produced no deliverable). The agent's model is resolved for
+  // the usage record; if unavailable we fall back to the run's reported figures.
+  if (row && update.status === "done") {
+    try {
+      const [agent] = await db.select().from(schema.agents).where(eq(schema.agents.id, row.agentId)).limit(1);
+      await recordRunUsage(db, {
+        tenantId: row.tenantId,
+        runId: row.id,
+        agentId: row.agentId,
+        model: agent?.model ?? "unknown",
+        tokensIn: row.tokensIn,
+        tokensOut: row.tokensOut,
+        rawCostUsd: Number(row.costUsd),
+      });
+    } catch {
+      /* metering is derived/best-effort; the run is the system-of-record and is already saved */
+    }
+  }
   return row ?? null;
 }
 
