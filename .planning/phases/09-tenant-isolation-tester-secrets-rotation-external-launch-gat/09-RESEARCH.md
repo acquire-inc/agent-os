@@ -438,32 +438,37 @@ export const customToolDispatch: Record<string, CustomToolHandler> = {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `tool.rls-test` connect via a separate RLS-enforced DB user, or via the same `DATABASE_URL` with `RESET ROLE` discipline?**
    - What we know: 0001_init.sql uses `auth.uid()` reading a GUC — works either way for impersonation.
    - What's unclear: Whether the existing `DATABASE_URL` is service-role (RLS-exempt) or `authenticated`-role (RLS-enforced). Phase 7 RLS tests pass via service-role connections (`packages/core/src/integration.test.ts` line 206-216 reads cross-tenant rows and asserts they return 0 — but if service-role, this assertion is trivially false. Worth re-reading carefully).
    - Recommendation: discuss-phase confirms which role `DATABASE_URL` uses. If service-role, add `DATABASE_URL_RLS` for the test tool.
+   - **RESOLVED:** Separate `RLS_TEST_DATABASE_URL` env var; the RLS test tool opens its own `authenticated`-role connection and impersonates per-test via SET LOCAL on `request.jwt.claim.sub`. The runner's `DATABASE_URL` stays service-role for normal ops. (per CONTEXT D-01)
 
 2. **`security_findings` table or kb-only?**
    - What we know: doctrine specifies `kb:security/isolation-{date}.md` and `kb:security/access-audit-{week}.md`.
    - What's unclear: whether to also persist findings to a DB table for cross-agent queries (e.g. `security-anomaly-watchdog` correlating with `access-auditor` findings per E.5 chain).
    - Recommendation: add the table. Kb files are operator-readable; DB rows are agent-queryable. Both serve different needs.
+   - **RESOLVED:** Add the `security_findings` table via migration 0010, RLS-protected like every other tenant-scoped table. Captures isolation-test results, rotation events, orphan flags, anomaly detections. (per CONTEXT D-05)
 
 3. **OAuth refresh implementations — scope this phase or defer?**
    - What we know: `packages/vault/src/index.ts` has a `Refresher` type but no concrete implementations.
    - What's unclear: whether `secrets-rotation` ships with refreshers for Meta/Stripe/Close, or only the rotation framework (refreshers come per-MCP later).
    - Recommendation: ship the framework + one reference implementation (Close, since it's already in the MCP catalog) + leave others as TODO. Otherwise this phase's surface area doubles.
+   - **RESOLVED:** Ship the rotation framework + a Close OAuth refresher as the reference implementation. Meta + Stripe refreshers stub with `throw new Error("operator: implement provider refresher")` so the agent fails closed, not silently. (per CONTEXT D-03)
 
 4. **Should the hard-gate verification run be part of Phase 9 plan execution, or a separate `/gsd-verify` step?**
    - What we know: external launch is blocked until `tenant-isolation-tester` passes per main §6.
    - What's unclear: whether the planner treats the verification run as a Phase-9 task (block PHASE-9 completion until pass) or as Phase 10 prereq.
    - Recommendation: include in Phase 9. Until the suite passes, the agent is hypothetical — the phase isn't done.
+   - **RESOLVED:** Include the hard-gate verification in Phase 9. The phase only passes when `tool.isolation-test-suite` reports ZERO cross-tenant leaks against live Supabase with ≥2 tenants. Without that, Phase 10 (external Cliently launch) is blocked. (per CONTEXT D-06 + D-08)
 
 5. **`security-anomaly-watchdog` baseline period?**
    - What we know: doctrine says "hourly" without specifying baseline window.
    - What's unclear: how long the watchdog needs to observe before flagging anomalies (cold-start problem).
    - Recommendation: 7-day rolling baseline; suppress alerts during first 7 days post-deploy unless rate exceeds an absolute floor.
+   - **RESOLVED:** Watchdog runs at autonomy `execute_safe` (alerts only, never blocks). Day-1 thresholds are intentionally loose (high false-positive rate acceptable). Tightening happens via agent-evaluator scorecard once 30 days of operator-marked-noise vs operator-acknowledged data exists. (per CONTEXT D-07)
 
 ---
 
