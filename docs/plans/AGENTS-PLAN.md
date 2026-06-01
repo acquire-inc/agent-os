@@ -8,6 +8,12 @@
 > canonical **Relay event schema** and the **`tenant_id` / RLS isolation model** from
 > `AGENT-OS-PLAN.md` (the platform plan) — it does not redefine them. On machinery it defers to
 > `main-acqu-agent-doctrine.md`; on agent *behavior* to the v1/v2 doctrine.
+>
+> **Status of the owning doc (2026-06-01):** `AGENT-OS-PLAN.md` does **not exist in the repo yet**
+> (the AgentOS session produces it; verified absent on all branches). Until it lands, the envelope
+> fields and event-type registry sketched in §2 are this doc's **working assumption**, not the
+> authority — when `AGENT-OS-PLAN.md` ships, re-reconcile §2 against its canonical Relay schema and
+> resolve any field-name drift in its favor.
 
 ---
 
