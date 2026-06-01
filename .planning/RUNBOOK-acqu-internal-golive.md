@@ -27,8 +27,13 @@ pnpm db:migrate        # runs supabase/migrations in order, including 0011_run_s
 Expect: `Done. Applied 11 migration(s).`
 
 ## 3. Seed the fleet as data (idempotent — safe to re-run)
+> **⚠ ORDER MATTERS — `pnpm db:seed` is destructive.** It does `delete from tenants where id in
+> (acqu, cliently)`, which **cascades to every tenant-scoped row** (agents, tools, evals, AND your
+> bootstrap API keys). Run it **once, first**, before the agent seeders and before bootstrapping
+> keys. **Do NOT re-run `db:seed` after go-live** — it wipes the live fleet + keys. The agent
+> seeders below (`seed-everything` etc.) are the idempotent ones safe to re-run.
 ```bash
-pnpm --filter @agent-os/db seed                     # base fixtures (tenant Acqu, MCP catalog, demo user)
+pnpm --filter @agent-os/db seed                     # base fixtures (tenant Acqu, MCP catalog, demo user) — DESTRUCTIVE, run once first
 pnpm tsx scripts/seed/acqu-vitals.ts                # the proven single-agent pattern (smoke test the seed path)
 pnpm tsx scripts/seed/seed-everything.ts            # all 93 agents + agent-architect, normalized to Hermes 405B
 pnpm tsx scripts/seed/seed-tools.ts                 # derive + bind the tool catalog from prompts (incl. workforce tools)
