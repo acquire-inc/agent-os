@@ -17,6 +17,7 @@ export interface Bundle {
   tools: { key: string; name: string; description: string; kind: string; requiresApproval: boolean; reversible: boolean }[];
   mcpServers: { name: string; transport: string; endpoint: string | null; authType: string; credentials: { vaultRef?: string; token?: string; ttlSeconds: number } | null }[];
   knowledge: { chunk: string; source: string }[];
+  recentSummaries?: { status: string; whatIDid: string; whatILearned: string; whatNext: string; createdAt: string }[];
   envVars: Record<string, string>;
   autonomy: string;
   api: { statusUrl: string; activityUrl: string; approvalsUrl: string; validStatuses: string[] };

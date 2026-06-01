@@ -1,8 +1,8 @@
 import { schema, type Db } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 
-const { agents, agentMcps, agentSkills, agentTools, documents, envVars, jobRefs, jobs, mcps, runs, skills, tools } = schema;
+const { agents, agentMcps, agentSkills, agentTools, documents, envVars, jobRefs, jobs, mcps, runs, runSummaries, skills, tools } = schema;
 
 export interface Bundle {
   run: {
@@ -37,6 +37,9 @@ export interface Bundle {
     credentials: { vaultRef?: string; token?: string; ttlSeconds: number } | null;
   }[];
   knowledge: { chunk: string; source: string }[];
+  // Recent run-summaries for this agent (newest first) — continuity so a reasoning agent picks up
+  // where it left off (AGENTS-PLAN §1.3). The runner folds these into the system prompt.
+  recentSummaries: { status: string; whatIDid: string; whatILearned: string; whatNext: string; createdAt: string }[];
   envVars: Record<string, string>;
   autonomy: string;
   escalationPolicy: string | null;
@@ -99,6 +102,14 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
 
   const scope = (agent.knowledgeScopeJson as { folders: string[]; tags: string[] }) ?? { folders: [], tags: [] };
 
+  // Continuity: the agent's most recent run-summaries (excluding this run), tenant-scoped.
+  const summaryRows = await db
+    .select()
+    .from(runSummaries)
+    .where(and(eq(runSummaries.agentId, agent.id), eq(runSummaries.tenantId, run.tenantId), ne(runSummaries.runId, run.id)))
+    .orderBy(desc(runSummaries.createdAt))
+    .limit(3);
+
   // Vector-retrieve knowledge relevant to this job, scoped to the agent.
   let knowledge: { chunk: string; source: string }[] = [];
   if (opts.retrieveKnowledge) {
@@ -159,6 +170,13 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
       }),
     ),
     knowledge,
+    recentSummaries: summaryRows.map((s) => ({
+      status: s.status,
+      whatIDid: s.whatIDid,
+      whatILearned: s.whatILearned,
+      whatNext: s.whatNext,
+      createdAt: s.createdAt.toISOString(),
+    })),
     // Decrypt env values via the vault; never emit ciphertext. Omit if no decryptor.
     envVars: opts.decryptEnv
       ? Object.fromEntries(envRows.flatMap((e) => {

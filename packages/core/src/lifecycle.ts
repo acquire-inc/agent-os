@@ -3,6 +3,7 @@ import type { ApprovalOption } from "@agent-os/shared";
 import { eq } from "drizzle-orm";
 import { indexDocument, type Embedder } from "./knowledge.js";
 import { recordRunUsage } from "./metering.js";
+import { writeRunSummary } from "./run-summary.js";
 
 const { approvals, autonomyEvents, documents, runs, runActivity } = schema;
 
@@ -49,6 +50,24 @@ export async function setRunStatus(db: Db, runId: string, update: StatusUpdate, 
       kind: "session_end",
       rationale: update.status,
     });
+    // Run-summary contract (build-spec §3/§5): one structured row per terminal run — persistent
+    // agent memory + the future Relay `run.completed` payload. ALL terminal states (done/failed/
+    // skipped), so a failure's "what I learned" is captured too. Best-effort: never block the
+    // transition (the run is the system-of-record).
+    try {
+      await writeRunSummary(db, {
+        tenantId: row.tenantId,
+        runId: row.id,
+        agentId: row.agentId,
+        status: update.status,
+        rawSummary: update.summary ?? row.summary ?? null,
+        tokensIn: row.tokensIn,
+        tokensOut: row.tokensOut,
+        costUsd: Number(row.costUsd),
+      });
+    } catch {
+      /* persistent memory is derived; the run row already holds the truth */
+    }
   }
   if (row && update.status === "done") await writeRunMemory(db, row, embedder);
   // Metering: a completed run becomes one billable usage event + credit burn (idempotent per

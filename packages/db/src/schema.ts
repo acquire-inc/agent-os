@@ -215,6 +215,26 @@ export const creditLedger = pgTable("credit_ledger", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// The run-summary contract (migration 0011): one structured row per terminal run — persistent
+// agent memory + the future Relay `run.completed` payload. See packages/core/src/run-summary.ts.
+export const runSummaries = pgTable("run_summaries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  runId: uuid("run_id").notNull().references(() => runs.id, { onDelete: "cascade" }).unique(),
+  agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  status: text("status").notNull(),
+  whatIDid: text("what_i_did").notNull().default(""),
+  whatIProduced: text("what_i_produced").notNull().default(""),
+  whatILearned: text("what_i_learned").notNull().default(""),
+  whatNext: text("what_next").notNull().default(""),
+  verificationResult: text("verification_result").notNull().default(""),
+  rawSummary: text("raw_summary"),
+  tokensIn: bigint("tokens_in", { mode: "number" }).notNull().default(0),
+  tokensOut: bigint("tokens_out", { mode: "number" }).notNull().default(0),
+  costUsd: numeric("cost_usd", { precision: 12, scale: 4 }).notNull().default("0"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const jobs = pgTable("jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),

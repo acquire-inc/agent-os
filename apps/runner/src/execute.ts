@@ -16,6 +16,11 @@ export function buildSystemPrompt(b: Bundle): string {
   const lines = [
     b.agent.persona ?? `You are ${b.agent.name}, an autonomous agent.`,
     b.job ? `\n## Your task\n${b.job.instructions}` : "",
+    b.recentSummaries?.length
+      ? `\n## Where you left off (recent runs)\n${b.recentSummaries
+          .map((s) => `- [${s.status}] did: ${s.whatIDid.slice(0, 200)}${s.whatNext ? ` | next: ${s.whatNext.slice(0, 160)}` : ""}`)
+          .join("\n")}`
+      : "",
     b.skills.length ? `\n## Skills available\n${b.skills.map((s) => `- ${s.name}: ${s.description}`).join("\n")}` : "",
     b.tools.length
       ? `\n## Deterministic tools\n${b.tools
