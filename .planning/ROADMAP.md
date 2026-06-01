@@ -139,12 +139,32 @@ Plans:
 
 **Goal**: Hard gate #2 — no external Cliently tenant until isolation passes.
 **Depends on**: Phase 6, Phase 8
+**Plans:** 6 plans
 **Success Criteria**:
 
   1. `tenant-isolation-tester` passes against every table — a cross-tenant read returns zero rows (including the vector store).
   2. `secrets-rotation` runs against vault; expired/rotated credentials trigger connector-health-monitor halt.
   3. `access-auditor` flags orphaned grants.
   4. `security-anomaly-watchdog` running.
+
+Plans:
+**Wave 1**
+
+- [ ] 09-01-PLAN.md — Migration 0010 (security_findings + RLS + audit_log index) + Drizzle mirror + recordFinding helper + CANT_FAIL_KEYS gap fix (secrets-rotation) (SC-9-3, SC-9-5)
+- [ ] 09-02-PLAN.md — @agent-os/tool-rls-test package: zod input, asUser GUC impersonation, append-only ATTACK_VECTORS, runIsolationSuite, tsx test (SC-9-2, SC-9-4)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 09-03-PLAN.md — packages/core/src/security/: vault-rotate (Close refresher + Meta/Stripe stubs), access-audit (archived>30d), anomaly (24h-rolling) + tests (SC-9-2)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 09-04-PLAN.md — 4 tool registry seeds (tool.rls-test, tool.vault-rotate w/ requiresApproval=true, tool.access-audit, tool.access-log-analyzer) + 4 customToolDispatch handlers in apps/runner (SC-9-2)
+- [ ] 09-05-PLAN.md — 4 T-critical agent seed scripts (opus-4.8 literals) + 4 skill stubs + architect.test.ts can't-fail regression locks (SC-9-1, SC-9-5)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 09-06-PLAN.md — seed-phase-9.ts batch runner with HARD FAIL guard + scripts/verify/isolation-live.ts + Phase 9 manifest + [BLOCKING] schema push + [BLOCKING] HARD GATE #2 execution (SC-9-1, SC-9-6)
 
 ### Phase 10: Phase-5 doctrine batch seed (external Cliently launch)
 
