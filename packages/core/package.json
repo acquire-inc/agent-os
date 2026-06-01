@@ -12,11 +12,12 @@
     "test:tools-schema": "tsx src/integration.test.ts",
     "test:seed-tools": "tsx src/seed/seedAgent.test.ts",
     "test:architect": "tsx src/architect/architect.test.ts",
-    "test:security": "tsx src/security/findings.test.ts"
+    "test:security": "tsx src/security/findings.test.ts && tsx src/security/vault-rotate.test.ts"
   },
   "dependencies": {
     "@agent-os/db": "workspace:*",
     "@agent-os/shared": "workspace:*",
+    "@agent-os/vault": "workspace:*",
     "cron-parser": "^5.5.0",
     "drizzle-orm": "^0.45.2"
   },

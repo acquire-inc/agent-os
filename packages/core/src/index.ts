@@ -12,3 +12,6 @@ export * from "./provision.js";
 export * from "./seed/seedAgent.js";
 export * from "./architect/index.js";
 export { recordFinding, type FindingArgs, type FindingCategory, type FindingSeverity, type SecurityFinding } from "./security/findings.js";
+export { rotateCredential, type RotateResult } from "./security/vault-rotate.js";
+export { closeRefresher } from "./security/refreshers/close.js";
+export { metaRefresher, stripeRefresher } from "./security/refreshers/stubs.js";
