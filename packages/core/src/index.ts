@@ -11,3 +11,4 @@ export * from "./notify.js";
 export * from "./provision.js";
 export * from "./seed/seedAgent.js";
 export * from "./architect/index.js";
+export { recordFinding, type FindingArgs, type FindingCategory, type FindingSeverity, type SecurityFinding } from "./security/findings.js";

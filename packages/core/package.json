@@ -11,7 +11,8 @@
     "test": "tsx src/integration.test.ts",
     "test:tools-schema": "tsx src/integration.test.ts",
     "test:seed-tools": "tsx src/seed/seedAgent.test.ts",
-    "test:architect": "tsx src/architect/architect.test.ts"
+    "test:architect": "tsx src/architect/architect.test.ts",
+    "test:security": "tsx src/security/findings.test.ts"
   },
   "dependencies": {
     "@agent-os/db": "workspace:*",

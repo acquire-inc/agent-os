@@ -23,6 +23,8 @@ const CANT_FAIL_KEYS = new Set([
   "tenant-isolation-tester",
   "security-anomaly-watchdog",
   "access-auditor",
+  // Phase 9: secrets-rotation added per CLAUDE.md can't-fail list (pattern-mapper gap fix)
+  "secrets-rotation",
   "contract-drafter",
   "contract-lifecycle-manager",
   "pricing-architect",

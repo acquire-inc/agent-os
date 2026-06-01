@@ -392,3 +392,24 @@ export const architectBlueprints = pgTable("architect_blueprints", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Security findings — durable artifact every Phase-9 security agent writes.
+ * One table; per-category structure lives in payload jsonb (CONTEXT D-05).
+ * Mirrors supabase/migrations/0010_security_findings.sql.
+ */
+export const securityFindings = pgTable("security_findings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
+  category: text("category").$type<"isolation" | "rotation" | "access" | "anomaly">().notNull(),
+  severity: text("severity").$type<"low" | "medium" | "high" | "critical">().notNull(),
+  status: text("status").$type<"open" | "acknowledged" | "resolved" | "suppressed">().notNull().default("open"),
+  title: text("title").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+  detectedAt: timestamp("detected_at", { withTimezone: true }).defaultNow().notNull(),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
