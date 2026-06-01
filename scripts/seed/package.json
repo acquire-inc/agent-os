@@ -69,7 +69,8 @@
     "acqu-tenant-isolation-tester": "tsx acqu-tenant-isolation-tester.ts",
     "acqu-secrets-rotation": "tsx acqu-secrets-rotation.ts",
     "acqu-access-auditor": "tsx acqu-access-auditor.ts",
-    "acqu-security-anomaly-watchdog": "tsx acqu-security-anomaly-watchdog.ts"
+    "acqu-security-anomaly-watchdog": "tsx acqu-security-anomaly-watchdog.ts",
+    "phase-9": "tsx seed-phase-9.ts"
   },
   "dependencies": {
     "@agent-os/core": "workspace:*",

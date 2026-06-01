@@ -20,7 +20,9 @@
     "seed:phase-3": "pnpm --filter @agent-os/seed run phase-3",
     "verify": "bash scripts/test-all.sh",
     "seed:tool-browser": "pnpm --filter @agent-os/seed run tool-browser",
-    "seed:phase-4": "pnpm --filter @agent-os/seed run phase-4"
+    "seed:phase-4": "pnpm --filter @agent-os/seed run phase-4",
+    "seed:phase-9": "pnpm --filter @agent-os/seed run phase-9",
+    "verify:isolation-live": "pnpm --filter @agent-os/verify run isolation-live"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

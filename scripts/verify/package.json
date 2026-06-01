@@ -1,0 +1,21 @@
+{
+  "name": "@agent-os/verify",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "isolation-live": "tsx isolation-live.ts"
+  },
+  "dependencies": {
+    "@agent-os/db": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/tool-rls-test": "workspace:*",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

@@ -2,6 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
   - "scripts/seed"
+  - "scripts/verify"
 
 onlyBuiltDependencies:
   - esbuild
