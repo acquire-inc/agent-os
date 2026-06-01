@@ -6,6 +6,7 @@ import {
   isEventName,
   emit,
   composeRunSummary,
+  CostInvariantViolation,
 } from "./index.js";
 
 let passed = 0;
@@ -30,8 +31,18 @@ async function assertRejects(fn: () => Promise<unknown>, match: string, msg: str
   }
 }
 
-/** Minimal mock Db that captures inserts + supports the .select().from().where().limit() chain. */
-function mockDb(opts: { existingRow?: Record<string, unknown> | null; existingRun?: Record<string, unknown> | null } = {}) {
+/** Minimal mock Db that captures inserts + supports the .select().from().where().limit() chain.
+ *  Wave C: now supports .transaction(fn) — fn(db) is called and its return value
+ *  returned. The mock cannot ACTUALLY roll back, so tests assert intent (throw
+ *  semantics) rather than DB state. */
+function mockDb(opts: {
+  existingRow?: Record<string, unknown> | null;
+  existingRun?: Record<string, unknown> | null;
+  /** When set, simulates a stale runs.cost_usd post-insert by patching the
+   *  inserted row's costActualUsd to this value. Used to drive the cost-
+   *  invariant violation path. */
+  forceSummaryCost?: string;
+} = {}) {
   const inserts: Array<{ table: string; values: unknown; returnedId: string }> = [];
   const executes: string[] = [];
   let nextId = 1;
@@ -44,23 +55,26 @@ function mockDb(opts: { existingRow?: Record<string, unknown> | null; existingRu
     }),
   });
 
-  const db = {
+  const db: Record<string, unknown> = {
     select: (() => {
       let callIdx = 0;
       return () => {
         const idx = callIdx++;
-        // First call: existing relay row (idempotency lookup) OR existing summary lookup.
-        // Second call: existing run lookup (composeRunSummary).
         if (idx === 0) return baseSelectChain(opts.existingRow ? [opts.existingRow] : []);
         return baseSelectChain(opts.existingRun ? [opts.existingRun] : []);
       };
     })(),
     insert: (table: { _: { name?: string } } | unknown) => ({
-      values: (values: unknown) => ({
+      values: (values: Record<string, unknown>) => ({
         returning: async () => {
           const id = `mock-id-${nextId++}`;
-          inserts.push({ table: (table as { _: { name?: string } })._?.name ?? "?", values, returnedId: id });
-          return [{ id, ...(values as Record<string, unknown>) }];
+          const tableName = (table as { _: { name?: string } })._?.name ?? "?";
+          inserts.push({ table: tableName, values, returnedId: id });
+          // Drive cost-invariant violation when configured.
+          if (opts.forceSummaryCost && tableName === "?") {
+            return [{ id, ...values, costActualUsd: opts.forceSummaryCost }];
+          }
+          return [{ id, ...values }];
         },
       }),
     }),
@@ -73,15 +87,15 @@ function mockDb(opts: { existingRow?: Record<string, unknown> | null; existingRu
         }
       }
       executes.push(text);
-      // Return 0 counts for all aggregations.
       if (text.includes("tool_calls")) return [{ tool_calls: 0 }] as unknown as never;
       if (text.includes("findings_count")) return [{ findings_count: 0 }] as unknown as never;
       if (text.includes("approvals_count")) return [{ approvals_count: 0 }] as unknown as never;
       return [] as unknown as never;
     },
-  } as unknown as Parameters<typeof emit>[0];
+    transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
+  };
 
-  return { db, inserts, executes };
+  return { db: db as unknown as Parameters<typeof emit>[0], inserts, executes };
 }
 
 async function main() {
@@ -197,12 +211,44 @@ async function main() {
     "evidence_paths preserved",
   );
 
-  console.log("• composeRunSummary() — idempotent: returns existing summary, no insert");
+  console.log("• composeRunSummary() — idempotent: returns existing summary, no insert (Wave C guardrail #3)");
   const existingSummary = { id: "summary-1", runId: "r3", tenantId: "t1", status: "done" };
   const { db: idemDb, inserts: idemInserts } = mockDb({ existingRow: existingSummary });
   const idemRow = await composeRunSummary(idemDb, { runId: "r3", status: "done" });
   assert(idemRow.id === "summary-1", "returns existing summary id");
   assert(idemInserts.length === 0, "no insert performed on idempotent call");
+
+  console.log("• composeRunSummary() — FAIL-LOUD on cost mismatch (Wave C guardrail #2)");
+  // Drive a cost mismatch: runs.cost_usd = "1.2345" but the mock forces the
+  // inserted summary's costActualUsd to "0" so they diverge. The composer
+  // must throw CostInvariantViolation; the (mocked, no-op) tx rolls back.
+  const driftRun = {
+    id: "r4",
+    tenantId: "t1",
+    agentId: "a4",
+    startedAt: new Date("2026-06-01T00:00:00Z"),
+    endedAt: new Date("2026-06-01T00:00:30Z"),
+    costUsd: "1.2345",
+    tokensIn: 50,
+    tokensOut: 75,
+    summary: "drift",
+  };
+  const { db: driftDb } = mockDb({
+    existingRow: null,
+    existingRun: driftRun,
+    forceSummaryCost: "0.0000",
+  });
+  let caught: unknown;
+  try {
+    await composeRunSummary(driftDb, { runId: "r4", status: "done" });
+  } catch (e) {
+    caught = e;
+  }
+  assert(caught instanceof CostInvariantViolation, "throws CostInvariantViolation on mismatch");
+  const violation = caught as CostInvariantViolation;
+  assert(violation.runId === "r4", "violation carries runId");
+  assert(violation.runUsd === "1.2345", "violation carries runs.cost_usd value");
+  assert(violation.summaryUsd === "0.0000", "violation carries the offending summary cost");
 
   console.log("");
   console.log(`Results: ${passed} passed, ${failed} failed`);

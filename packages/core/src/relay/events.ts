@@ -71,6 +71,15 @@ export const EVENT_NAMES = [
   // bypassed the architect refusal step trips the CRA blocklist at runtime.
   // Belt-and-suspenders for architect.refused.
   "cantfail.cra_violation",
+
+  // Relay-internal invariant violation. Emitted when composeRunSummary
+  // discovers that the just-written run_summaries.cost_actual_usd does NOT
+  // match the runs.cost_usd it should mirror. The summary write is rolled
+  // back (the tx throws); this event is emitted to a fresh connection so
+  // ops sees the violation even though the rolled-back write left no
+  // forensic trace in run_summaries. Per the Wave C guardrail: a cost
+  // invariant that can fail quietly is worse than no invariant.
+  "relay.invariant_violation",
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];

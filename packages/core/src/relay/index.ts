@@ -12,6 +12,7 @@ export {
 export {
   composeRunSummary,
   getRunSummary,
+  CostInvariantViolation,
   type ComposeRunSummaryArgs,
   type RunSummary,
 } from "./summary.js";
