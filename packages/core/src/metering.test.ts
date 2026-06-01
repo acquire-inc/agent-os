@@ -1,6 +1,6 @@
 // Pure unit test for the metering/credit math. No DB.
 // Run: pnpm --filter @agent-os/core exec tsx src/metering.test.ts
-import { computeUsage, classifyBalance, DEFAULT_BILLING } from "./metering.js";
+import { computeUsage, classifyBalance, runGateDecision, DEFAULT_BILLING } from "./metering.js";
 
 let passed = 0;
 let failed = 0;
@@ -41,6 +41,14 @@ function main() {
   assert(classifyBalance(0) === "empty", "zero = empty");
   assert(classifyBalance(-3) === "empty", "negative = empty");
   assert(classifyBalance(5, 10) === "low", "custom threshold respected");
+
+  // ── run gate: only prepaid tenants are blocked, and only when depleted ──
+  assert(runGateDecision(false, 0).allowed === true, "unenforced tenant always runs (internal Acqu)");
+  assert(runGateDecision(false, -100).allowed === true, "unenforced tenant runs even negative");
+  assert(runGateDecision(true, 5).allowed === true, "prepaid with balance runs");
+  assert(runGateDecision(true, 0).allowed === false, "prepaid at zero is blocked");
+  assert(typeof runGateDecision(true, 0).reason === "string", "blocked gate carries a reason");
+  assert(runGateDecision(true, -1).allowed === false, "prepaid negative is blocked");
 
   console.log(`\nResult: ${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);

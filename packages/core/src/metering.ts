@@ -53,6 +53,17 @@ function round(n: number, dp: number): number {
 export type BalanceVerdict = "ok" | "low" | "empty";
 
 /**
+ * Pure: should a tenant be allowed to START a new run? Only prepaid tenants (enforceBalance) are
+ * gated, and only when their balance is depleted. Internal Acqu (enforceBalance=false) always
+ * runs — the balance is just an accounting figure there. Returns a reason when blocked.
+ */
+export function runGateDecision(enforceBalance: boolean, balanceCredits: number): { allowed: boolean; reason?: string } {
+  if (!enforceBalance) return { allowed: true };
+  if (balanceCredits > 0) return { allowed: true };
+  return { allowed: false, reason: "prepaid balance depleted — top up credits to resume runs" };
+}
+
+/**
  * Pure: classify a prepaid balance. `low` once it can't cover ~one more typical run (heuristic
  * threshold), `empty` at/below zero. Only meaningful when the tenant enforces balance; internal
  * tenants ignore it.
@@ -61,6 +72,13 @@ export function classifyBalance(balanceCredits: number, lowThreshold = 1): Balan
   if (balanceCredits <= 0) return "empty";
   if (balanceCredits < lowThreshold) return "low";
   return "ok";
+}
+
+/** DB-backed run gate: read the tenant's enforcement + balance and apply runGateDecision.
+ *  Cheap single-row read; the claim path calls this before claiming a run for a tenant. */
+export async function canTenantRun(db: Db, tenantId: string): Promise<{ allowed: boolean; reason?: string }> {
+  const c = await getTenantCredits(db, tenantId);
+  return runGateDecision(c.enforceBalance, c.balanceCredits);
 }
 
 /** Read a tenant's billing config + balance, falling back to defaults if no row exists yet. */

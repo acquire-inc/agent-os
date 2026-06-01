@@ -1,5 +1,6 @@
 import { schema, type Db } from "@agent-os/db";
 import { sql } from "drizzle-orm";
+import { canTenantRun } from "./metering.js";
 
 export type ClaimedRun = typeof schema.runs.$inferSelect;
 
@@ -27,6 +28,11 @@ export async function claimNextRun(
   tenantId: string,
   runner: string,
 ): Promise<ClaimedRun | null> {
+  // Prepaid enforcement (metering): a client tenant with enforce_balance and a depleted credit
+  // balance is held — don't claim its work. No-op for internal Acqu (enforce_balance=false) and
+  // for any tenant without a tenant_credits row (defaults to unenforced).
+  const gate = await canTenantRun(db, tenantId);
+  if (!gate.allowed) return null;
   const result = await db.execute(sql`
     update runs set status = 'running', claimed_by = ${runner}, started_at = now()
     where id = (
