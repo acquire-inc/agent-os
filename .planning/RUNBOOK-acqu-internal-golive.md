@@ -47,23 +47,29 @@ PORT=8787 PUBLIC_URL=http://localhost:8787 pnpm --filter @agent-os/api start
 pnpm --filter @agent-os/scheduler start
 ```
 
-## 5. Mint a runner API key, then start a runner
+## 5. Bootstrap the first keys (no chicken-and-egg)
+A fresh DB has zero API keys, and `POST /api/admin/keys` itself needs an admin key — so mint the
+first ones directly against the DB (the one privileged op that can't go through the API):
 ```bash
-# create an admin/runner key (requires an admin context; see apps/api admin auth)
-curl -s -X POST localhost:8787/api/admin/keys -H 'content-type: application/json' \
-  -d '{"kind":"runner","name":"local-runner"}'      # → {"raw":"<RUNNER_API_KEY>", ...}
+# mints the bootstrap ADMIN key AND a RUNNER key; prints each raw secret ONCE
+DATABASE_URL=... pnpm tsx scripts/seed/bootstrap-admin-key.ts --runner
+```
+Copy both secrets. Re-running without `--force` won't reprint (hashes are one-way). All further
+keys come from `POST /api/admin/keys` (Bearer the admin key).
 
-# terminal 3 — runner. RUNNER_AGENT_IDS = the agent UUIDs this worker serves (start with vitals).
-RUNNER_API_KEY="<from above>" \
-RUNNER_AGENT_IDS="<vitals agent uuid>" \
+## 6. Start a runner (use agent KEYS or "all" — no UUID lookup)
+```bash
+# terminal 3 — runner. RUNNER_AGENT_IDS accepts agent keys, "all", or UUIDs; resolved at startup.
+RUNNER_API_KEY="<runner key from step 5>" \
+RUNNER_AGENT_IDS="vitals" \           # or "vitals,ad-ops,connector-health-monitor" or "all"
 API_URL=http://localhost:8787 \
 pnpm --filter @agent-os/runner start
 ```
 - **No `ANTHROPIC_API_KEY`** → runner runs in **dryRun** (simulates the full loop incl. the approval
-  gate) — good for proving the plumbing with zero spend.
+  gate) — prove the plumbing with zero spend first.
 - **With the key** → live runs through the Claude Agent SDK behind the safety hooks.
 
-## 6. What "it works" looks like (the acceptance test)
+## 7. What "it works" looks like (the acceptance test)
 After a vitals run reaches a terminal state, verify the new memory contract landed:
 ```sql
 select agent_id, status, what_i_did, what_next, cost_usd
@@ -74,7 +80,7 @@ select kind, tool_name, rationale from autonomy_events order by ts desc limit 10
 A second vitals run should now show **"Where you left off"** context in its bundle (the
 `recentSummaries` we just wired) — that's continuity working.
 
-## 7. First-week internal loop (low-risk order)
+## 8. First-week internal loop (low-risk order)
 1. Run **vitals + the cheap monitors** live (connector-health, cash-position) — they're read-mostly,
    `propose`/`execute_safe`, cheap. Watch `run_summaries` + cost accumulate.
 2. Turn on **agent-architect** on-demand — prompt it ("what's our coverage gap this week?") and watch

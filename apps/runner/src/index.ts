@@ -39,9 +39,36 @@ async function tick(api: ApiClient, cfg: RunnerConfig) {
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Resolve the configured RUNNER_AGENT_IDS (which may be UUIDs, agent keys, or "all") into the
+ *  concrete agent UUIDs to poll. Keys/"all" are looked up via the API (tenant-scoped). */
+async function resolveAgentIds(api: ApiClient, configured: string[]): Promise<string[]> {
+  const wantAll = configured.some((s) => s.toLowerCase() === "all");
+  const uuids = configured.filter((s) => UUID_RE.test(s));
+  const keys = configured.filter((s) => !UUID_RE.test(s) && s.toLowerCase() !== "all");
+  if (!wantAll && keys.length === 0) return uuids; // pure-UUID config: no lookup needed
+
+  const agents = await api.listAgents();
+  const byKey = new Map(agents.map((a) => [a.key, a]));
+  const resolved = new Set(uuids);
+  if (wantAll) for (const a of agents) if (a.enabled) resolved.add(a.id);
+  for (const k of keys) {
+    const a = byKey.get(k);
+    if (a) resolved.add(a.id);
+    else console.warn(`[runner] agent key "${k}" not found for this tenant — skipping.`);
+  }
+  return [...resolved];
+}
+
 async function main() {
   const cfg = loadConfig();
   const api = new ApiClient(cfg);
+
+  // Resolve keys/"all" → UUIDs so operators can use RUNNER_AGENT_IDS="vitals,ad-ops" or "all"
+  // instead of hand-looking-up UUIDs.
+  cfg.agentIds = await resolveAgentIds(api, cfg.agentIds);
+  if (cfg.agentIds.length === 0) throw new Error("RUNNER_AGENT_IDS resolved to zero agents (check keys / tenant).");
 
   console.log(
     `[runner] ${cfg.runnerId} polling ${cfg.agentIds.length} agent(s) at ${cfg.apiUrl} ` +

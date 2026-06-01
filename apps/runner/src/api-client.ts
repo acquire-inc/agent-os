@@ -36,6 +36,13 @@ export class ApiClient {
     return res.json() as Promise<NextResponse>;
   }
 
+  /** List the tenant's agents (for resolving keys/"all" → UUIDs at startup). */
+  async listAgents(): Promise<{ id: string; key: string; status: string; enabled: boolean }[]> {
+    const res = await fetch(`${this.cfg.apiUrl}/api/agents`, { headers: this.headers() });
+    if (!res.ok) throw new Error(`listAgents: ${res.status} ${await res.text()}`);
+    return ((await res.json()) as { agents: { id: string; key: string; status: string; enabled: boolean }[] }).agents;
+  }
+
   async postActivity(runId: string, kind: string, message: string): Promise<void> {
     await fetch(`${this.cfg.apiUrl}/api/runs/${runId}/activity`, {
       method: "POST",

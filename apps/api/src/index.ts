@@ -89,6 +89,17 @@ async function ownedRun(tenantId: string, runId: string) {
 }
 
 // ============================ Agent API ============================
+// List the caller's agents (id/key/status/enabled) — lets a runner resolve human-friendly keys
+// (or "all") to the UUIDs it polls, instead of hand-looking-up IDs. Tenant-scoped.
+app.get("/api/agents", async (c) => {
+  const { tenantId } = c.get("auth");
+  const rows = await db
+    .select({ id: schema.agents.id, key: schema.agents.key, status: schema.agents.status, enabled: schema.agents.enabled, autonomy: schema.agents.autonomy })
+    .from(schema.agents)
+    .where(eq(schema.agents.tenantId, tenantId));
+  return c.json({ agents: rows });
+});
+
 app.get("/api/agents/:id/next", async (c) => {
   const { tenantId } = c.get("auth");
   const agentId = c.req.param("id");
