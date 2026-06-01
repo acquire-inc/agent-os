@@ -1,4 +1,4 @@
-// Runner-side dispatch for custom registry tools (Plan 07-06).
+// Runner-side dispatch for custom registry tools (Plan 07-06 + 09-04).
 //
 // Tools bound to an agent surface in the Bundle as `bundle.tools[]`. For each
 // one whose key matches a registered handler here, the runner can dispatch it
@@ -8,7 +8,28 @@
 //
 // The PreToolUse autonomy gate still fires for these; we leave the gate alone
 // and only add the dispatch layer.
+//
+// Phase 9 adds: tool.rls-test, tool.vault-rotate, tool.access-audit,
+// tool.access-log-analyzer. Each lazy-creates its db connection + (for
+// vault-rotate) the vault key from env vars on first call so handlers stay
+// process-isolated from runner module load — env may not be wired at import.
 import { runBrowserTool, type BrowserToolInput, type BrowserToolResult } from "@agent-os/tool-browser";
+import {
+  runIsolationSuite,
+  type IsolationInput,
+  type IsolationResult,
+} from "@agent-os/tool-rls-test";
+import {
+  rotateCredential,
+  findOrphanedGrants,
+  detectUsageSpikes,
+  closeRefresher,
+  metaRefresher,
+  stripeRefresher,
+  type RotateResult,
+} from "@agent-os/core";
+import { createDb, type Db } from "@agent-os/db";
+import type { Refresher } from "@agent-os/vault";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,11 +46,72 @@ export type CustomToolHandler = (
   ctx: { outputDir: string },
 ) => Promise<{ result: unknown }>;
 
+// Lazy singletons — created on first use, reused across dispatches.
+let cachedDb: Db | null = null;
+function getDb(): Db {
+  if (cachedDb) return cachedDb;
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL required for security tool dispatch");
+  cachedDb = createDb(url);
+  return cachedDb;
+}
+
+function getVaultKey(): Buffer {
+  const k = process.env.AOS_VAULT_KEY;
+  if (!k) throw new Error("AOS_VAULT_KEY required for tool.vault-rotate");
+  // Keys are stored hex-encoded; 32 bytes for AES-256.
+  return Buffer.from(k, "hex");
+}
+
+function pickRefresher(provider: string): Refresher {
+  switch (provider) {
+    case "close":
+      return closeRefresher;
+    case "meta":
+      return metaRefresher;
+    case "stripe":
+      return stripeRefresher;
+    default:
+      throw new Error(`tool.vault-rotate: unknown provider "${provider}" (expected close|meta|stripe)`);
+  }
+}
+
 export const customToolDispatch: Record<string, CustomToolHandler> = {
   "tool.browser": async (input, ctx) => {
     const result: BrowserToolResult = await runBrowserTool(input as BrowserToolInput, {
       outputDir: ctx.outputDir,
     });
+    return { result };
+  },
+  // D-01: runner-dispatched RLS test uses ctx.db (likely service-role) — for
+  // cron sanity ONLY; HARD GATE verification uses scripts/verify/isolation-live.ts
+  // with RLS_TEST_DATABASE_URL (plan 09-06). The in-runner call is sanity-
+  // checking; false-pass is caught by positive controls in attack-vectors.ts.
+  "tool.rls-test": async (input, ctx) => {
+    const result: IsolationResult = await runIsolationSuite(input as IsolationInput, {
+      db: getDb(),
+      outputDir: ctx.outputDir,
+    });
+    return { result };
+  },
+  "tool.vault-rotate": async (input) => {
+    const { mcpId, provider } = input as { mcpId: string; provider: string };
+    const result: RotateResult = await rotateCredential(
+      getDb(),
+      getVaultKey(),
+      mcpId,
+      pickRefresher(provider),
+    );
+    return { result };
+  },
+  "tool.access-audit": async (input) => {
+    const { tenantId } = input as { tenantId: string };
+    const result = await findOrphanedGrants(getDb(), tenantId);
+    return { result };
+  },
+  "tool.access-log-analyzer": async (input) => {
+    const { tenantId, hours } = input as { tenantId: string; hours?: number };
+    const result = await detectUsageSpikes(getDb(), tenantId, { hours: hours ?? 24 });
     return { result };
   },
 };

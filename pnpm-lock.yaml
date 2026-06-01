@@ -124,12 +124,21 @@ importers:
       '@agent-os/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@agent-os/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@agent-os/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@agent-os/tool-browser':
         specifier: workspace:*
         version: link:../../packages/tool-browser
+      '@agent-os/tool-rls-test':
+        specifier: workspace:*
+        version: link:../../packages/tool-rls-test
+      '@agent-os/vault':
+        specifier: workspace:*
+        version: link:../../packages/vault
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.150
         version: 0.3.150(@anthropic-ai/sdk@0.98.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(zod@4.4.3)

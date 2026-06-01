@@ -12,8 +12,11 @@
   },
   "dependencies": {
     "@agent-os/core": "workspace:*",
+    "@agent-os/db": "workspace:*",
     "@agent-os/shared": "workspace:*",
     "@agent-os/tool-browser": "workspace:*",
+    "@agent-os/tool-rls-test": "workspace:*",
+    "@agent-os/vault": "workspace:*",
     "@anthropic-ai/claude-agent-sdk": "^0.3.150"
   },
   "devDependencies": {
