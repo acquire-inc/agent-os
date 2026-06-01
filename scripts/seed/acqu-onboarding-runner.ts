@@ -26,6 +26,7 @@ export const onboardingRunnerSpec: AgentSpec = {
   key: "onboarding-runner",
   name: "Onboarding Runner",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

@@ -25,6 +25,7 @@ export const creativeMinerSpec: AgentSpec = {
   key: "creative-miner",
   name: "Creative Miner",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "execute_safe",

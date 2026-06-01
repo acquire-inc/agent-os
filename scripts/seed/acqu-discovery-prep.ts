@@ -31,6 +31,7 @@ export const discoveryPrepSpec: AgentSpec = {
   key: "discovery-prep",
   name: "Discovery Prep",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "execute_safe",

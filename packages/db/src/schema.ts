@@ -29,9 +29,17 @@ export const tenants = pgTable("tenants", {
   type: text("type").notNull().default("internal"),
   status: text("status").notNull().default("active"),
   monthlyBudgetUsd: numeric("monthly_budget_usd", { precision: 12, scale: 2 }),
-  // When set, seedAgent rewrites spec.model -> this value on insert/update for
-  // every agent belonging to this tenant. Migration 0009 (autonomous-team).
+  // DEPRECATED — use tierOverrides for per-tier control. This blunt-instrument
+  // column applies to all non-critical tiers when set; tierOverrides wins when
+  // both are present. Migration 0009 (autonomous-team), superseded by 0013.
   defaultModelOverride: text("default_model_override"),
+  // Per-tier per-tenant model override. Shape:
+  //   { "T-cheap": "deepseek/deepseek-v3", "T-reason": "nousresearch/hermes-4-405b" }
+  // T-critical is NEVER honored here — resolveModel() ignores it. Migration 0013.
+  tierOverrides: jsonb("tier_overrides")
+    .$type<Partial<Record<"T-trivial" | "T-cheap" | "T-reason" | "T-work" | "T-critical", string>>>()
+    .notNull()
+    .default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -78,6 +86,11 @@ export const agents = pgTable("agents", {
   persona: text("persona"),
   backend: text("backend").notNull().default("claude-agent-sdk"),
   model: text("model").notNull().default("claude-sonnet-4-6"),
+  // Tier intent (declared); the router resolves this to `model` at seed time
+  // via DEFAULT_TIER_MODELS + tenants.tier_overrides. Migration 0013.
+  modelTier: text("model_tier").$type<
+    "T-trivial" | "T-cheap" | "T-reason" | "T-work" | "T-critical"
+  >(),
   thinkingLevel: text("thinking_level").notNull().default("medium"),
   autonomy: text("autonomy").notNull().default("propose"),
   knowledgeScopeJson: jsonb("knowledge_scope_json").notNull().default({ folders: [], tags: [] }),

@@ -11,6 +11,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { isCantFail } from "../architect/hydrate.js";
+import { resolveModel } from "../router/resolve.js";
+import { emit } from "../relay/emit.js";
 
 export interface SkillSource {
   readSkillMd(key: string): Promise<string | null>;
@@ -318,7 +320,21 @@ export type AgentSpec = {
   key: string;
   name: string;
   systemPrompt: string;
-  model: string;
+  /**
+   * Explicit per-agent model override. Optional under the Model Router (Step 2.5):
+   * when present, wins over tier resolution (the eval-promotion lever — a
+   * doctrine spec or the agent-evaluator can hand-pin a model). When absent,
+   * resolveModel() picks based on modelTier + tenants.tier_overrides +
+   * DEFAULT_TIER_MODELS. T-critical agents ALWAYS pin to Opus regardless of
+   * this field (Open Q #1 RESOLVED).
+   */
+  model?: string;
+  /**
+   * Tier intent — the router resolves this to a model slug at seed time via
+   * DEFAULT_TIER_MODELS + tenants.tier_overrides. Required for new agents;
+   * legacy agents without it may rely on the explicit `model` field above.
+   */
+  modelTier?: import("../router/tier-models.js").ModelTier;
   thinkingLevel?: "low" | "medium" | "high";
   autonomy: "propose" | "execute_safe" | "execute_full";
   backend?: string;
@@ -366,46 +382,106 @@ export async function seedAgent(
     (spec.tools ?? []).map((t) => ensureTool(db, spec.tenantId, t)),
   );
 
-  // Tenant-level model override (migration 0009 — autonomous-team primitive).
-  // When tenants.default_model_override is set, it rewrites spec.model at seed
-  // time. Doctrine defaults stay in the script literals; the override is a
-  // deliberate per-tenant policy choice (e.g. "use hermes-4-405b everywhere").
-  // Reversible: clear the column and re-seed to restore doctrine defaults.
+  // MODEL ROUTER (Step 2.5) — resolve the agent's fuel via the declarative
+  // tier intent + per-tenant overrides. The router lives in packages/core/src/
+  // router/. T-critical agents are EXEMPT and pin to Opus per Open Q #1 RESOLVED;
+  // the runner's cantfail.model_violation assertion is the belt, this is the
+  // suspenders.
   //
-  // T-CRITICAL EXEMPTION (AGENT-OS-PLAN.md Open Q #1 — RESOLVED 2026-06-01):
-  // Tier wins, override loses. T-critical / can't-fail agents (CLAUDE.md
-  // can't-fail list, enforced by isCantFail()) are EXEMPT from the override.
-  // The script literal (claude-opus-4.8) wins regardless of what the tenant
-  // column says. The runner has a belt-and-suspenders SessionStart assertion
-  // that fails the run closed with a cantfail.model_violation Relay event if
-  // a T-critical agent is ever dispatched on a non-Opus model.
+  // Legacy tenants.default_model_override is still read as a fallback (blunt
+  // instrument — applies to all non-critical tiers when set). Operators
+  // should migrate to tenants.tier_overrides for per-tier control. Deprecation
+  // warning fires on first encounter.
   const [tenant] = await db
-    .select({ defaultModelOverride: schema.tenants.defaultModelOverride })
+    .select({
+      defaultModelOverride: schema.tenants.defaultModelOverride,
+      tierOverrides: schema.tenants.tierOverrides,
+    })
     .from(schema.tenants)
     .where(eq(schema.tenants.id, spec.tenantId))
     .limit(1);
-  const overrideValue = tenant?.defaultModelOverride ?? null;
   const cantFail = isCantFail(spec.key);
-  let effectiveModel = spec.model;
-  if (overrideValue && !cantFail) {
-    effectiveModel = overrideValue;
-    if (effectiveModel !== spec.model) {
-      console.warn(
-        `[seedAgent] ${spec.key}: tenant model override rewrites ${spec.model} -> ${effectiveModel}.`,
-      );
-    }
-  } else if (overrideValue && cantFail && overrideValue !== spec.model) {
+
+  // Compose effective tenant overrides + the legacy spec.model override path.
+  //
+  // New mechanism (preferred): tenants.tier_overrides jsonb. Per-tier control.
+  // resolveModel() reads it after the spec.model check.
+  //
+  // Legacy mechanism (deprecated, kept for back-compat): tenants.default_
+  // model_override rewrites spec.model directly for non-T-critical agents.
+  // This is the BLUNT instrument the doctrine called out — under the router
+  // we honor it but recommend migrating to tier_overrides. T-critical is
+  // EXEMPT regardless of which mechanism is set.
+  const hasTierOverrides =
+    tenant?.tierOverrides && Object.keys(tenant.tierOverrides).length > 0;
+  const effectiveTenantOverrides = hasTierOverrides
+    ? (tenant!.tierOverrides as Record<string, string>)
+    : null;
+
+  // Apply legacy default_model_override to spec.model BEFORE the router sees
+  // it, so the resolver's "explicit spec.model wins" branch picks up the
+  // legacy override on non-T-critical agents.
+  let effectiveSpecModel = spec.model ?? null;
+  if (
+    tenant?.defaultModelOverride &&
+    !cantFail &&
+    !hasTierOverrides &&
+    tenant.defaultModelOverride !== spec.model
+  ) {
     console.warn(
-      `[seedAgent] ${spec.key}: T-critical exemption — ignoring tenant override (${overrideValue}); ` +
-        `keeping script literal ${spec.model} per CLAUDE.md can't-fail list + AGENT-OS-PLAN.md Open Q #1 (RESOLVED).`,
+      `[seedAgent] ${spec.tenantId}: tenants.default_model_override is DEPRECATED — ` +
+        `migrate to tenants.tier_overrides jsonb (per-tier control). Applying legacy ` +
+        `override: ${spec.model ?? "<unset>"} -> ${tenant.defaultModelOverride}.`,
+    );
+    effectiveSpecModel = tenant.defaultModelOverride;
+  }
+
+  const resolution = resolveModel({
+    agentKey: spec.key,
+    isCantFail: cantFail,
+    modelTier: spec.modelTier ?? null,
+    specModel: effectiveSpecModel,
+    tenantOverrides: effectiveTenantOverrides,
+  });
+
+  // Emit model.routed for the audit trail. Best-effort — if the Relay emit
+  // fails, log + continue (the seed write is what matters; the audit trail
+  // is observability). This is NOT inside a tx with the agent insert because
+  // upsertAgent is itself idempotent and the router event is observability
+  // not authorization. If a re-seed picks the same tier/model, the eventKey
+  // makes the Relay write a no-op.
+  await emit(db, {
+    tenantId: spec.tenantId,
+    eventName: "model.routed",
+    actor: "system",
+    payload: {
+      agent_key: spec.key,
+      tier: resolution.tier,
+      resolved_model: resolution.model,
+      reason: resolution.reason,
+    },
+    eventKey: `model.routed:${spec.tenantId}:${spec.key}:${resolution.model}`,
+  }).catch((e) => {
+    console.warn(
+      `[seedAgent] model.routed emit failed for ${spec.key}: ${(e as Error).message}`,
+    );
+  });
+
+  if (resolution.model !== spec.model && spec.model) {
+    console.log(
+      `[seedAgent] ${spec.key}: router resolved tier=${resolution.tier} → ${resolution.model} (reason: ${resolution.reason})`,
     );
   }
+
+  const effectiveModel = resolution.model;
+  const effectiveTier = resolution.tier;
 
   const agent = await upsertAgent(db, spec.tenantId, spec.key, {
     name: spec.name,
     persona: spec.systemPrompt,
     backend: spec.backend ?? "claude-agent-sdk",
     model: effectiveModel,
+    modelTier: effectiveTier,
     thinkingLevel: spec.thinkingLevel ?? "low",
     autonomy: spec.autonomy,
     knowledgeScopeJson: spec.knowledgeScope,

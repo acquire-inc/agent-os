@@ -25,6 +25,7 @@ export const expansionFinderSpec: AgentSpec = {
   name: "Expansion Finder",
   systemPrompt: SYSTEM_PROMPT,
   // T-reason override per main §1.5 (doctrine had sonnet-4-6).
+  modelTier: "T-reason",
   model: "nousresearch/hermes-4-405b",
   thinkingLevel: "medium",
   autonomy: "execute_safe",

@@ -31,6 +31,7 @@ export const memoryConsolidatorSpec: AgentSpec = {
   key: "memory-consolidator",
   name: "Memory Consolidator",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-reason",
   model: "nousresearch/hermes-4-405b",
   thinkingLevel: "medium",
   autonomy: "propose",

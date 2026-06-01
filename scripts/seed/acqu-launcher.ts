@@ -29,6 +29,7 @@ export const launcherSpec: AgentSpec = {
   key: "launcher",
   name: "Launcher",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

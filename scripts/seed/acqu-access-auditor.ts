@@ -26,6 +26,7 @@ export const accessAuditorSpec: AgentSpec = {
   name: "Access Auditor",
   systemPrompt: SYSTEM_PROMPT,
   // T-CRITICAL — Claude Opus 4.8 per CLAUDE.md can't-fail list. NEVER change to Hermes.
+  modelTier: "T-critical",
   model: "anthropic/claude-opus-4.8",
   thinkingLevel: "high",
   autonomy: "execute_safe",

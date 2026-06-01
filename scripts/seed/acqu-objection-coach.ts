@@ -24,6 +24,7 @@ export const objectionCoachSpec: AgentSpec = {
   name: "Objection Coach",
   systemPrompt: SYSTEM_PROMPT,
   // Speed-critical → keep Sonnet (not Opus) for <5s closer response.
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "low",
   autonomy: "execute_safe",

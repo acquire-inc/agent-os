@@ -26,6 +26,7 @@ export const callSummarizerSpec: AgentSpec = {
   key: "call-summarizer",
   name: "Call Summarizer",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

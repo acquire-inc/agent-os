@@ -25,6 +25,7 @@ export const riskRegisterKeeperSpec: AgentSpec = {
   name: "Risk Register Keeper",
   systemPrompt: SYSTEM_PROMPT,
   // T-CRITICAL — CLAUDE.md can't-fail list. NEVER change to Hermes.
+  modelTier: "T-critical",
   model: "anthropic/claude-opus-4.8",
   thinkingLevel: "high",
   autonomy: "execute_safe",

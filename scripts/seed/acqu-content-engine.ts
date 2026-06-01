@@ -30,6 +30,7 @@ export const contentEngineSpec: AgentSpec = {
   key: "content-engine",
   name: "Content Engine",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

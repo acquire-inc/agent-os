@@ -25,6 +25,7 @@ export const marginMonitorSpec: AgentSpec = {
   key: "margin-monitor",
   name: "Margin Monitor",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-cheap",
   model: "nousresearch/hermes-4-70b",
   thinkingLevel: "low",
   autonomy: "execute_safe",

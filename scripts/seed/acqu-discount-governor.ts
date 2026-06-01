@@ -33,6 +33,7 @@ export const discountGovernorSpec: AgentSpec = {
   name: "Discount Governor",
   systemPrompt: SYSTEM_PROMPT,
   // T-CRITICAL — CLAUDE.md can't-fail list. NEVER change to Hermes.
+  modelTier: "T-critical",
   model: "anthropic/claude-opus-4.8",
   thinkingLevel: "medium",
   autonomy: "execute_safe",

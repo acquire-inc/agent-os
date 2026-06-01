@@ -26,6 +26,7 @@ export const secretsRotationSpec: AgentSpec = {
   name: "Secrets Rotation",
   systemPrompt: SYSTEM_PROMPT,
   // T-CRITICAL — Claude Opus 4.8 per CLAUDE.md can't-fail list. NEVER change to Hermes.
+  modelTier: "T-critical",
   model: "anthropic/claude-opus-4.8",
   thinkingLevel: "high",
   // Agent-level autonomy = execute_safe permits the tool call; the propose-gating

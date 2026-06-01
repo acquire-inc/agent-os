@@ -24,6 +24,7 @@ export const expenseTrackerSpec: AgentSpec = {
   key: "expense-tracker",
   name: "Expense Tracker",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-cheap",
   model: "nousresearch/hermes-4-70b",
   thinkingLevel: "low",
   autonomy: "execute_safe",

@@ -24,6 +24,7 @@ export const bookingConciergeSpec: AgentSpec = {
   key: "booking-concierge",
   name: "Booking Concierge",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-haiku-4-5",
   thinkingLevel: "low",
   autonomy: "execute_safe",

@@ -25,6 +25,7 @@ export const skillLibrarianSpec: AgentSpec = {
   key: "skill-librarian",
   name: "Skill Librarian",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

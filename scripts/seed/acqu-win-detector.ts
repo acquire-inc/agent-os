@@ -27,6 +27,7 @@ export const winDetectorSpec: AgentSpec = {
   key: "win-detector",
   name: "Win Detector",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "low",
   autonomy: "execute_safe",

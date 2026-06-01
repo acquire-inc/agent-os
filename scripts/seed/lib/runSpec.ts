@@ -22,8 +22,10 @@ export async function runSpec(spec: AgentSpec): Promise<AgentSeedResult> {
   const db = createDb(process.env.DATABASE_URL);
   console.log(`▸ Seeding ${spec.key} (tenant ${spec.tenantId.slice(0, 8)}…)`);
   const result = await seedAgent(db, spec, { skillSource: SKILL_SOURCE });
+  const displayModel = result.agent.model;
+  const displayTier = result.agent.modelTier ?? spec.modelTier ?? "—";
   console.log(
-    `✓ ${spec.key.padEnd(26)} model=${spec.model.padEnd(34)} autonomy=${spec.autonomy.padEnd(13)} cron="${spec.cron?.schedule ?? "—"}"`,
+    `✓ ${spec.key.padEnd(26)} tier=${displayTier.padEnd(11)} model=${displayModel.padEnd(34)} autonomy=${spec.autonomy.padEnd(13)} cron="${spec.cron?.schedule ?? "—"}"`,
   );
   return result;
 }

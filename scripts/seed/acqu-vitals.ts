@@ -38,6 +38,7 @@ export const vitalsSpec: AgentSpec = {
   key: "vitals",
   name: "Vitals",
   systemPrompt: VITALS_SYSTEM_PROMPT,
+  modelTier: "T-cheap",
   model: "nousresearch/hermes-4-70b",
   thinkingLevel: "low",
   autonomy: "execute_safe",

@@ -30,6 +30,7 @@ export const dunningManagerSpec: AgentSpec = {
   key: "dunning-manager",
   name: "Dunning Manager",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

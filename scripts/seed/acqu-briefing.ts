@@ -24,6 +24,7 @@ export const briefingSpec: AgentSpec = {
   key: "briefing",
   name: "Briefing",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-reason",
   model: "nousresearch/hermes-4-405b",
   thinkingLevel: "medium",
   autonomy: "execute_safe",

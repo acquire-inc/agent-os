@@ -35,6 +35,7 @@ export const eaSpec: AgentSpec = {
   key: "ea",
   name: "EA",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-haiku-4-5",
   thinkingLevel: "low",
   autonomy: "propose",

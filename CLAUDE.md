@@ -30,13 +30,22 @@ TypeScript (strict) · TanStack Router SPA + Hono API · Postgres + pgvector (Su
 
 ## Model tiering — CANONICAL (model is CONFIG, not code; start at the cheapest safe tier, promote only on eval failure)
 
-| Tier | Model (OpenRouter slug) | Use for |
+**The Model Router** (`packages/core/src/router/`) resolves an agent's *tier intent* (`spec.modelTier`) into a *concrete fuel slug* at seed time. Agents declare tier; the router picks fuel. Models are interchangeable — when a new Hermes / Claude / DeepSeek / GPT ships, operators edit `DEFAULT_TIER_MODELS` in one PR and the entire fleet picks it up on next seed. T-critical is the safety floor: hardcoded to Opus, no override accepted, runtime fail-closed via `cantfail.model_violation`.
+
+| Tier | Default fuel (`DEFAULT_TIER_MODELS.primary`) | Use for |
 |---|---|---|
-| **T-trivial** *(optional 5th tier)* | `nousresearch/hermes-2-pro-llama-3-8b` | Highest-frequency near-zero-reasoning pings (binary up/down, dedupe, field extraction). Only add if a 3rd tier earns its complexity — 70B is already cheap. |
+| **T-trivial** *(optional)* | `nousresearch/hermes-2-pro-llama-3-8b` | Highest-frequency near-zero-reasoning pings (binary up/down, dedupe, field extraction). Only add if a 3rd tier earns its complexity — 70B is already cheap. |
 | **T-cheap — volume default** | `nousresearch/hermes-4-70b` | Where most *runs* happen: monitors, watchers, triage, classification, templated summaries, single-step tool calls. Cheap enough to run always-on. |
 | **T-reason — reasoning workhorse ⭐** | `nousresearch/hermes-4-405b` | Multi-step analysis, synthesis, anything where reasoning moves the output. **Preferred whenever reasoning matters** — but reserve for thinking tasks. |
-| **T-work — reliable agentic** | `anthropic/claude-sonnet-4.6` (or `haiku-4-5` lighter) | Multi-step *tool* orchestration, client-facing content, anything where Hermes is less reliable at complex tool sequencing. |
-| **T-critical — can't-fail** | `anthropic/claude-opus-4.8` — **NEVER Hermes; EXEMPT from `tenants.default_model_override`** | High-stakes judgment + safety (can't-fail list below). Runtime fail-closed via `cantfail.model_violation` Relay event. |
+| **T-work — reliable agentic** | `anthropic/claude-sonnet-4.6` (with `haiku-4-5` + `hermes-4-405b` as fallbacks) | Multi-step *tool* orchestration, client-facing content, anything where Hermes is less reliable at complex tool sequencing. |
+| **T-critical — can't-fail** | `anthropic/claude-opus-4.8` — **EMPTY fallback chain; EXEMPT from all tenant overrides** | High-stakes judgment + safety (can't-fail list below). Runtime fail-closed via `cantfail.model_violation` Relay event if drift. |
+
+**Resolution precedence** (in `resolveModel()`): T-critical pin → explicit `spec.model` (eval-promotion lever) → `tenants.tier_overrides[tier]` → `DEFAULT_TIER_MODELS[tier].primary`. Every resolution emits a `model.routed` Relay event for the audit trail.
+
+**Operator levers**:
+- `tenants.tier_overrides jsonb` — per-tier per-tenant override (the new mechanism). Shape `{"T-reason": "deepseek/deepseek-v3"}`. T-critical never honored here.
+- `tenants.default_model_override` — DEPRECATED legacy single-string override; still applied to non-critical agents for back-compat with warning. Migrate to `tier_overrides`.
+- `spec.model` — per-agent override on the seed script (eval-promotion lever). Wins over tier resolution on non-T-critical agents.
 
 > **70B carries volume; 405B carries thinking.** Reserve 405B for where reasoning earns it — most runs are bounded monitors/triage where 70B output is indistinguishable at ~7× lower cost.
 > **Skip Hermes 3 in production** — Hermes 4 supersedes it at both 70B and 405B.

@@ -34,6 +34,7 @@ export const agentOnboarderSpec: AgentSpec = {
   key: "agent-onboarder",
   name: "Agent Onboarder",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

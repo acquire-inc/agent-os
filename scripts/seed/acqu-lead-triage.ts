@@ -25,6 +25,7 @@ export const leadTriageSpec: AgentSpec = {
   key: "lead-triage",
   name: "Lead Triage",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "execute_safe",

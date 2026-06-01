@@ -22,6 +22,7 @@ export const cashPositionMonitorSpec: AgentSpec = {
   key: "cash-position-monitor",
   name: "Cash Position Monitor",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-cheap",
   model: "nousresearch/hermes-4-70b",
   thinkingLevel: "low",
   autonomy: "execute_safe",

@@ -26,6 +26,7 @@ export const caseStudyBuilderSpec: AgentSpec = {
   key: "case-study-builder",
   name: "Case Study Builder",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

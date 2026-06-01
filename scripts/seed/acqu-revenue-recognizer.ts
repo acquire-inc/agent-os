@@ -25,6 +25,7 @@ export const revenueRecognizerSpec: AgentSpec = {
   key: "revenue-recognizer",
   name: "Revenue Recognizer",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-cheap",
   model: "nousresearch/hermes-4-70b",
   thinkingLevel: "low",
   autonomy: "execute_safe",

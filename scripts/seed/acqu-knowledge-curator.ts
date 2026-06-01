@@ -27,6 +27,7 @@ export const knowledgeCuratorSpec: AgentSpec = {
   key: "knowledge-curator",
   name: "Knowledge Curator",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

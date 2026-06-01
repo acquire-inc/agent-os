@@ -27,6 +27,7 @@ export const savePlaySpec: AgentSpec = {
   key: "save-play",
   name: "Save Play",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

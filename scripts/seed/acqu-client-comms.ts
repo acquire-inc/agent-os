@@ -28,6 +28,7 @@ export const clientCommsSpec: AgentSpec = {
   key: "client-comms",
   name: "Client Comms",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

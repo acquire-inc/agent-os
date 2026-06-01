@@ -28,6 +28,7 @@ export const pricingArchitectSpec: AgentSpec = {
   name: "Pricing Architect",
   systemPrompt: SYSTEM_PROMPT,
   // T-CRITICAL — CLAUDE.md can't-fail list. NEVER change to Hermes.
+  modelTier: "T-critical",
   model: "anthropic/claude-opus-4.8",
   thinkingLevel: "high",
   autonomy: "propose",

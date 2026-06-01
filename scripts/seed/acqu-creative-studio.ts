@@ -32,6 +32,7 @@ export const creativeStudioSpec: AgentSpec = {
   key: "creative-studio",
   name: "Creative Studio",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "high",
   autonomy: "propose",

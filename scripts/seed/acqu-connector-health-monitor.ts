@@ -27,6 +27,7 @@ export const connectorHealthMonitorSpec: AgentSpec = {
   key: "connector-health-monitor",
   name: "Connector Health Monitor",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-cheap",
   model: "nousresearch/hermes-4-70b",
   thinkingLevel: "low",
   autonomy: "execute_safe",

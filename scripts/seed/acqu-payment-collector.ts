@@ -27,6 +27,7 @@ export const paymentCollectorSpec: AgentSpec = {
   name: "Payment Collector",
   systemPrompt: SYSTEM_PROMPT,
   // T-cheap override per main §1.5 (doctrine had haiku-4-5).
+  modelTier: "T-cheap",
   model: "nousresearch/hermes-4-70b",
   thinkingLevel: "low",
   autonomy: "execute_safe",

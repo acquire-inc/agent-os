@@ -22,6 +22,7 @@ export const funnelMonitorSpec: AgentSpec = {
   key: "funnel-monitor",
   name: "Funnel Monitor",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-cheap",
   model: "nousresearch/hermes-4-70b",
   thinkingLevel: "low",
   autonomy: "execute_safe",

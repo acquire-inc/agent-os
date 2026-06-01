@@ -27,6 +27,7 @@ export const clientHealthSpec: AgentSpec = {
   key: "client-health",
   name: "Client Health",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "execute_safe",

@@ -22,6 +22,7 @@ export const runwayWatcherSpec: AgentSpec = {
   key: "runway-watcher",
   name: "Runway Watcher",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "execute_safe",

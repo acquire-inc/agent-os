@@ -22,6 +22,7 @@ export const arAgingMonitorSpec: AgentSpec = {
   key: "ar-aging-monitor",
   name: "AR Aging Monitor",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-cheap",
   model: "nousresearch/hermes-4-70b",
   thinkingLevel: "low",
   autonomy: "execute_safe",

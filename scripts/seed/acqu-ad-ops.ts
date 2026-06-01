@@ -36,6 +36,7 @@ export const adOpsSpec: AgentSpec = {
   key: "ad-ops",
   name: "Ad-Ops",
   systemPrompt: SYSTEM_PROMPT,
+  modelTier: "T-work",
   model: "anthropic/claude-sonnet-4.6",
   thinkingLevel: "medium",
   autonomy: "propose",

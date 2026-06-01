@@ -80,6 +80,14 @@ export const EVENT_NAMES = [
   // forensic trace in run_summaries. Per the Wave C guardrail: a cost
   // invariant that can fail quietly is worse than no invariant.
   "relay.invariant_violation",
+
+  // Model Router (Step 2.5) — emitted at seed time when the router resolves
+  // an agent's tier+overrides into a concrete model slug. Payload:
+  // { agent_key, tier, resolved_model, reason }. Per-agent audit trail of
+  // every routing decision; the run_summaries downstream view + the
+  // cross-tenant aggregation can answer "what fuel did this agent class
+  // run on this month" without joining the agents row.
+  "model.routed",
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];

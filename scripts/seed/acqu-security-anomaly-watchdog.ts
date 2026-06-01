@@ -24,6 +24,7 @@ export const securityAnomalyWatchdogSpec: AgentSpec = {
   name: "Security Anomaly Watchdog",
   systemPrompt: SYSTEM_PROMPT,
   // T-CRITICAL — Claude Opus 4.8 per CLAUDE.md can't-fail list. NEVER change to Hermes.
+  modelTier: "T-critical",
   model: "anthropic/claude-opus-4.8",
   thinkingLevel: "high",
   // D-07: alert-only on day 1; lockdown actions stay propose. Tightening goes

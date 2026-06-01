@@ -16,6 +16,7 @@
     "test:relay": "tsx src/relay/relay.test.ts",
     "test:mirror": "tsx src/relay/mirror.test.ts",
     "test:waved": "tsx src/relay/waved.test.ts",
+    "test:router": "tsx src/router/router.test.ts",
     "test:cantfail": "tsx src/seed/seedAgent.cantfail.test.ts"
   },
   "dependencies": {
