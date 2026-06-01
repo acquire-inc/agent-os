@@ -26,6 +26,29 @@ runner 13/0; vault 25/0; seed all green (93 agents, 63 tools, 13 eval cases, 93 
 93 SDK-native exports. NOTE: registry test has 1 PRE-EXISTING failure (`superpowers` —
 missing /tmp/superpowers fixture, unrelated to any of this work).
 
+### Session 2026-06-01 — autonomy meta-layer + metering + Hermes SPOF (shipped, branch claude/seed-phase-1-agents)
+Built on top of the decision record. All DATA-or-deterministic-tool, doctrine-clean; pure
+logic is unit-tested without a DB (no live Postgres in this container — migrations 0009/0010
+apply on deploy).
+- **agent-architect** (DATA) — the deep-thinking org-design agent that decides *what agents to
+  create*, the generative call the D7.1 trio (onboarder/evaluator/retirer) never made. Hermes
+  4 405B, thinking=high, autonomy=propose; triggers cron 08:00/16:00 + on_demand + state(fleet.
+  strain). Seeded standalone + wired into seed-everything.
+- **workforce lifecycle tool** (packages/core/workforce.ts) — pure spawn/activate/pause/archive/
+  reactivate state machine + tenant-scoped registry writes. Spawned agents land proposed+disabled
+  (a human approves before they run). Catalog-classified requires_approval+irreversible → the
+  existing PreToolUse gate auto-enforces. Migration 0009 adds agents.status. 21 unit tests.
+- **metering→credits** (packages/core/metering.ts, migration 0010) — turns per-run cost_usd into
+  per-tenant billable usage + credit balance (the Cliently billing piece feeding billing-runner/
+  dunning-manager). usage_events (idempotent per run), credit_ledger (append-only), tenant_credits
+  (balance + markup + peg + prepaid enforcement). Auto-burns on run `done` via setRunStatus;
+  prepaid enforcement at claimNextRun; API at /api/billing/*. 21 unit tests.
+- **cross-model fallback** (packages/core/model-fallback.ts) — resolves decision-doc item #2
+  (Hermes single-sourced on Nebius). Runner retries once on claude-haiku-4-5 for availability
+  errors. 15 unit tests.
+Commits: 591c805, ff196cc, b40d5b5, 5366bf6, 65cae92. All touched packages typecheck;
+pure-test sweep green (workforce 21, metering 21, model-fallback 15, runner 13, seed 18+17+14).
+
 ## Current Position
 
 Phase: 8 of 8 (Eval suites) — COMPLETE. **v2 "Make Agents Runnable" milestone done.**

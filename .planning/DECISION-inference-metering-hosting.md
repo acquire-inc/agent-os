@@ -99,10 +99,15 @@ The VPS hosts the control plane; inference is API/gateway.
 ## Open items to resolve before building any of this
 1. ~~Confirm OpenRouter Hermes-4-405B provider count.~~ **RESOLVED 2026-05-30: single-sourced
    (Nebius FP8 only), for both 405B and 70B.** → keep OpenRouter for model-fallback + unified
-   billing, and wire a cross-model fallback slug for the Nebius SPOF (new item 2).
-2. **NEW (raised by item 1):** choose + configure the cross-model fallback slug in the `Runner`
-   for a Nebius outage (candidate: `anthropic/claude-haiku-4.5`, or a Llama-3.1-405B provider to
-   stay cheap). Config-only.
-3. Decide self-host vs managed for OpenMeter (recommend self-host on the same VPS).
-4. Pick the first deploy target (Railway recommended for v1).
+   billing, and wire a cross-model fallback slug for the Nebius SPOF (item 2).
+2. ~~Cross-model fallback slug in the `Runner` for a Nebius outage.~~ **SHIPPED 2026-06-01
+   (commit 5366bf6):** `packages/core/model-fallback.ts` retries once on `anthropic/claude-haiku-4-5`
+   for availability-class errors; wired in runner `execute.ts`. 15 unit tests.
+3. ~~Build the metering/credits layer (was "future build" in §2).~~ **SHIPPED 2026-06-01
+   (commits b40d5b5, 65cae92):** `packages/core/metering.ts` + migration 0010 — usage_events /
+   credit_ledger / tenant_credits, auto-burn on run completion, prepaid enforcement at claim,
+   `/api/billing/*`. **Still open: choose OpenMeter self-host vs managed** as the external
+   aggregator that ingests `usage_events` (our local ledger is provider-agnostic — recommend
+   self-host on the same VPS).
+4. Pick the first deploy target (Railway recommended for v1) + apply migrations 0009/0010 there.
 5. All of the above are **config/infra**, not agent code — consistent with "agents are data."
