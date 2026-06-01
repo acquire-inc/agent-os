@@ -413,3 +413,70 @@ export const securityFindings = pgTable("security_findings", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Relay events — the unified event bus. Every meaningful state change in the OS
+ * lands here exactly once. Mirrors supabase/migrations/0011_relay_events.sql.
+ * Schema contract: docs/plans/AGENT-OS-PLAN.md §8.2. Closed event-name namespace
+ * lives in packages/core/src/relay/events.ts (code-enforced via emit()).
+ */
+export const relayEvents = pgTable("relay_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
+  runId: uuid("run_id").references(() => runs.id, { onDelete: "cascade" }),
+  actor: text("actor").$type<"agent" | "system" | "human" | "external">().notNull(),
+  actorId: text("actor_id"),
+  eventName: text("event_name").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+  correlationId: uuid("correlation_id"),
+  causationId: uuid("causation_id"),
+  eventKey: text("event_key"),
+  consentScope: text("consent_scope")
+    .$type<"tenant_only" | "cross_tenant_aggregated">()
+    .notNull()
+    .default("tenant_only"),
+  piiClass: text("pii_class")
+    .$type<"none" | "internal_id" | "client_pii">()
+    .notNull()
+    .default("none"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  ingestedAt: timestamp("ingested_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Run summaries — the P0 outcome surface. One row per terminal run, composed at
+ * SessionEnd by composeRunSummary(). Mirrors supabase/migrations/0012_run_summaries.sql.
+ * Schema contract: docs/plans/AGENT-OS-PLAN.md §8.2.
+ */
+export const runSummaries = pgTable("run_summaries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  runId: uuid("run_id")
+    .notNull()
+    .unique()
+    .references(() => runs.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  status: text("status")
+    .$type<"done" | "failed" | "escalated" | "skipped" | "quarantined">()
+    .notNull(),
+  deliverableKind: text("deliverable_kind"),
+  deliverableRef: text("deliverable_ref"),
+  evidencePaths: jsonb("evidence_paths").$type<string[]>().notNull().default([]),
+  costActualUsd: numeric("cost_actual_usd", { precision: 12, scale: 4 }).notNull().default("0"),
+  tokensIn: bigint("tokens_in", { mode: "number" }).notNull().default(0),
+  tokensOut: bigint("tokens_out", { mode: "number" }).notNull().default(0),
+  findingCount: integer("finding_count").notNull().default(0),
+  toolCallCount: integer("tool_call_count").notNull().default(0),
+  approvalCount: integer("approval_count").notNull().default(0),
+  summaryText: text("summary_text"),
+  highlights: jsonb("highlights").$type<Record<string, unknown>>().notNull().default({}),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }).notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  consentScope: text("consent_scope")
+    .$type<"tenant_only" | "cross_tenant_aggregated">()
+    .notNull()
+    .default("tenant_only"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

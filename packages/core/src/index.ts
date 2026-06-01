@@ -17,3 +17,4 @@ export { closeRefresher } from "./security/refreshers/close.js";
 export { metaRefresher, stripeRefresher } from "./security/refreshers/stubs.js";
 export { findOrphanedGrants, type OrphanedGrantRow } from "./security/access-audit.js";
 export { detectUsageSpikes, type UsageSpikeRow } from "./security/anomaly.js";
+export * from "./relay/index.js";
