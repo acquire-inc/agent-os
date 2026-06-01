@@ -35,6 +35,7 @@ function bundle(tools: Bundle["tools"], mcpServers: Bundle["mcpServers"] = []): 
     run: { id: "r1", status: "running", triggerSource: "test", scheduledFor: null, sdkSessionId: null },
     job: null,
     agent: {
+      id: "agent-id", tenantId: "tenant-id",
       key: "test-agent", name: "Test", persona: null, backend: "claude-agent-sdk",
       model: "m", thinkingLevel: "low", autonomy: "propose",
       escalationPolicy: null, budgetCapUsd: null, runnerKind: "local",

@@ -14,6 +14,8 @@ export interface Bundle {
   };
   job: { name: string; instructions: string; scheduleCron: string } | null;
   agent: {
+    id: string;
+    tenantId: string;
     key: string;
     name: string;
     persona: string | null;
@@ -123,6 +125,8 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
     },
     job: job ? { name: job.name, instructions: job.instructions, scheduleCron: job.scheduleCron } : null,
     agent: {
+      id: agent.id,
+      tenantId: agent.tenantId,
       key: agent.key,
       name: agent.name,
       persona: agent.persona,

@@ -1,8 +1,66 @@
-import { autonomyGate, buildApprovalOptions } from "@agent-os/core";
+import { autonomyGate, buildApprovalOptions, emit, isCantFail } from "@agent-os/core";
+import { createDb, type Db } from "@agent-os/db";
 import type { ApiClient, Bundle } from "./api-client.js";
 import type { RunnerConfig } from "./config.js";
 import { deriveAllowedTools } from "./custom-tools.js";
 import { buildPostToolUseHook, buildPreToolUseHook, recordToolUse } from "./hooks.js";
+
+// SessionStart safety per AGENT-OS-PLAN.md Open Q #1 (RESOLVED). T-critical
+// agents must dispatch on Opus. The seedAgent exemption prevents the seed-time
+// override from rewriting to Hermes; this assertion is the belt-and-suspenders
+// at runtime — any other path that produced a non-Opus model for a T-critical
+// agent (a manual UPDATE, a race in a future feature, a bug in the override
+// logic) fails the run closed before model dispatch.
+const T_CRITICAL_MODEL_ALLOWLIST = new Set(["anthropic/claude-opus-4.8"]);
+
+let cachedRelayDb: Db | null = null;
+function relayDb(): Db | null {
+  if (cachedRelayDb) return cachedRelayDb;
+  const url = process.env.DATABASE_URL;
+  if (!url) return null;
+  cachedRelayDb = createDb(url);
+  return cachedRelayDb;
+}
+
+/**
+ * SessionStart safety check: if the agent is on the can't-fail list, the
+ * resolved model MUST be in T_CRITICAL_MODEL_ALLOWLIST. Returns a terminal
+ * RunResult (with the violation event already emitted) if blocked; null
+ * otherwise.
+ */
+async function assertCantFailModel(api: ApiClient, b: Bundle): Promise<RunResult | null> {
+  if (!isCantFail(b.agent.key)) return null;
+  if (T_CRITICAL_MODEL_ALLOWLIST.has(b.agent.model)) return null;
+
+  const violation = {
+    agent_key: b.agent.key,
+    resolved_model: b.agent.model,
+    expected: "anthropic/claude-opus-4.8",
+  };
+  const db = relayDb();
+  if (db) {
+    await emit(db, {
+      tenantId: b.agent.tenantId,
+      eventName: "cantfail.model_violation",
+      actor: "system",
+      agentId: b.agent.id,
+      runId: b.run.id,
+      payload: violation,
+      piiClass: "none",
+    }).catch((e) => {
+      // Don't let a Relay emission failure mask the actual safety violation —
+      // log to stderr so ops sees it.
+      console.error(`[runner] failed to emit cantfail.model_violation: ${(e as Error).message}`);
+    });
+  } else {
+    console.error(
+      `[runner] cantfail.model_violation cannot be emitted to Relay — DATABASE_URL unset; violation: ${JSON.stringify(violation)}`,
+    );
+  }
+  const message = `cantfail.model_violation: agent ${b.agent.key} (T-critical) resolved to ${b.agent.model}; expected ${violation.expected}. Run fail-closed per AGENT-OS-PLAN.md Open Q #1.`;
+  await api.postActivity(b.run.id, "error", message).catch(() => {});
+  return { status: "failed", summary: message, tokensIn: 0, tokensOut: 0, costUsd: 0 };
+}
 
 export interface RunResult {
   status: "done" | "failed" | "waiting";
@@ -170,6 +228,12 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<Ru
 
 export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConfig): Promise<RunResult> {
   try {
+    // SessionStart safety — fail closed BEFORE any model dispatch if a
+    // T-critical agent resolved to a non-Opus model. Per AGENT-OS-PLAN.md
+    // Open Q #1 (RESOLVED). Belt-and-suspenders for the seedAgent exemption.
+    const violation = await assertCantFailModel(api, bundle);
+    if (violation) return violation;
+
     return cfg.dryRun ? await dryRun(api, bundle) : await liveRun(api, bundle, cfg);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

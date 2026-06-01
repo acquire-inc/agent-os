@@ -13,7 +13,8 @@
     "test:seed-tools": "tsx src/seed/seedAgent.test.ts",
     "test:architect": "tsx src/architect/architect.test.ts",
     "test:security": "tsx src/security/findings.test.ts && tsx src/security/vault-rotate.test.ts && tsx src/security/access-audit.test.ts && tsx src/security/anomaly.test.ts",
-    "test:relay": "tsx src/relay/relay.test.ts"
+    "test:relay": "tsx src/relay/relay.test.ts",
+    "test:cantfail": "tsx src/seed/seedAgent.cantfail.test.ts"
   },
   "dependencies": {
     "@agent-os/db": "workspace:*",

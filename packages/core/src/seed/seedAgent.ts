@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { and, eq, sql } from "drizzle-orm";
+import { isCantFail } from "../architect/hydrate.js";
 
 export interface SkillSource {
   readSkillMd(key: string): Promise<string | null>;
@@ -370,16 +371,33 @@ export async function seedAgent(
   // time. Doctrine defaults stay in the script literals; the override is a
   // deliberate per-tenant policy choice (e.g. "use hermes-4-405b everywhere").
   // Reversible: clear the column and re-seed to restore doctrine defaults.
+  //
+  // T-CRITICAL EXEMPTION (AGENT-OS-PLAN.md Open Q #1 — RESOLVED 2026-06-01):
+  // Tier wins, override loses. T-critical / can't-fail agents (CLAUDE.md
+  // can't-fail list, enforced by isCantFail()) are EXEMPT from the override.
+  // The script literal (claude-opus-4.8) wins regardless of what the tenant
+  // column says. The runner has a belt-and-suspenders SessionStart assertion
+  // that fails the run closed with a cantfail.model_violation Relay event if
+  // a T-critical agent is ever dispatched on a non-Opus model.
   const [tenant] = await db
     .select({ defaultModelOverride: schema.tenants.defaultModelOverride })
     .from(schema.tenants)
     .where(eq(schema.tenants.id, spec.tenantId))
     .limit(1);
-  const effectiveModel = tenant?.defaultModelOverride ?? spec.model;
-  if (effectiveModel !== spec.model) {
+  const overrideValue = tenant?.defaultModelOverride ?? null;
+  const cantFail = isCantFail(spec.key);
+  let effectiveModel = spec.model;
+  if (overrideValue && !cantFail) {
+    effectiveModel = overrideValue;
+    if (effectiveModel !== spec.model) {
+      console.warn(
+        `[seedAgent] ${spec.key}: tenant model override rewrites ${spec.model} -> ${effectiveModel}.`,
+      );
+    }
+  } else if (overrideValue && cantFail && overrideValue !== spec.model) {
     console.warn(
-      `[seedAgent] ${spec.key}: tenant model override rewrites ${spec.model} -> ${effectiveModel}. ` +
-        `If this agent is on the can't-fail list (CLAUDE.md), confirm this is intentional.`,
+      `[seedAgent] ${spec.key}: T-critical exemption — ignoring tenant override (${overrideValue}); ` +
+        `keeping script literal ${spec.model} per CLAUDE.md can't-fail list + AGENT-OS-PLAN.md Open Q #1 (RESOLVED).`,
     );
   }
 

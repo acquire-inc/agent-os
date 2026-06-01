@@ -10,6 +10,7 @@ export interface Bundle {
   run: { id: string; status: string; triggerSource: string; scheduledFor: string | null; sdkSessionId: string | null };
   job: { name: string; instructions: string; scheduleCron: string } | null;
   agent: {
+    id: string; tenantId: string;
     key: string; name: string; persona: string | null; backend: string; model: string;
     thinkingLevel: string; autonomy: string; escalationPolicy: string | null; budgetCapUsd: number | null; runnerKind: string;
   };
