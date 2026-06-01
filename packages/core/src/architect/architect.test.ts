@@ -182,6 +182,12 @@ async function main() {
   assert(isCantFail("ad-claim-compliance"), "isCantFail helper recognizes the list");
   assert(!isCantFail("ad-ops"), "isCantFail does not falsely flag action agents");
 
+  // Phase 9 — can't-fail regression locks for the 4 security agents.
+  assert(isCantFail("tenant-isolation-tester"), "isCantFail recognizes tenant-isolation-tester");
+  assert(isCantFail("secrets-rotation"), "isCantFail recognizes secrets-rotation");
+  assert(isCantFail("access-auditor"), "isCantFail recognizes access-auditor");
+  assert(isCantFail("security-anomaly-watchdog"), "isCantFail recognizes security-anomaly-watchdog");
+
   console.log("• hydrate budget clamp");
   const greedy = {
     teamName: "x",

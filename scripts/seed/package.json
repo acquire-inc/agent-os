@@ -65,7 +65,11 @@
     "acqu-discount-governor": "tsx acqu-discount-governor.ts",
     "acqu-reinvestment-advisor": "tsx acqu-reinvestment-advisor.ts",
     "acqu-forecast-runner": "tsx acqu-forecast-runner.ts",
-    "phase-4": "tsx seed-phase-4.ts"
+    "phase-4": "tsx seed-phase-4.ts",
+    "acqu-tenant-isolation-tester": "tsx acqu-tenant-isolation-tester.ts",
+    "acqu-secrets-rotation": "tsx acqu-secrets-rotation.ts",
+    "acqu-access-auditor": "tsx acqu-access-auditor.ts",
+    "acqu-security-anomaly-watchdog": "tsx acqu-security-anomaly-watchdog.ts"
   },
   "dependencies": {
     "@agent-os/core": "workspace:*",
