@@ -15,3 +15,5 @@ export { recordFinding, type FindingArgs, type FindingCategory, type FindingSeve
 export { rotateCredential, type RotateResult } from "./security/vault-rotate.js";
 export { closeRefresher } from "./security/refreshers/close.js";
 export { metaRefresher, stripeRefresher } from "./security/refreshers/stubs.js";
+export { findOrphanedGrants, type OrphanedGrantRow } from "./security/access-audit.js";
+export { detectUsageSpikes, type UsageSpikeRow } from "./security/anomaly.js";
