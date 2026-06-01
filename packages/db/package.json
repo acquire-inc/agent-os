@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "test": "tsx src/migrate.test.ts"
   },
   "dependencies": {
     "@agent-os/shared": "workspace:*",

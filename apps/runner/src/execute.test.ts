@@ -4,6 +4,7 @@
 //  - the full loop records activity and reaches a terminal/awaiting state
 //  - under execute_safe the PreToolUse gate fires (proposes the mutation → waiting)
 // Run: pnpm --filter @agent-os/runner test
+import { parseRunSummary } from "@agent-os/core";
 import type { ApiClient, Bundle } from "./api-client.js";
 import { buildSystemPrompt, executeRun } from "./execute.js";
 import type { RunnerConfig } from "./config.js";
@@ -33,9 +34,15 @@ function stubApi() {
   return { api, calls };
 }
 
-function vitalsBundle(autonomy: string, sdkSessionId: string | null = null): Bundle {
+function vitalsBundle(
+  autonomy: string,
+  sdkSessionId: string | null = null,
+  recentSummaries: Bundle["recentSummaries"] = undefined,
+  runId = "00000000-0000-0000-0000-0000000000aa",
+): Bundle {
   return {
-    run: { id: "00000000-0000-0000-0000-0000000000aa", status: "running", triggerSource: "schedule", scheduledFor: null, sdkSessionId },
+    run: { id: runId, status: "running", triggerSource: "schedule", scheduledFor: null, sdkSessionId },
+    recentSummaries,
     job: { name: "morning-vitals", instructions: "Post the daily metrics snapshot to Slack.", scheduleCron: "30 6 * * *" },
     agent: {
       key: "vitals", name: "Vitals", persona: "You are Vitals.", backend: "claude-agent-sdk", model: "nousresearch/hermes-4-405b",
@@ -95,6 +102,46 @@ async function main() {
     "managed-agents backend posts its start activity (routed, not SDK path)",
   );
   assert(rm.status === "done" || rm.status === "failed", "managed-agents run resolves (soft-fails without runtime)");
+
+  // The continuity loop, DB-free: a summary produced by one run must flow back into the next
+  // run's prompt as "Where you left off". This stitches the real product seams that the live
+  // path uses — executeRun's summary → parseRunSummary → bundle.recentSummaries →
+  // buildSystemPrompt — without a database. The only stand-in is the store, which faithfully
+  // mirrors recentRunSummaries' documented contract (exclude current run, newest first, limit 3).
+  console.log("\n[continuity loop — run N's summary surfaces in run N+1's prompt]");
+  type Row = { runId: string; status: string; whatIDid: string; whatILearned: string; whatNext: string; createdAt: string };
+  const store: Row[] = [];
+  // Mirror of core's recentRunSummaries: agent+tenant-scoped here is implicit (single agent),
+  // exclude the current run, newest-first, cap at 3.
+  const recentFor = (excludeRunId: string): Bundle["recentSummaries"] =>
+    store
+      .filter((r) => r.runId !== excludeRunId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 3)
+      .map(({ status, whatIDid, whatILearned, whatNext, createdAt }) => ({ status, whatIDid, whatILearned, whatNext, createdAt }));
+
+  // Run 1: a fresh agent has no history → no continuity section in the prompt.
+  const RUN1 = "00000000-0000-0000-0000-00000000c001";
+  const RUN2 = "00000000-0000-0000-0000-00000000c002";
+  const firstPrompt = buildSystemPrompt(vitalsBundle("execute_full", null, recentFor(RUN1), RUN1));
+  assert(!firstPrompt.includes("Where you left off"), "first run (empty history) has no continuity section");
+
+  // Run 1 executes and produces a labeled summary; persist it the way the API/SessionEnd path does
+  // (parse the raw summary into the contract, store keyed by run).
+  const run1Result = await executeRun(stubApi().api, vitalsBundle("execute_full", null, recentFor(RUN1), RUN1), dryCfg);
+  const raw1 = "What I did: Posted the vitals snapshot to #vitals.\nWhat's next: Watch M3 adset CPA tomorrow.";
+  const c1 = parseRunSummary(raw1);
+  store.push({ runId: RUN1, status: run1Result.status, whatIDid: c1.whatIDid, whatILearned: c1.whatILearned, whatNext: c1.whatNext, createdAt: "2026-06-01T06:31:00Z" });
+
+  // Run 2: the bundle now carries run 1's summary → the prompt picks up where it left off.
+  const secondPrompt = buildSystemPrompt(vitalsBundle("execute_full", null, recentFor(RUN2), RUN2));
+  assert(secondPrompt.includes("Where you left off"), "second run renders the continuity section");
+  assert(secondPrompt.includes("Posted the vitals snapshot"), "prior run's what_i_did surfaces in the next prompt");
+  assert(secondPrompt.includes("Watch M3 adset CPA"), "prior run's what_next surfaces as continuity");
+  // The current run's own (future) summary must never leak into its own prompt.
+  store.push({ runId: RUN2, status: "done", whatIDid: "should not appear", whatILearned: "", whatNext: "", createdAt: "2026-06-01T06:32:00Z" });
+  assert(!buildSystemPrompt(vitalsBundle("execute_full", null, recentFor(RUN2), RUN2)).includes("should not appear"),
+    "a run's own summary is excluded from its own prompt (excludeRunId contract)");
 
   console.log(`\nResult: ${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);

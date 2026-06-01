@@ -47,9 +47,10 @@ This runs, in order: preflight → `pnpm install` → migrate (0001→0011) → 
 (93 agents + agent-architect, tools, evals, chains) → **bootstrap the first admin + runner keys
 (printed once — copy them)** → acceptance verify. ~3–5 min.
 
-> **Run it ONCE on a fresh DB.** `migrate` and the base seed are not re-run-safe (no migration
-> ledger; base seed resets the acqu/cliently tenants, cascading to the fleet + keys). To re-run only
-> the idempotent fleet seeders later: `bash scripts/golive-acqu.sh --fleet-only`.
+> **The base seed resets the acqu/cliently tenants** (cascading to the fleet + keys), so run the full
+> script once on a fresh DB. `migrate` itself is ledgered (`schema_migrations`) and safe to re-run —
+> it applies only pending files. To re-run only the idempotent fleet seeders later:
+> `bash scripts/golive-acqu.sh --fleet-only`.
 
 ## 6. Start the control plane (3 terminals, same DATABASE_URL + AOS_VAULT_KEY exported)
 ```bash
@@ -75,8 +76,9 @@ A second vitals run should show "Where you left off" context (continuity working
 ## If something breaks
 Paste me the failing command's output. The likely first-contact issues + fixes:
 - **`db:migrate` hangs/times out** → IPv6; switch `DATABASE_URL` to the Session pooler string (§3).
-- **`relation already exists` on migrate** → the DB was already migrated; use `--fleet-only`, or
-  reset the DB and run once.
+- **`relation already exists` on migrate** → a DB migrated by the *old* (pre-ledger) runner. Adopt
+  the ledger once: `pnpm --filter @agent-os/db migrate -- --baseline` (stamps current files as
+  applied without running them), then re-run the script. Fresh DBs never hit this.
 - **RLS / `auth.uid()` errors** → the policies assume Supabase's `auth` schema; it's present on
   Supabase by default. If you self-host Postgres, tell me and I'll provide a shim.
 - **A seeder throws** → paste it; the seeders fail loud by design and the message names the cause.

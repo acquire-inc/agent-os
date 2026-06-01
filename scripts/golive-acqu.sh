@@ -7,7 +7,7 @@
 # WHAT IT DOES (in order, each step gated on the previous succeeding):
 #   1. preflight  — checks node>=22, pnpm, DATABASE_URL, AOS_VAULT_KEY
 #   2. install    — pnpm install (workspace packages export TS source; no build needed)
-#   3. migrate    — applies supabase/migrations 0001→0011  (FRESH DB ONLY — see warning)
+#   3. migrate    — applies pending supabase/migrations (ledgered → safe to re-run; no-op if current)
 #   4. seed base  — pnpm db:seed  (DESTRUCTIVE: resets acqu/cliently tenants — run ONCE, first)
 #   5. seed fleet — 93 agents + agent-architect, tools, evals, chains  (idempotent)
 #   6. bootstrap  — mints the first admin + runner API keys (printed once)
@@ -18,10 +18,12 @@
 #   export AOS_VAULT_KEY="$(openssl rand -base64 32)"     # STORE THIS — rotating it orphans secrets
 #   bash scripts/golive-acqu.sh
 #
-# Re-run safety: steps 3 (migrate) and 4 (db:seed) are NOT safe to re-run on a live DB
-#   - migrate has no ledger and most migrations aren't IF-NOT-EXISTS → re-run errors on existing objects
-#   - db:seed deletes the acqu/cliently tenants (cascades to the whole fleet + keys)
-#   To re-run only the idempotent fleet seeders, use:  bash scripts/golive-acqu.sh --fleet-only
+# Re-run safety:
+#   - migrate (step 3) is ledgered (schema_migrations) → safe to re-run; applies only what's pending.
+#     Adopting the ledger on a DB migrated by the OLD runner: run `pnpm db:migrate -- --baseline` once.
+#   - db:seed (step 4) is DESTRUCTIVE: it deletes the acqu/cliently tenants (cascades to fleet + keys).
+#   To re-run only the idempotent fleet seeders (skips migrate + base seed):
+#     bash scripts/golive-acqu.sh --fleet-only
 set -euo pipefail
 cd "$(dirname "$0")/.."   # repo root
 
@@ -47,7 +49,7 @@ pnpm install --frozen-lockfile 2>/dev/null || pnpm install
 
 if [ "$FLEET_ONLY" -eq 0 ]; then
   # ── 3. migrate ──────────────────────────────────────────────────────────────
-  say "Applying migrations 0001→0011 (FRESH DB ONLY — errors here usually mean the DB is already migrated)"
+  say "Applying pending migrations (ledgered — safe to re-run; no-op if already current)"
   pnpm db:migrate
 
   # ── 4. seed base (DESTRUCTIVE) ────────────────────────────────────────────────

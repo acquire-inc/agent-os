@@ -22,6 +22,7 @@ echo "▸ Typecheck (workspace)…"
 pnpm -r typecheck >/dev/null
 
 echo "▸ Backend test suites…"
+pnpm --filter @agent-os/db test | grep -E "Result:"
 pnpm --filter @agent-os/core test | grep -E "Result:"
 pnpm --filter @agent-os/core exec tsx src/knowledge.test.ts | grep -E "Result:"
 pnpm --filter @agent-os/core exec tsx src/provision.test.ts | grep -E "Result:"
