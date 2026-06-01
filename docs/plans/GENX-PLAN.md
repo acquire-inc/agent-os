@@ -554,12 +554,21 @@ Anything else can slip a quarter. These three cannot.
 
 ## Open Questions for the operator
 
-**Inherited (not re-stated here)**:
-- The Hermes-vs-Opus contradiction on T-critical can't-fail agents — `AGENT-OS-PLAN.md` Open Q #1. Surfaced here because it interacts with `white_label` / `public` `default_model_override` choices: if Acqu runs the can't-fail agents on Hermes via the override, do white-label and public tenants get the same default? Or do they run can't-fail on Opus (more expensive but doctrine-aligned)? **The Hermes/can't-fail decision flows into pricing — this is downstream of the inherited question, not a new question.**
+**Inherited and RESOLVED upstream**:
+- **Hermes vs Opus on T-critical can't-fail agents — RESOLVED 2026-06-01.** Tier wins, override loses. T-critical agents always run Opus and are EXEMPT from `tenants.default_model_override` across ALL stages (`internal`, `white_label`, `public`). The seed function skips the override for can't-fail agents; the runner emits `cantfail.model_violation` + fails closed if a T-critical agent is ever dispatched on a non-Opus model. See `AGENT-OS-PLAN.md` Open Q #1 (RESOLVED). **GenX-pricing impact:** white-label and public tenants CANNOT cost-optimize the can't-fail tier away; their T-critical fleet always runs Opus. Free-tier pricing math in §5 must reflect this — the can't-fail surface in the public bundle is bounded, but every Opus invocation lands in the budget. The `ecommerce-growth-starter` bundle in §3.4 was already designed without T-critical security agents in the public free tier (only the operator-side fleet runs them); this resolution confirms that boundary.
 
 **GenX-specific**:
 
-1. **Architect availability to white-label tenants.** §2.4. Recommend gated by `feature_flags.architect_self_serve`, default OFF for both `client` and `public`. White-label tenants on contract opt-in; public tenants permanently off. Confirm — or: should select paid_T2 public tenants get the Architect once the tenant-wide architect cost cap (Open Q #10 in `AGENT-OS-PLAN.md`) lands?
+1. **Architect availability to white-label tenants — RESOLVED 2026-06-01.**
+
+   **Operator decision (verbatim):** "Architect is Acqu-internal only for now. White-label tenants do NOT get direct Architect access in the first stage — they receive pre-assembled, approved agent configurations. Per-tenant Architect access is a later phase, gated behind (a) the CRA blocklist shipped + legally signed off, and (b) heavy manual approval per tenant. Document it this way in `GENX-PLAN.md`; do not build tenant-facing Architect yet."
+
+   **Implementation contract:**
+   - `tenants.feature_flags.architect_self_serve` defaults to `false` for **all** non-internal tenants (`white_label`, `public`). The Acqu tenant (`internal`) is the only `architect_self_serve=true` row at launch.
+   - The architect HTTP/SPA surface (today in `apps/control-plane/`) reads the flag; non-internal tenants see no Architect UI.
+   - Onboarding (§3) provisions agents exclusively from operator-approved **bundles** — `ecommerce-growth-starter`, future verticals — assembled by Acqu via the Architect ahead of time and stored as immutable bundle definitions.
+   - Per-tenant Architect access (a future, post-public-launch phase) requires BOTH the CRA blocklist (Open Q #8, see RESOLVED entry below) shipped + legally signed off AND a per-tenant manual approval workflow. This is explicitly NOT in the public-launch scope.
+   - Document this in `apps/control-plane/` route guards: `/architect/*` 404s unless `feature_flags.architect_self_serve === true`.
 
 2. **Public-tier runner sandboxing.** Inherited as `AGENT-OS-PLAN.md` Open Q #8, restated here as a launch-gate dependency (§8.3). Three options:
    - **(a)** Ephemeral Browserbase per run — strong isolation; latency + cost overhead.
@@ -577,7 +586,25 @@ Anything else can slip a quarter. These three cannot.
 
 7. **The hard gate ordering.** Does Phase 9 (security) need to fully complete (D5.3 agents in `execute_safe`, fleet-wide audit green) before *any* white-label tenant lands? Or can stage-1 white-label start with a manually validated isolation report (signed off by the operator), while the agentized continuous testing comes online in parallel? The conservative answer is "wait for Phase 9 complete"; the pragmatic answer is "manual validation + signed attestation for the first 1-2 tenants, agentized testing in parallel."
 
-8. **The `cra_prohibited_keywords` blocklist.** §4.4. Needs legal sign-off on the list before any public launch. Who drafts the list?
+8. **The `cra_prohibited_keywords` blocklist — RESOLVED 2026-06-01 (mechanism); list wording PENDING legal sign-off.**
+
+   **Operator decision (verbatim):** "The CRA-prohibition blocklist is a HARD GATE for public launch, P0 for the GenX deltas. The Architect must refuse to assemble any agent whose function touches eligibility decisioning in: credit, employment, housing/tenant screening, insurance underwriting, or government-benefit determination. Implement as a code-enforced refusal (keyword + category match) that fails closed and logs a Relay event on every block — not a doctrine note. The prohibited-category list must be legally reviewed and signed off before any public/self-serve tenant is enabled; white-label and internal stay gated behind manual approval until then. Build the mechanism now; treat the exact wording of the list as pending legal sign-off."
+
+   **Implementation contract (P0, lands with the GenX deltas wave):**
+
+   - **Prohibited category list (initial, BUILD-AGAINST; wording pending counsel):**
+     1. Credit eligibility / scoring / decisioning.
+     2. Employment eligibility / hiring decisioning / candidate screening (beyond non-decisional logistics).
+     3. Housing / tenant screening / rental eligibility.
+     4. Insurance underwriting / claims decisioning.
+     5. Government-benefit determination / eligibility.
+   - **Architect refusal path.** Extend `packages/core/src/architect/hydrate.ts` with a `assertNotCraProhibited(blueprint)` step that runs BEFORE `hydrate()` returns. The check is keyword + category match against the agent's `name`, `systemPrompt`, `knowledgeScope`, and proposed `tools[]`. On match, the function throws `CraProhibitedError` carrying the matched category and the offending fragment. The architect SPA renders the refusal verbatim; the run terminates with `architect.refused` (NEW canonical event — add to AGENT-OS-PLAN.md §8.3) carrying `{ category, fragment_hash, blueprint_id }`. No partial assembly. Fail closed.
+   - **Relay event addition.** `architect.refused` joins the closed namespace alongside `architect.proposed` and `architect.seeded`. One row per refusal; carries `category` + `fragment_hash` only (no PII; the hash lets ops correlate without storing the prompt content).
+   - **Runtime guard at the runner.** Even if a future bug bypasses the architect (e.g., a manually-authored seed), the runner SessionStart guard checks the agent's `name` + `systemPrompt` against the same blocklist BEFORE the first model dispatch. Match → emit `cantfail.cra_violation` (NEW; sibling to `cantfail.model_violation` from Open Q #1) and fail closed. Belt-and-suspenders.
+   - **Per-tenant blocklist override is FORBIDDEN.** The list is a global invariant; `tenants.feature_flags` cannot disable it. The migration that adds the flag schema explicitly excludes a `cra_blocklist_override` key. (Same pattern as `CANT_FAIL_KEYS` — a global, not a per-tenant tunable.)
+   - **List storage.** The keyword + category match data lives in `packages/core/src/architect/cra-blocklist.ts` as a frozen exported constant — a single, code-reviewed source of truth. NOT in a database table (per-tenant mutation pressure on a database table is a regulatory liability we don't want; code review is the audit trail).
+   - **Legal review hook.** Before any public/self-serve tenant is enabled (the §7.7 gate), counsel reviews `cra-blocklist.ts` and signs the wording. The signed PR commit is the artifact attached to the launch-gate checklist. White-label and internal tenants run with the build-against list in the meantime; manual approval per agent at onboarding catches edge cases.
+   - **Acceptance tests.** `packages/core/src/architect/architect.test.ts` extended with 5 negative tests (one per prohibited category) asserting the architect refuses to assemble. One positive test asserting an `ecommerce-growth-starter` bundle does NOT trip the blocklist (regression lock for false-positive false-positives).
 
 9. **Custom-domain tier in white-label theming.** §2.1. Defer to tier-2 white-label (sub-path on shared origin for tier-1), or ship it at tier-1 with the DNS + wildcard SSL infrastructure? Cost: a couple weeks of frontend + ops work.
 

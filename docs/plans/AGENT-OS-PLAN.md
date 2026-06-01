@@ -67,7 +67,7 @@ Exhaustive for every tenant-scoped table that exists today. *Per-stage* changes 
 Three things to call out:
 
 1. **`tenants.type` is the entire stage discriminator.** The only schema change needed is widening the check constraint to allow `'public'`. No separate fork, no separate Supabase project.
-2. **Per-tenant model override (`0009`) is the per-stage knob for cost.** The override is a seed-time rewrite (`packages/core/src/seed/seedAgent.ts` reads `tenants.default_model_override`). Acqu currently runs everything on `nousresearch/hermes-4-405b` via the override; script literals stay Opus so the override can be reverted by clearing the column. See Open Question on the doctrine contradiction.
+2. **Per-tenant model override (`0009`) is the per-stage knob for cost on NON-CRITICAL tiers.** The override is a seed-time rewrite (`packages/core/src/seed/seedAgent.ts` reads `tenants.default_model_override`). It applies to T-cheap / T-reason / T-work agents only. **T-critical (can't-fail) agents are EXEMPT** — the seed function MUST skip the override when `isCantFail(spec.key)` is true, and the runner MUST emit a `cantfail.model_violation` Relay event and fail closed if a T-critical agent is ever dispatched on a non-Opus model. Tier wins, override loses. See Open Question #1 (RESOLVED) for the implementation contract.
 3. **Architect is the productized seed path for stages 2 and 3.** The Acqu doctrine seeds (Phases 1-4) are *internal only*. Other tenants get agents either by tiered template-copy or by Architect. The doctrine isn't a UX — Architect is.
 
 ---
@@ -469,6 +469,9 @@ The initial set, with one-line semantics. New event names land via a code-review
 | `knowledge.written` | lifecycle.ts run-summary writer | New `kb:` document written by an agent. |
 | `architect.proposed` | architect endpoint | New blueprint proposed. |
 | `architect.seeded` | architect seed step | Blueprint converted to agent rows. |
+| `cantfail.model_violation` | runner @ SessionStart pre-dispatch | A T-critical agent was about to dispatch on a non-Opus model; run fail-closed. Payload `{ agent_key, resolved_model, expected }`. Triggers `run.failed` terminal event. Per Open Q #1 (RESOLVED). |
+| `architect.refused` | `hydrate.ts` @ `assertNotCraProhibited` | The architect refused to assemble a blueprint because it tripped the CRA blocklist (credit / employment / housing / insurance / government benefits). Payload `{ category, fragment_hash, blueprint_id }`. Per `GENX-PLAN.md` Open Q #8 (RESOLVED mechanism). |
+| `cantfail.cra_violation` | runner @ SessionStart pre-dispatch | A manually-authored agent that bypassed the architect was about to dispatch but its name/systemPrompt trips the CRA blocklist. Payload `{ agent_key, category, fragment_hash }`. Triggers `run.failed`. Belt-and-suspenders for `architect.refused`. |
 
 The namespace is **closed** at write time — `event-schema-guardian` opens a finding when an unknown `event_name` lands. (External GenX SDK events are validated against this same registry at the ingest endpoint.)
 
@@ -616,7 +619,19 @@ The sequencing rule is hard: **the two P0 gates (Relay + fleet-wide RLS audit) s
 
 ## Open Questions for the operator
 
-1. **Hermes vs Opus on can't-fail agents.** The v2 doctrine + `CLAUDE.md` can't-fail list specify Opus for T-critical agents (`ad-claim-compliance`, `tenant-isolation-tester`, `security-anomaly-watchdog`, `access-auditor`, `contract-drafter`, `contract-lifecycle-manager`, `pricing-architect`, `discount-governor`, `decision-memo-drafter`, `offer-architect`, `offer-validator`, `reinvestment-advisor`, `risk-register-keeper`, `cliently.dev`). The Phase 8.5 `tenants.default_model_override` (`0009`) rewrites `spec.model` → the override value at seed time for every agent in the tenant — meaning the operator's `nousresearch/hermes-4-405b` override (per `HANDOFF-other-session.md` §2) currently runs the T-critical agents on Hermes. Script literals stay Opus so clearing the column reverts. The operator has signaled the override is intentional, but the doctrine and `CLAUDE.md` still contradict the live state. **Parking this as an open question pending the operator's line — not resolving it here.**
+1. **Hermes vs Opus on can't-fail agents — RESOLVED 2026-06-01.**
+
+   **Operator decision (verbatim):** "Resolve Hermes vs can't-fail across all three plans: tier wins, override loses. T-critical / can't-fail agents always run Opus and are EXEMPT from tenant `default_model_override`. Hermes 405B is the default ONLY for non-critical tiers (the cost-saver default), never for T-critical. Fix the Phase 8.5 seed so `default_model_override` cannot rewrite a T-critical agent's model — exemption enforced at seed AND at runtime, not just revertable via script literals. Update v2, `CLAUDE.md`, and all three plans so live state matches doctrine. Add a runtime assertion: if a T-critical agent is ever dispatched on a non-Opus model, fail closed and emit a Relay event."
+
+   **Implementation contract (P0, lands with Phase 9 close-out + Relay deliverable):**
+
+   - **Seed-time exemption.** `packages/core/src/seed/seedAgent.ts` must check `isCantFail(spec.key)` (already exists in `packages/core/src/architect/hydrate.ts`) BEFORE applying `tenants.default_model_override`. If `isCantFail` is true, the override is silently skipped and the script literal (`anthropic/claude-opus-4.8`) wins. A `console.warn` line surfaces the skipped override for operator visibility. Apply identically to any future override layer (per-environment, per-feature-flag).
+   - **Runtime assertion.** The runner — at SessionStart, BEFORE the model is dispatched — reads the resolved model from the bundle and the agent's `key`. If `isCantFail(agent.key) === true` AND the resolved model is not in the allowlist `{"anthropic/claude-opus-4.8"}` (extensible to future Opus revisions), the runner emits a `cantfail.model_violation` Relay event (NEW canonical event — add to §8.3 namespace) with payload `{ agent_key, resolved_model, expected: "anthropic/claude-opus-4.8" }` and FAILS the run closed with a `run.failed` terminal event. No dispatch. No retry.
+   - **Doctrine alignment.** `CLAUDE.md` model tiering table gets a footnote: "T-critical agents (can't-fail list) are EXEMPT from `tenants.default_model_override`. Opus is non-negotiable." `acqu-agent-doctrine-v2.md` D5.3 references already point at Opus; no edit needed. `HANDOFF-other-session.md` §2 gets a correction note: the override applied to T-critical agents at the time of writing was the bug; the exemption now blocks it.
+   - **Relay namespace addition.** Add `cantfail.model_violation` to the canonical event namespace in §8.3. It is rare-but-critical; one row = a fail-closed safety event.
+   - **Acceptance test.** A regression test in `packages/core/src/seed/seedAgent.test.ts` seeds a T-critical agent against a tenant with `default_model_override = 'nousresearch/hermes-4-405b'` and asserts the persisted `agents.model` row is `anthropic/claude-opus-4.8`, not the override.
+
+   **Phase placement:** the seed exemption + runtime assertion ship as part of the Relay P0 (deliverable B) because the runtime assertion needs the Relay to emit its safety event. They cannot ship before the Relay; they MUST ship with it.
 2. **The third stage's `tenants.type` value name.** Proposal: `'public'`. Alternatives: `'genx'` (couples to brand), `'self_serve'` (functional). Need pick before migration to widen the check constraint.
 3. **Global skill/tool definition tables.** §2.3 proposes `skill_defs` and `tool_defs` global registries with `skills.tenant_id` / `tools.tenant_id` becoming the binding row. Real refactor; touches seed scripts. P1, not P0 — confirm priority.
 4. **Per-tenant active-agent cap + concurrency cap on `tenants`.** §3.3 + §7.2 #4. Recommend `tenants.max_active_agents` and `tenants.max_concurrent_runs`. Default-unlimited for Acqu, plan-derived for white-label/GenX. Confirm.

@@ -36,7 +36,7 @@ TypeScript (strict) · TanStack Router SPA + Hono API · Postgres + pgvector (Su
 | **T-cheap — volume default** | `nousresearch/hermes-4-70b` | Where most *runs* happen: monitors, watchers, triage, classification, templated summaries, single-step tool calls. Cheap enough to run always-on. |
 | **T-reason — reasoning workhorse ⭐** | `nousresearch/hermes-4-405b` | Multi-step analysis, synthesis, anything where reasoning moves the output. **Preferred whenever reasoning matters** — but reserve for thinking tasks. |
 | **T-work — reliable agentic** | `anthropic/claude-sonnet-4.6` (or `haiku-4-5` lighter) | Multi-step *tool* orchestration, client-facing content, anything where Hermes is less reliable at complex tool sequencing. |
-| **T-critical — can't-fail** | `anthropic/claude-opus-4.8` / `claude-sonnet-4.6` — **NEVER Hermes** | High-stakes judgment + safety (can't-fail list below). |
+| **T-critical — can't-fail** | `anthropic/claude-opus-4.8` — **NEVER Hermes; EXEMPT from `tenants.default_model_override`** | High-stakes judgment + safety (can't-fail list below). Runtime fail-closed via `cantfail.model_violation` Relay event. |
 
 > **70B carries volume; 405B carries thinking.** Reserve 405B for where reasoning earns it — most runs are bounded monitors/triage where 70B output is indistinguishable at ~7× lower cost.
 > **Skip Hermes 3 in production** — Hermes 4 supersedes it at both 70B and 405B.
@@ -44,9 +44,15 @@ TypeScript (strict) · TanStack Router SPA + Hono API · Postgres + pgvector (Su
 >
 > See `/docs/main-acqu-agent-doctrine.md` §1.4 for the full rationale and §1.5 for the per-agent matrix.
 
-## Can't-fail agents — ALWAYS Claude (T-critical), never Hermes
+## Can't-fail agents — ALWAYS Claude Opus (T-critical), never Hermes — EXEMPT from `tenants.default_model_override`
 
 `ad-claim-compliance`, `tenant-isolation-tester`, `security-anomaly-watchdog`, `access-auditor`, `contract-drafter`, `contract-lifecycle-manager`, `pricing-architect`, `discount-governor`, `decision-memo-drafter`, `offer-architect`, `offer-validator`, `reinvestment-advisor`, `risk-register-keeper`, `cliently.dev` (code-writing).
+
+**Tier wins, override loses.** T-critical agents always run Opus and are EXEMPT from `tenants.default_model_override` (Phase 8.5). The seed function skips the override when `isCantFail(spec.key)` is true; the runner asserts the resolved model at SessionStart and emits `cantfail.model_violation` (Relay event) + fails the run closed if a T-critical agent is ever dispatched on a non-Opus model. The override is the cost-saver default for non-critical tiers only — it never reaches the can't-fail set. See `docs/plans/AGENT-OS-PLAN.md` Open Q #1 (RESOLVED) for the implementation contract.
+
+## CRA prohibition (public-launch HARD GATE)
+
+The Architect MUST refuse to assemble any agent whose function touches eligibility decisioning in: **credit · employment · housing/tenant screening · insurance underwriting · government-benefit determination**. Code-enforced (keyword + category match in `packages/core/src/architect/cra-blocklist.ts`), fails closed, emits `architect.refused` (Relay event). Runtime guard at the runner — even manually-authored seeds bypassing the architect — emits `cantfail.cra_violation` + fails closed. List is a global invariant; `tenants.feature_flags` cannot disable it. Legal sign-off on the wording is the precondition for enabling any public/self-serve tenant. See `docs/plans/GENX-PLAN.md` Open Q #8 (RESOLVED mechanism; wording pending counsel).
 
 ## Non-negotiables
 
