@@ -46,9 +46,11 @@ TypeScript (strict) · TanStack Router SPA + Hono API · Postgres + pgvector (Su
 >
 > See `/docs/main-acqu-agent-doctrine.md` §1.4 for the full rationale and §1.5 for the per-agent matrix.
 
-## Can't-fail agents — ALWAYS Claude (T-critical), never Hermes
+## Can't-fail agents — high-stakes judgment + safety (T-critical)
 
 `ad-claim-compliance`, `tenant-isolation-tester`, `security-anomaly-watchdog`, `access-auditor`, `contract-drafter`, `contract-lifecycle-manager`, `pricing-architect`, `discount-governor`, `decision-memo-drafter`, `offer-architect`, `offer-validator`, `reinvestment-advisor`, `risk-register-keeper`, `cliently.dev` (code-writing).
+
+> **Model-policy resolution (2026-06, active).** The doctrine's original rule was "ALWAYS Claude, never Hermes" for this list. The operator override (above) runs the **whole fleet on Hermes 4 405B** and explicitly supersedes that rule — and re-tiering these back to Claude needs an *explicit operator instruction*, which is not given. **So the safety guarantee moves from the model to the runtime gate, enforced in code:** a can't-fail agent **may never be AUTO-promoted past `autonomy=propose`** — every irreversible action keeps hitting the human Approvals inbox no matter how strong its eval scorecard. This is the doctrine's own "safety via hooks, not the model" principle. Enforced by: `CANT_FAIL_AGENTS` + `maxAutonomyForAgent` (`packages/shared`), the auto-promotion ceiling in `proposeAutonomyChange` (`packages/core/metrics.ts`), and the seed-time invariant in `seed-remaining-phases.ts` (every can't-fail agent must sit at `propose`). To run any of these on Claude instead, set its `model` by hand — config, not code. The list above is the single source of truth, mirrored in `CANT_FAIL_AGENTS`.
 
 ## Non-negotiables
 

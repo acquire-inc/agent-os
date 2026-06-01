@@ -96,21 +96,36 @@ export interface AutonomyRecommendation {
   reason: string;
 }
 
+const AUTONOMY_RANK: Record<string, number> = { propose: 0, execute_safe: 1, execute_full: 2 };
+
 /**
  * Turn a scorecard into a promote/demote/hold recommendation. Pure.
  * Doctrine (CLAUDE.md): promotion is EARNED from eval/approval-rate metrics; demotion is
  * AUTOMATIC on drops. Demotion checks first (safety), then promotion gates on volume + rates.
+ *
+ * Can't-fail ceiling (the compensating control for the all-Hermes operator override): pass the
+ * agent's `currentAutonomy` + `maxAutonomy` (from `maxAutonomyForAgent`). A can't-fail agent is
+ * capped at `propose`, so a strong scorecard yields `hold`, NOT `promote` — every irreversible
+ * action keeps hitting the human Approvals gate no matter how good the metrics look. Demotion is
+ * never blocked by the ceiling (safety always wins).
  */
 export function proposeAutonomyChange(
   m: Pick<AgentMetricsResult, "runs" | "successRate" | "approvalRate">,
-  opts: { minRuns?: number; demoteSuccessRate?: number; promoteSuccessRate?: number; promoteApprovalRate?: number } = {},
+  opts: {
+    minRuns?: number;
+    demoteSuccessRate?: number;
+    promoteSuccessRate?: number;
+    promoteApprovalRate?: number;
+    currentAutonomy?: string;
+    maxAutonomy?: string;
+  } = {},
 ): AutonomyRecommendation {
   const minRuns = opts.minRuns ?? 10;
   const demoteSuccess = opts.demoteSuccessRate ?? 0.8;
   const promoteSuccess = opts.promoteSuccessRate ?? 0.95;
   const promoteApproval = opts.promoteApprovalRate ?? 0.9;
 
-  // Demotion is automatic on a real success-rate drop, regardless of volume.
+  // Demotion is automatic on a real success-rate drop, regardless of volume OR ceiling.
   if (m.runs >= minRuns && m.successRate < demoteSuccess) {
     return { action: "demote", reason: `success_rate ${(m.successRate * 100).toFixed(0)}% < ${(demoteSuccess * 100).toFixed(0)}% over ${m.runs} runs` };
   }
@@ -118,6 +133,15 @@ export function proposeAutonomyChange(
     return { action: "hold", reason: `insufficient volume (${m.runs} < ${minRuns} runs)` };
   }
   if (m.successRate >= promoteSuccess && m.approvalRate >= promoteApproval) {
+    // Auto-promotion ceiling: a can't-fail agent (maxAutonomy=propose) — or any agent already at
+    // its max — can't earn its way past the human gate. Metrics this good → hold, not promote.
+    if (opts.currentAutonomy != null && opts.maxAutonomy != null) {
+      const cur = AUTONOMY_RANK[opts.currentAutonomy] ?? 0;
+      const max = AUTONOMY_RANK[opts.maxAutonomy] ?? 2;
+      if (cur >= max) {
+        return { action: "hold", reason: `at autonomy ceiling (${opts.maxAutonomy}) — promotion gated to human; success ${(m.successRate * 100).toFixed(0)}%` };
+      }
+    }
     return { action: "promote", reason: `success ${(m.successRate * 100).toFixed(0)}% & approval ${(m.approvalRate * 100).toFixed(0)}% over ${m.runs} runs` };
   }
   return { action: "hold", reason: `steady (success ${(m.successRate * 100).toFixed(0)}%, approval ${(m.approvalRate * 100).toFixed(0)}%)` };

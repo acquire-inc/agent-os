@@ -230,6 +230,9 @@ async function main() {
   assert(proposeAutonomyChange({ runs: 30, successRate: 0.6, approvalRate: 1 }).action === "demote", "success drop → demote");
   assert(proposeAutonomyChange({ runs: 30, successRate: 0.98, approvalRate: 0.95 }).action === "promote", "high success+approval → promote");
   assert(proposeAutonomyChange({ runs: 30, successRate: 0.9, approvalRate: 0.7 }).action === "hold", "mid metrics → hold");
+  // Can't-fail autonomy ceiling: a perfect scorecard can't auto-promote past `propose`.
+  assert(proposeAutonomyChange({ runs: 30, successRate: 0.99, approvalRate: 0.99 }, { currentAutonomy: "propose", maxAutonomy: "propose" }).action === "hold", "can't-fail at ceiling → hold, not promote");
+  assert(proposeAutonomyChange({ runs: 30, successRate: 0.6, approvalRate: 0.99 }, { currentAutonomy: "propose", maxAutonomy: "propose" }).action === "demote", "ceiling never blocks demotion (safety wins)");
 
   console.log("\n[voice-lint (v3 D)]");
   assert(isVoiceClean("We help roofing companies book more estimates."), "clean copy passes voice gate");

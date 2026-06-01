@@ -463,15 +463,21 @@ partially-isolated fleet.
 
 ---
 
-## Open questions for you
+## Resolved this revision
 
-1. **Can't-fail model policy (the one operator call left).** The override runs the whole fleet on
-   Hermes 4 405B; CLAUDE.md says the can't-fail list (ad-claim-compliance, tenant-isolation-tester,
-   security, contracts, pricing, offers, discounts, decision/risk/reinvestment, code-writing) must be
-   Claude. Do we (a) keep all-Hermes and let eval evidence promote specific agents to Claude, or (b)
-   carve the can't-fail list back to Claude now? I recommend (a) — per-agent on eval data — but it's a
-   risk call that's yours. *(You said you'd send the Hermes context + the conflict; I'll wire the
-   chosen policy into the spec when you do.)*
+- **Can't-fail model policy — RESOLVED (2026-06).** The operator override runs the whole fleet on
+  Hermes 4 405B and explicitly supersedes the doctrine's "never Hermes" rule for the can't-fail list;
+  re-tiering them to Claude needs an explicit operator instruction (not given). So we **keep
+  all-Hermes** and move the safety guarantee to the **runtime gate**: a can't-fail agent **can never
+  be auto-promoted past `autonomy=propose`** — every irreversible action keeps hitting the human
+  Approvals inbox regardless of scorecard. Enforced in code, not prose: `CANT_FAIL_AGENTS` +
+  `maxAutonomyForAgent` (`packages/shared`), the auto-promotion ceiling in `proposeAutonomyChange`
+  (`packages/core/metrics.ts`, +15 pure tests), and a seed-time invariant
+  (`seed-remaining-phases.ts` asserts every can't-fail agent sits at `propose`). Running a specific
+  can't-fail agent on Claude remains a per-agent **config** change (set its `model`), never a code
+  change. (Matches "safety via hooks, not the model" — doctrine non-negotiable #3.)
+
+## Open questions for you
 2. **`run_summaries` shape — final field set.** I've specced `{what_i_did, what_i_produced,
    what_i_learned, what_next, verification_result}`. Confirm, or add fields the learning loop / GenX
    attribution will need (e.g. an explicit `outcome` field for consented cross-tenant pattern-mining).

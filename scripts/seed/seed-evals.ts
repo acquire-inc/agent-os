@@ -5,6 +5,7 @@
 import { computeAgentMetrics, proposeAutonomyChange } from "@agent-os/core";
 import { createDb, schema } from "@agent-os/db";
 import { and, eq } from "drizzle-orm";
+import { maxAutonomyForAgent } from "@agent-os/shared";
 import { TENANT_ID } from "./_shared.js";
 import { EVAL_CASES } from "./_evals.js";
 import { assertValid, validateEvalCase } from "./_schema.js";
@@ -17,7 +18,7 @@ async function main() {
   assertValid(EVAL_CASES.flatMap((c) => validateEvalCase(c)), "eval-case validation");
 
   // Resolve which referenced agents exist (cases are keyed by stable agent_key).
-  const agents = await db.select({ id: schema.agents.id, key: schema.agents.key }).from(schema.agents).where(eq(schema.agents.tenantId, TENANT_ID));
+  const agents = await db.select({ id: schema.agents.id, key: schema.agents.key, autonomy: schema.agents.autonomy }).from(schema.agents).where(eq(schema.agents.tenantId, TENANT_ID));
   const idByKey = new Map(agents.map((a) => [a.key, a.id]));
 
   let upserted = 0;
@@ -51,11 +52,23 @@ async function main() {
   console.log(`  Agents referenced but not seeded: ${missing.size ? [...missing].join(", ") : "none ✓"}`);
 
   // Show the recommendation logic on a sample (no runs yet → hold on insufficient volume).
+  // The recommendation always passes the agent's autonomy ceiling so a can't-fail agent can
+  // never be auto-promoted past the human gate (maxAutonomyForAgent → propose for can't-fail).
   const sample = agents.find((a) => a.key === "vitals");
   if (sample) {
     const m = await computeAgentMetrics(db, sample.id, { tenantId: TENANT_ID });
-    const rec = proposeAutonomyChange(m);
+    const rec = proposeAutonomyChange(m, { currentAutonomy: sample.autonomy, maxAutonomy: maxAutonomyForAgent(sample.key) });
     console.log(`  vitals scorecard: runs=${m.runs} success=${(m.successRate * 100).toFixed(0)}% → ${rec.action} (${rec.reason})`);
+  }
+  // Prove the ceiling on a can't-fail agent: even a hypothetical perfect scorecard holds.
+  const cantFail = agents.find((a) => a.key === "ad-claim-compliance");
+  if (cantFail) {
+    const demo = proposeAutonomyChange(
+      { runs: 30, successRate: 0.99, approvalRate: 0.99 },
+      { currentAutonomy: cantFail.autonomy, maxAutonomy: maxAutonomyForAgent(cantFail.key) },
+    );
+    console.log(`  ad-claim-compliance (can't-fail) perfect-scorecard → ${demo.action} (ceiling=${maxAutonomyForAgent(cantFail.key)}) — must be 'hold'`);
+    if (demo.action === "promote") { console.error("\n✗ Can't-fail agent would auto-promote — ceiling not enforced."); process.exit(1); }
   }
 
   if (missing.size) { console.error("\n✗ Some eval-case agents are not seeded."); process.exit(1); }

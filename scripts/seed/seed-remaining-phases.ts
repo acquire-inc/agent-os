@@ -6,7 +6,7 @@
 // Usage: tsx seed-remaining-phases.ts [Phase 2|Phase 3|Phase 4|Phase 5]   (default: all)
 
 import { createDb, schema } from "@agent-os/db";
-import { TENANT_IDS } from "@agent-os/shared";
+import { TENANT_IDS, CANT_FAIL_AGENTS } from "@agent-os/shared";
 import { and, eq, inArray } from "drizzle-orm";
 import { ACQU_AGENT_MODEL } from "./_shared.js";
 import { seedRoster, type SeedReport } from "./_generic.js";
@@ -71,6 +71,15 @@ async function main() {
   const missing = allKeys.filter((k) => !byKey.has(k));
   console.log(`  Missing from roster: ${missing.length ? missing.join(", ") : "none ✓"}`);
 
+  // ── Can't-fail autonomy invariant (the compensating control for the all-Hermes override) ──
+  // These agents run on Hermes (operator override) instead of Claude, so the safety guarantee
+  // moves to the runtime gate: they MUST sit at autonomy=`propose` (every irreversible action
+  // hits the human Approvals inbox). Auto-promotion past `propose` is blocked in code
+  // (proposeAutonomyChange + maxAutonomyForAgent); this asserts the seeded state honors it.
+  const presentCantFail = (CANT_FAIL_AGENTS as readonly string[]).filter((k) => byKey.has(k));
+  const overPromoted = presentCantFail.filter((k) => byKey.get(k)!.autonomy !== "propose").map((k) => `${k}=${byKey.get(k)!.autonomy}`);
+  console.log(`  Can't-fail agents at autonomy=propose (MUST, ${presentCantFail.length} present): ${overPromoted.length ? "✗ " + overPromoted.join(", ") : "✓"}`);
+
   if (defaulted.length) {
     console.log("\n  ⚠ Triggers using operational defaults (doctrine gave no clock-time / non-cron):");
     for (const d of defaulted) console.log(`    - ${d}`);
@@ -80,7 +89,7 @@ async function main() {
     for (const s of skipped) console.log(`    - ${s}`);
   }
 
-  if (offModel.length || offBackend.length || missing.length) { console.error("\n✗ Verification failed."); process.exit(1); }
+  if (offModel.length || offBackend.length || missing.length || overPromoted.length) { console.error("\n✗ Verification failed."); process.exit(1); }
   console.log("\n✓ Phases seeded and verified.");
   process.exit(0);
 }

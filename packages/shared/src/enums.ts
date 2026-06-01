@@ -12,6 +12,49 @@ export type AgentBackend = (typeof AGENT_BACKENDS)[number];
 export const AUTONOMY_LEVELS = ["propose", "execute_safe", "execute_full"] as const;
 export type Autonomy = (typeof AUTONOMY_LEVELS)[number];
 
+// ── Can't-fail agents (CLAUDE.md "ALWAYS Claude (T-critical), never Hermes") ──
+// High-stakes judgment + safety roles. The doctrine's intent was "run these on Claude." The
+// active operator override (2026-05) runs the WHOLE fleet on Hermes 4 405B and explicitly
+// supersedes the "never Hermes" rule — so we DON'T re-tier these back to Claude (that needs an
+// explicit operator instruction). Instead, the compensating control that makes Hermes-on-can't-
+// fail safe is enforced in CODE: a can't-fail agent may never be AUTO-promoted past `propose`
+// (every irreversible action keeps hitting the Approvals inbox). Safety comes from the runtime
+// gate, not the model — exactly the doctrine's "safety via hooks" principle. Single source of
+// truth for the list (was prose-only in CLAUDE.md + scattered roster comments).
+export const CANT_FAIL_AGENTS = [
+  "ad-claim-compliance",
+  "tenant-isolation-tester",
+  "security-anomaly-watchdog",
+  "access-auditor",
+  "contract-drafter",
+  "contract-lifecycle-manager",
+  "pricing-architect",
+  "discount-governor",
+  "decision-memo-drafter",
+  "offer-architect",
+  "offer-validator",
+  "reinvestment-advisor",
+  "risk-register-keeper",
+  "cliently.dev",
+] as const;
+export type CantFailAgent = (typeof CANT_FAIL_AGENTS)[number];
+
+/** Is this agent on the can't-fail list? (high-stakes judgment/safety → human gate required) */
+export function isCantFailAgent(key: string): boolean {
+  return (CANT_FAIL_AGENTS as readonly string[]).includes(key);
+}
+
+/**
+ * The highest autonomy an agent may EARN from eval metrics (auto-promotion ceiling).
+ * Can't-fail agents are capped at `propose` — they can never auto-promote out of the human
+ * approval gate, regardless of how good their scorecard looks. (An operator can still set a
+ * higher autonomy by hand; this only bounds *automatic* promotion.) All other agents have the
+ * full ladder available.
+ */
+export function maxAutonomyForAgent(key: string): Autonomy {
+  return isCantFailAgent(key) ? "propose" : "execute_full";
+}
+
 export const THINKING_LEVELS = ["none", "low", "medium", "high"] as const;
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
