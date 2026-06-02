@@ -16,7 +16,31 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-30)
 
 **Core value:** Adding a doctrine agent is configuration — zero new application code.
-**Current focus:** v3 Stack-Alignment COMPLETE (A,D,G,C,E,B,F all shipped + verified). Next: D-wire (voice-lint PostToolUse gate), then v4 external multi-tenant (gated).
+**Current focus:** Phase 9 Capability-Hardening COMPLETE (agent-scope). Next: go-live remains
+gated on operator decisions — the Hermes runtime-vs-model fork (lean: keep the Anthropic Agent SDK
+runner, port gates/skills/KB) and a live-DB run. v3 Stack-Alignment COMPLETE earlier.
+
+### Session 2026-06-02 — go-live hardening + capability hardening (branch claude/seed-phase-1-agents)
+Go-live path: migrate is now re-run-safe (schema_migrations ledger + --baseline); DB-free continuity
+loop test; verify-golive hardened into a real acceptance gate (every can't-fail agent must be
+PRESENT + at propose, count floors, required tables, no irreversible-ungated tool). Seed pure-tests
+wired into CI.
+**Phase 9 Capability-Hardening (DATA only; audit in `.planning/phases/capability-hardening/`):**
+- 09-01 truthful+safe tool catalog: ~39 stub tools given real metadata; side-effecting tools
+  (dunning/deploy/arcads/ledgers) now approval+irreversible (closed a real safety downgrade since
+  registry flags are authoritative over the verb heuristic). 17 tests.
+- 09-02 connector enrichment: additive role→connector binding (dunning→Stripe, expense→QuickBooks,
+  dev→GitHub/Sentry, EA→Calendar…) on top of the sparse doctrine slack/close/gdrive. 17 tests.
+- 09-03 allowed-tools on all 103 skills (was 2/103) via author-allowed-tools.ts (idempotent,
+  --check coverage gate); 3 true orphans bound. 11 tests. (allowed-tools surfaced on bundle, not
+  yet enforced → additive, no behavior change incl. T-critical agents.)
+- 09-04 verify: go-live gate now also fails on any irreversible-but-ungated tool.
+NOTE on the external-restructure instructions (OUTPUT 2): its inputs (AgentOS audit docs +
+feat/external-skills-extraction branch + /agents/_candidates + zip) do NOT exist in this repo, and
+several premises mismatch (the two "missing" skills already exist; CANT_FAIL_AGENTS not
+CANT_FAIL_KEYS/hydrate.ts; offer-architect/validator already seeded+listed; "T-critical→Opus floor"
+contradicts the shipped all-Hermes-405B + autonomy-ceiling override). Did NOT execute it; ran the
+real-this-repo equivalent (Phase 9) per operator ("only run what is for agents, resume").
 
 ### v3 completion (2026-05-30, verified ground-truth after sandbox rollback)
 All 7 enhancements re-built one-at-a-time with per-step verification (the earlier batch was

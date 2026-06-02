@@ -22,6 +22,7 @@ function goodFacts(): GoLiveFacts {
     presentCantFail: [...CANT_FAIL_AGENTS],
     offPropose: [],
     tablesPresent: { ...allTables },
+    unsafeTools: [],
   };
 }
 
@@ -68,6 +69,12 @@ function main() {
   noSummaries.tablesPresent = { ...allTables, run_summaries: false };
   const r2 = evaluateGoLive(noSummaries);
   assert(!r2.ok && !check(noSummaries, "table run_summaries").ok, "missing run_summaries table fails");
+
+  // ── an irreversible-but-ungated tool fails the gate (safety-metadata regression) ──
+  const unsafe = goodFacts();
+  unsafe.unsafeTools = ["tool.rogue-irreversible"];
+  const r3 = evaluateGoLive(unsafe);
+  assert(!r3.ok && !check(unsafe, "no irreversible tool ungated").ok, "irreversible-but-ungated tool fails the gate");
 
   // ── floors don't trip when the fleet GROWS (adding agents is safe) ──
   const grown = goodFacts();

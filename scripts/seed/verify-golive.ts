@@ -29,6 +29,8 @@ export interface GoLiveFacts {
   offPropose: { key: string; autonomy: string }[];
   /** table name → exists. */
   tablesPresent: Record<string, boolean>;
+  /** tool keys that are irreversible but NOT approval-gated — a safety-gate hole (should be empty). */
+  unsafeTools: string[];
 }
 
 export interface GoLiveCheck { name: string; ok: boolean; detail: string }
@@ -64,6 +66,14 @@ export function evaluateGoLive(facts: GoLiveFacts): GoLiveResult {
     checks.push({ name: `table ${t}`, ok: facts.tablesPresent[t] === true, detail: facts.tablesPresent[t] ? "present" : "MISSING" });
   }
 
+  // Safety: no tool may be irreversible yet not approval-gated (registry requires_approval is
+  // authoritative at the PreToolUse gate). Complements the seed-time validateTool invariant.
+  checks.push({
+    name: "no irreversible tool ungated",
+    ok: facts.unsafeTools.length === 0,
+    detail: facts.unsafeTools.length ? `UNGATED: ${facts.unsafeTools.join(", ")}` : "all irreversible tools require approval",
+  });
+
   return { ok: checks.every((c) => c.ok), checks };
 }
 
@@ -83,6 +93,10 @@ async function gatherFacts(db: ReturnType<typeof createDb>, tenantId: string): P
     tablesPresent[t] = Boolean(reg[0]?.t);
   }
 
+  const unsafeTools = toolRows
+    .filter((t) => t.reversible === false && t.requiresApproval === false)
+    .map((t) => t.toolKey);
+
   return {
     totalAgents: agentRows.length,
     enabledAgents: agentRows.filter((a) => a.enabled).length,
@@ -91,6 +105,7 @@ async function gatherFacts(db: ReturnType<typeof createDb>, tenantId: string): P
     presentCantFail: cantFailRows.map((r) => r.key),
     offPropose: cantFailRows.filter((r) => r.autonomy !== "propose").map((r) => ({ key: r.key, autonomy: r.autonomy })),
     tablesPresent,
+    unsafeTools,
   };
 }
 
