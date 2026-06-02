@@ -19,6 +19,7 @@ A multi-tenant Agent OS — the control plane that runs Acquire Inc (Acqu) on ag
 - [x] **Phase 8: Phase-4 doctrine batch seed (moat + meta-layer)** — compliance-health, intel, decision-memo-drafter, save-play, expansion-finder, discovery-prep, call-summarizer, objection-coach, contract-drafter, payment-collector, unit-economics, agent-evaluator, agent-onboarder + platform-change-watcher, regulatory-watcher, contract-lifecycle-manager, risk-register-keeper, knowledge-curator, skill-librarian, pricing-architect, discount-governor, reinvestment-advisor, forecast-runner.
 - [ ] **Phase 9: tenant-isolation-tester + secrets-rotation (external launch gate)** — Hard gate #2 (main §6): no external Cliently tenant until isolation passes. Plus `secrets-rotation`, `access-auditor`, `security-anomaly-watchdog`.
 - [ ] **Phase 10: Phase-5 doctrine batch seed (external Cliently launch)** — full offers suite, scaling agents, agent-retirer, human-hiring, vendor agents, qbr-prep, loyalty-rewarder, portfolio-review, marketing-ad-ops, attribution agents, pixel rollout, cliently.support; runner-ops, rate-limit-guardian, incident-responder; full Partnerships/Affiliates suite; competitor-watchtower + market-signal-scanner; full memory layer.
+- [ ] **Phase 11: External runtime optimization (read-only audit + quarantined extraction)** — Survey wifiwave/agentic-templates-restructure-v2 (read-only at /tmp/ref; license=NONE, RE-AUTHOR not copy). Write 3 planning docs: EXTERNAL-RUNTIME-RECONCILIATION.md (Hermes runtime-vs-model fork + isolation fork, both marked operator's call), EXTERNAL-TEMPLATES-AUDIT.md (3-column cross-reference to AGENTS-PLAN/Relay/the 3 new AGENT-OS-PLAN sections), SKILLS-EXTRACTION-REPORT.md (8 re-authored quarantined candidates under /agents/_candidates/ on feat/external-skills-extraction branch). T-critical exclusion: no candidate attaches to T-critical agents. No live-fleet changes. No merges. Operator gates (1-3) still deferred. Depends on: Phase 9.
 
 ## Phase Details
 
@@ -171,3 +172,17 @@ Plans:
 **Goal**: Full external launch.
 **Depends on**: Phase 9 (hard gate).
 **Success Criteria**: TBD — derived after Phase 9.
+
+### Phase 11: External runtime optimization (read-only audit + quarantined extraction)
+
+**Goal**: Distill value from `wifiwave/agentic-templates-restructure-v2-stack-alignment` (read-only at `/tmp/ref`, license=NONE → reauthor, never copy) into 3 planning docs + a quarantined extraction branch. Resolve the Hermes runtime-vs-model fork that the survey surfaced. No live-fleet changes. No merges. Operator gates (1-3) remain deferred.
+
+**Depends on**: Phase 9 close-out (the Relay spine + Model Router + CANT_FAIL safety floor land independently; this phase reads from them but writes no live code).
+
+**Requirements**:
+- SC-11-1 — `docs/plans/EXTERNAL-RUNTIME-RECONCILIATION.md` exists with both forks (Hermes runtime-vs-model, isolation model) marked "DECISION: operator's call, do not implement yet"
+- SC-11-2 — `docs/plans/EXTERNAL-TEMPLATES-AUDIT.md` exists with 3 columns cross-referenced to AGENTS-PLAN canonical anatomy + Relay schema + the 3 new AGENT-OS-PLAN sections
+- SC-11-3 — `docs/plans/SKILLS-EXTRACTION-REPORT.md` exists listing the 8 candidates with provenance + license=NONE + recommended keep/drop
+- SC-11-4 — branch `feat/external-skills-extraction` carries 8 re-authored `agents/_candidates/<slug>/SKILL.md` files, none attached to T-critical agents, all provenance-tagged
+- SC-11-5 — zero `live-fleet` changes (existing `scripts/seed/acqu-*.ts`, `external/acqu-skills/`, `CLAUDE.md`, the 3 plans untouched by this phase's writes — verify via `git diff main` on the branch shows only `docs/plans/` adds + `agents/_candidates/` adds)
+- SC-11-6 — write-boundary maintained (no `git remote add`, no clone, no push to non-bunn-os/agent-os repo)
