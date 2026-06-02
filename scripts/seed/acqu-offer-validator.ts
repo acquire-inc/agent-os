@@ -45,7 +45,10 @@ export const offerValidatorSpec: AgentSpec = {
   knowledgeScope: { folders: ["offers", "verticals", "objections"], tags: ["offers"] },
   budgetCapUsd: "1.50",
   cron: null, // spawned by offer-architect at end of draft run
-  enabled: false, // skill:adversarial-offer-critique missing — see header
+  // ENABLED 2026-06-02: external/acqu-skills/adversarial-offer-critique/SKILL.md
+  // now exists. CANT_FAIL_KEYS protection + Model Router T-critical pin + runtime
+  // assertion remain in place.
+  enabled: true,
   skills: [
     { key: "adversarial-offer-critique", name: "Adversarial Offer Critique" },
     { key: "verification-before-completion", name: "Verification Before Completion" },

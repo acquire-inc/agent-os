@@ -51,11 +51,15 @@ export const offerArchitectSpec: AgentSpec = {
   knowledgeScope: { folders: ["offers", "copywriting", "verticals"], tags: ["offers"] },
   budgetCapUsd: "5.00",
   cron: null, // on-demand only (founder approves a gap-brief)
-  // GATING: enabled=false until the 4 named skills exist on disk. The doctrine
-  // names them (hormozi-offer-construction, guarantee-design, cole-gordon-mechanism)
-  // but external/acqu-skills/ does not yet have their SKILL.md bodies. The agent
-  // registers under enabled=false; the runner skips it (Phase 8.5 contract).
-  enabled: false,
+  // ENABLED 2026-06-02: all 4 named skill bodies now exist on disk:
+  //   external/acqu-skills/hormozi-offer-construction/SKILL.md
+  //   external/acqu-skills/guarantee-design/SKILL.md
+  //   external/acqu-skills/cole-gordon-mechanism/SKILL.md
+  //   external/acqu-skills/verification-before-completion/SKILL.md
+  // CANT_FAIL_KEYS protection still in place: Architect refuses to assemble
+  // synthesis attempts via blueprint. Model Router pins T-critical → Opus.
+  // Runner SessionStart cantfail.model_violation fails closed on drift.
+  enabled: true,
   skills: [
     { key: "hormozi-offer-construction", name: "Hormozi Offer Construction" },
     { key: "guarantee-design", name: "Guarantee Design" },
