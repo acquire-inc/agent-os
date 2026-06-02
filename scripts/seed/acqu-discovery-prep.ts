@@ -10,7 +10,7 @@ INPUT: a Close opportunity ID for a call scheduled in the next 12 hours.
 
 OUTPUT: a one-page brief at outputs/discovery-briefs/{date}-{name}.md. The brief contains:
 
-  1. WHO — name, role, company, vertical, location. From Close + tool.20 (LinkedIn/company site).
+  1. WHO — name, role, company, vertical, location. From the Close connector + the tool.browser custom tool (LinkedIn / company-site read; SSRF-guarded).
   2. SIGNAL — what brought them in (which ad, which UTM, which quiz answers). Pull from the Close opportunity + the application record.
   3. STAGE OF AWARENESS — based on quiz answers, classify (problem-aware / solution-aware / product-aware / brand-aware).
   4. TOP 3 ANGLES — given the vertical + stage, the 3 best angles from kb:sales/playbook/angles/.

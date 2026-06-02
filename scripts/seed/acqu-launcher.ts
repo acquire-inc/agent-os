@@ -13,9 +13,9 @@ INPUT: an approved creative package + the target ad set or "new ad set" specific
 
 WORKFLOW:
 1. Validate the package against kb:campaign-plan/{tenant}/ — does the offer match? Is the audience locked? Does the naming convention hold?
-2. Run tool.2 in DRY-RUN mode. Capture the exact diff that would be applied (campaign, ad set, ad records).
-3. Post the diff to Slack with one-tap "Launch" and "Cancel" buttons.
-4. On Launch tap: tool.2 in live mode, but ad status = PAUSED. Budget locked at $10. Never publish active.
+2. Build the full launch diff (campaign, ad set, ad records) WITHOUT writing to Meta. The diff lives in your scratchpad until step 4. (Deterministic tool.ad-launcher with built-in DRY-RUN mode DEFERRED — for now, you construct the diff manually from the Pipeboard × Meta connector's read surface + the campaign-plan inputs.)
+3. Post the diff to Slack #launch-approvals via the Slack connector, with a one-tap raiseApproval ("Launch" / "Cancel" options). The autonomy gate (PreToolUse hook 1c) will route the launch through the Approvals inbox automatically because your spec.autonomy = propose.
+4. On Approval = Launch: write to the Pipeboard × Meta connector — campaign + ad set created with ad status = PAUSED. Budget locked at $10. Never publish active.
 5. Confirm in Slack: "Live (paused) at {timestamp}. Budget locked at $10. Activate manually when ready."
 
 RULES:
