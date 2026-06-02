@@ -35,6 +35,14 @@ wired into CI.
   --check coverage gate); 3 true orphans bound. 11 tests. (allowed-tools surfaced on bundle, not
   yet enforced → additive, no behavior change incl. T-critical agents.)
 - 09-04 verify: go-live gate now also fails on any irreversible-but-ungated tool.
+**Phase 10 Safety-skills + Phase 11 Eval-expansion (agents-session, DATA only):**
+- P10: `clarify-before-acting` brought from a 6-line stub to canonical anatomy (42 agents);
+  `verification-before-completion` now records `verification_result` (92 agents); AGENTS-PLAN
+  reconciled (run_summaries/continuity/allowed-tools BUILT; Relay spine etc. platform-blocked).
+  code-review skill run; 4 findings folded in. _safety-skills 21 tests.
+- P11: eval cases 13→29 / 11→27 agents — completed can't-fail coverage (all 14 now have a critical
+  case), added high-volume monitors + chain participants. _evals 15 tests (incl. the can't-fail
+  critical-coverage invariant).
 NOTE on the external-restructure instructions (OUTPUT 2): its inputs (AgentOS audit docs +
 feat/external-skills-extraction branch + /agents/_candidates + zip) do NOT exist in this repo, and
 several premises mismatch (the two "missing" skills already exist; CANT_FAIL_AGENTS not
