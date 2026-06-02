@@ -13,6 +13,7 @@ The atomic discipline every Acqu agent loads. Before you report a task complete,
 3. **Verify every claim against its source.** Each number, status, or assertion traces to a tool result or a knowledge file. No claim from memory. If you can't cite it, mark it unverified rather than stating it.
 4. **Confirm the guardrails held.** Re-check the constraints your task carries (budget cap, autonomy gate, change limits, knowledge scope). If any action needed an approval tap, confirm it was queued — never silently executed.
 5. **Surface what's broken or stale.** A missing or stale input is a finding, not something to hide. Say "X was unavailable" explicitly.
+6. **Record the outcome as `verification_result`.** Write the result of this check (pass/fail + one line of detail) into your run summary's `verification_result` field — it is the signal the next run, `agent-evaluator`, and `memory-consolidator` read. A run that can't state its verification result hasn't finished.
 
 ## Guardrails
 - Unverified is a valid state — report it. A confident wrong answer is worse than a flagged gap.

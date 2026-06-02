@@ -77,13 +77,13 @@ export async function enrichConnectors(db: Db): Promise<EnrichReport[]> {
     for (const name of wanted) {
       const mcpId = idByName.get(name);
       if (!mcpId) { missing.push(name); continue; }
-      // Additive: existing binding is left intact (on conflict do nothing).
-      const res = await db.execute(
-        sql`insert into agent_mcps (agent_id, mcp_id) values (${a.id}, ${mcpId}) on conflict do nothing`,
-      );
-      // rowCount is driver-specific; record the intent regardless (idempotent either way).
-      added.push(name);
-      void res;
+      // Additive: existing binding is left intact (on conflict do nothing). `returning` yields the
+      // row only on an actual insert, so `added` reflects connectors NEWLY bound this run (empty on
+      // a re-run where everything is already bound) — an accurate report, not just intent.
+      const inserted = (await db.execute(
+        sql`insert into agent_mcps (agent_id, mcp_id) values (${a.id}, ${mcpId}) on conflict do nothing returning mcp_id`,
+      )) as unknown as unknown[];
+      if (inserted.length > 0) added.push(name);
     }
     reports.push({ agentKey: a.key, added, missing });
   }

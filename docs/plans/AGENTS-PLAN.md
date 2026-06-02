@@ -15,6 +15,26 @@
 > authority — when `AGENT-OS-PLAN.md` ships, re-reconcile §2 against its canonical Relay schema and
 > resolve any field-name drift in its favor.
 
+> **Reconciliation addendum (2026-06-02, Agents code session).** Several §3/§5 gaps have closed
+> since rev 2 — corrected here so downstream trusts the right state:
+> - **P0 #1 `run_summaries` + SessionEnd write — BUILT.** `writeRunSummary` persists the five-field
+>   contract on terminal status (`packages/core/src/lifecycle.ts:58`); idempotent per run.
+> - **P0 #3 run-summary continuity into the bundle — BUILT.** `buildBundle` carries
+>   `recentSummaries` (`packages/core/src/bundle.ts:173`) and the runner renders a "Where you left
+>   off" section; covered by a DB-free continuity test.
+> - **P2 #8 `allowed-tools` on SKILL.md — DONE fleet-wide.** All **103/103** skills now declare
+>   `allowed-tools` (was 2/103); CI gates coverage.
+> - **Tool registry truthfulness (new):** the ~39 stub tools now carry real metadata + correct
+>   `requires_approval`/`reversible`; side-effecting tools (dunning/deploy/ad-launch/ledgers) are
+>   approval-gated. Connectors enriched by role (dunning→Stripe, expense→QuickBooks, …).
+> - **Safety skills hardened:** `clarify-before-acting` brought to canonical anatomy;
+>   `verification-before-completion` now writes its outcome to `verification_result`.
+> - **Still platform-owned / out of this session's scope (gap-listed, not faked):** the Relay event
+>   spine + emitter + `relay_event_types` registry (§2), the fleet-wide RLS audit (§4.2), the Inngest
+>   chain executor (§4.5), and the `tool_key→runtime SDK tool-name` map (§1.3 / P1 #7) — all owned by
+>   `AGENT-OS-PLAN.md` (absent). The per-agent emission contract (§2) cannot be finalized until that
+>   schema lands.
+
 ---
 
 ## 0. READ-FIRST RECONCILIATION — what I read, and what's confirmed vs open

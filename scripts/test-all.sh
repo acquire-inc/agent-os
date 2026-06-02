@@ -36,6 +36,7 @@ pnpm --filter @agent-os/seed exec tsx _schema.test.ts | grep -E "Result:"
 pnpm --filter @agent-os/seed exec tsx _tools.test.ts | grep -E "Result:"
 pnpm --filter @agent-os/seed exec tsx _connectors.test.ts | grep -E "Result:"
 pnpm --filter @agent-os/seed exec tsx _skills.test.ts | grep -E "Result:"
+pnpm --filter @agent-os/seed exec tsx _safety-skills.test.ts | grep -E "Result:"
 # Coverage gate: every SKILL.md must declare allowed-tools (least-privilege operationalized).
 pnpm --filter @agent-os/seed exec tsx author-allowed-tools.ts --check | grep -E "✓|✗"
 pnpm --filter @agent-os/seed exec tsx _workforce-tools.test.ts | grep -E "Result:"

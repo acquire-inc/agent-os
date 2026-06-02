@@ -90,7 +90,10 @@ async function main() {
     const name = field(lines, close, "name") || d.name;
     const tools = inferAllowedTools(d.name, name);
     lines.splice(close, 0, `allowed-tools: [${tools.join(", ")}]`);
-    await writeFile(file, lines.join("\n"));
+    // Preserve the file's original line endings (split was on /\r?\n/) so a CRLF SKILL.md isn't
+    // silently rewritten to LF — keeps the edit minimal and idempotent on re-run.
+    const eol = md.includes("\r\n") ? "\r\n" : "\n";
+    await writeFile(file, lines.join(eol));
     authored++;
   }
 

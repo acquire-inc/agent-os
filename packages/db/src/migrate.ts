@@ -62,7 +62,11 @@ async function main() {
       const text = await readFile(join(migrationsDir, file), "utf8");
       process.stdout.write(`applying ${file} ... `);
       // One transaction per migration: a failure rolls back the DDL AND its ledger row, so a
-      // partial migration is never recorded as applied (it'll retry cleanly next run).
+      // partial migration is never recorded as applied (it'll retry cleanly next run). The DDL runs
+      // BEFORE the ledger insert so the rollback is atomic — do not reorder.
+      // NOTE: this wraps each migration in a txn, so a statement that cannot run inside one (e.g.
+      // CREATE INDEX CONCURRENTLY, ALTER TYPE ... ADD VALUE) must not be added to a migration file
+      // as-is — split it out or it will fail here. Current migrations are all txn-safe (checked).
       await sql.begin(async (tx) => {
         await tx.unsafe(text);
         await tx`insert into schema_migrations (filename) values (${file})`;

@@ -35,7 +35,9 @@ const REFERENCED_NAMED = [
 const MUST_BE_GATED = [
   "tool.billing-engine", "tool.payment-bridge", "tool.bill-pay-bridge", "tool.dunning-engine",
   "tool.commission-ledger", "tool.loyalty-milestones", "tool.contract-engine", "tool.arcads-launcher",
-  "tool.deploy-bridge", "tool.spawn-agent", "tool.archive-agent",
+  "tool.deploy-bridge",
+  // Workforce mutations — all four are high-stakes by definition.
+  "tool.spawn-agent", "tool.pause-agent", "tool.archive-agent", "tool.reactivate-agent",
 ];
 
 function main() {
