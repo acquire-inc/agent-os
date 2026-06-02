@@ -13,6 +13,7 @@ import { listPromptAgents, getAgentBlock } from "./_doctrine.js";
 import { seedRoster, type AgentSpec, type Tier } from "./_generic.js";
 import { PHASE_2, PHASE_3, PHASE_4, PHASE_5 } from "./_roster.js";
 import { seedAgentArchitect } from "./acqu-agent-architect.js";
+import { enrichConnectors } from "./_connectors.js";
 
 const TENANT_ID = TENANT_IDS.acqu;
 
@@ -63,6 +64,15 @@ async function main() {
   const authored = reports.filter((r) => r.authoredSkill).length;
   const defaulted = reports.filter((r) => r.defaultedTriggers.length).map((r) => `${r.key}: ${r.defaultedTriggers.join("; ")}`);
   const skipped = reports.filter((r) => r.skippedMcps.length).map((r) => `${r.key}: ${r.skippedMcps.join(", ")}`);
+
+  // Connector enrichment (09-02): additive, idempotent — bind each agent to the connectors its
+  // role needs on top of the doctrine-parsed ones. Runs here because seed-everything is the LAST
+  // agent seeder in `all` (the per-agent/roster seeders prune via setMcps; this must follow them).
+  const enrich = await enrichConnectors(db);
+  const enriched = enrich.filter((r) => r.added.length);
+  const missingConn = [...new Set(enrich.flatMap((r) => r.missing))];
+  console.log(`  + connector enrichment: ${enriched.length} agent(s) gained role connectors.`);
+  if (missingConn.length) console.log(`    ⚠ role connectors not seeded for Acqu (skipped): ${missingConn.join(", ")}`);
 
   // Normalize the whole tenant to 405B (operator invariant) and report.
   const norm = await db.update(schema.agents).set({ model: ACQU_AGENT_MODEL }).where(eq(schema.agents.tenantId, TENANT_ID)).returning({ key: schema.agents.key });

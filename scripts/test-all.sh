@@ -34,6 +34,7 @@ pnpm --filter @agent-os/runner test | grep -E "Result:"
 pnpm --filter @agent-os/seed test | grep -E "Result:"
 pnpm --filter @agent-os/seed exec tsx _schema.test.ts | grep -E "Result:"
 pnpm --filter @agent-os/seed exec tsx _tools.test.ts | grep -E "Result:"
+pnpm --filter @agent-os/seed exec tsx _connectors.test.ts | grep -E "Result:"
 pnpm --filter @agent-os/seed exec tsx _workforce-tools.test.ts | grep -E "Result:"
 pnpm --filter @agent-os/seed exec tsx verify-golive.test.ts | grep -E "Result:"
 
