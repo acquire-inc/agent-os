@@ -1,6 +1,7 @@
 ---
 name: secrets-rotation
 description: Rotate credentials on schedule, enforce short-TTL discipline, flag stale creds. Activates: Daily 04:00 + event (connector-health flags expiring auth).
+allowed-tools: [tool.21, tool.22]
 ---
 # Secrets Rotation
 

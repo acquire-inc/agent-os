@@ -1,6 +1,7 @@
 ---
 name: discount-policy
 description: When a closer wants to discount or alter terms, check policy, compute margin impact, approve or escalate. Stops margin erosion in the sales room. Activates: On-demand (closer requests a discount via Slack `/discount`) + event (Close opp with non-standard price).
+allowed-tools: [tool.21, tool.22, tool.offer-registry, tool.price-book, tool.pricing-recommender-engine]
 ---
 # Discount Policy
 

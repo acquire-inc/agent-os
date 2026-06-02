@@ -1,6 +1,7 @@
 ---
 name: regulatory-monitoring
 description: Monitor regulatory and platform-policy changes affecting Acqu's verticals and channels; flag required changes. Activates: Weekly Thursday 06:00 + handoff from D3.3 platform-change-watcher.
+allowed-tools: [tool.21, tool.22]
 ---
 # Regulatory Monitoring
 

@@ -1,6 +1,7 @@
 ---
 name: call-summary
 description: Ingest Fireflies/Granola transcript → produce summary, decision memo, follow-up draft, Close update. Activates: Webhook on transcript ready.
+allowed-tools: [tool.21, tool.22]
 ---
 # Call Summary
 

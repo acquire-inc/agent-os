@@ -1,6 +1,7 @@
 ---
 name: playbook-capture
 description: Use after a notably good (or bad) outcome to capture a reusable playbook into Knowledge.
+allowed-tools: [tool.21, tool.22, tool.memory-consolidation-engine, tool.save-play-library]
 ---
 # Playbook Capture
 1. Identify what happened, why it worked/failed, and the repeatable steps.

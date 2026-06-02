@@ -1,6 +1,7 @@
 ---
 name: connector-health
 description: Use on the every-15-minutes run to healthcheck every external connector, halt agents that depend on a down/degraded connector before they run on bad data, and proactively flag auth that's expiring soon.
+allowed-tools: [tool.21, tool.22, tool.connector-healthcheck, tool.rate-limit-tracker]
 ---
 # Connector Health
 

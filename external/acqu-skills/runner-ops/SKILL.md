@@ -1,6 +1,7 @@
 ---
 name: runner-ops
 description: Keep the agent runner fleet healthy — queue, stuck runs, sandbox health. Activates: Every 10 minutes.
+allowed-tools: [tool.21, tool.22]
 ---
 # Runner Ops
 

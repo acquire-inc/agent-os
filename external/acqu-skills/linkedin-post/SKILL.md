@@ -1,6 +1,7 @@
 ---
 name: linkedin-post
 description: Turn the founder's calls, posts, and YT videos into a steady multi-channel content stream. Activates: Event-driven (new Fireflies transcript or YT upload) + daily (10:00 backfill).
+allowed-tools: [tool.21, tool.22]
 ---
 # Linkedin Post
 

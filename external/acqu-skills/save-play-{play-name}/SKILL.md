@@ -1,6 +1,7 @@
 ---
 name: save-play-{play-name}
 description: When a save play is approved, orchestrate the play. Activates: Event (PM approves a save play from a churn-risk alert).
+allowed-tools: [tool.18, tool.21, tool.22, tool.churn-signal-engine, tool.client-health-score, tool.onboarding-orchestrator]
 ---
 # Save Play {Play Name}
 

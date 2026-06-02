@@ -1,6 +1,7 @@
 ---
 name: unit-economics
 description: Weekly per-client P&L. Per-offer P&L. Activates: Weekly Saturday 09:00.
+allowed-tools: [tool.21, tool.22, tool.cash-feed, tool.forecast-model, tool.revenue-ledger, tool.unit-economics-engine]
 ---
 # Unit Economics
 

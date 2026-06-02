@@ -1,6 +1,7 @@
 ---
 name: access-audit
 description: Review who/what can access what; flag over-broad scopes and orphaned access. Activates: Weekly Wednesday 05:00.
+allowed-tools: [tool.21, tool.22, tool.access-log-analyzer, tool.isolation-test-suite, tool.vault-auditor]
 ---
 # Access Audit
 

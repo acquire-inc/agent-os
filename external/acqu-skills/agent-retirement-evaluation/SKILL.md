@@ -1,6 +1,7 @@
 ---
 name: agent-retirement-evaluation
 description: When an agent stays broken, propose retirement or redesign. Activates: Weekly Friday 12:00 + event (agent flagged 3 weeks in a row).
+allowed-tools: [tool.21, tool.22, tool.agent-eval-suite, tool.agent-performance-tracker, tool.agent-registry]
 ---
 # Agent Retirement Evaluation
 

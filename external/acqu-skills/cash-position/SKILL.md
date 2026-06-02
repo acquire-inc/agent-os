@@ -1,6 +1,7 @@
 ---
 name: cash-position
 description: Know the real cash position and near-term in/out — the "can we cover this week" number. Activates: Daily 06:00.
+allowed-tools: [tool.21, tool.22, tool.cash-feed, tool.forecast-model, tool.revenue-ledger, tool.unit-economics-engine]
 ---
 # Cash Position
 

@@ -1,6 +1,7 @@
 ---
 name: contract-lifecycle
 description: Track every contract's obligations, renewals, and expirations — client and vendor. Nothing lapses or auto-renews unwanted. Activates: Daily 06:00 + 30/60-day-before-key-date.
+allowed-tools: [tool.21, tool.22, tool.contract-engine, tool.contract-tracker]
 ---
 # Contract Lifecycle
 

@@ -1,6 +1,7 @@
 ---
 name: decision-memo
 description: When a decision needs to be made, draft the memo: framing, options, tradeoffs, recommendation. Activates: On-demand (founder/PM asks).
+allowed-tools: [tool.21, tool.22, tool.compliance-ruleset, tool.risk-register]
 ---
 # Decision Memo
 

@@ -1,6 +1,7 @@
 ---
 name: account-health-scoring
 description: Score the health of every connected ad account. Catch ban-wave signals early. Activates: Daily 06:00.
+allowed-tools: [tool.21, tool.22, tool.connector-healthcheck, tool.rate-limit-tracker]
 ---
 # Account Health Scoring
 

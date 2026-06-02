@@ -1,6 +1,7 @@
 ---
 name: billing-cycle
 description: Run the recurring billing cycle accurately and on time. Activates: Daily 03:00 (checks who's due) + per-contract billing dates.
+allowed-tools: [tool.18, tool.21, tool.22, tool.ar-ledger, tool.billing-engine, tool.dunning-engine]
 ---
 # Billing Cycle
 

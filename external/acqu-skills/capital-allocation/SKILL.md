@@ -1,6 +1,7 @@
 ---
 name: capital-allocation
 description: When cash is above the safety floor, recommend the highest-ROI use of it. Activates: Weekly Friday 16:00 (after portfolio review) + on-demand.
+allowed-tools: [tool.21, tool.22]
 ---
 # Capital Allocation
 

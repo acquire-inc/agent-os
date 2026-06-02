@@ -9,7 +9,7 @@ import type { AgentSpec } from "./_generic.js";
 // Phase 2 — Creative engine + the compliance gate (Part F).
 export const PHASE_2: AgentSpec[] = [
   { key: "creative-miner", doc: "v1", tier: "T-work", extraSkills: ["creative-generation"] },
-  { key: "creative-studio", doc: "v1", tier: "T-work", extraSkills: ["creative-generation"] },
+  { key: "creative-studio", doc: "v1", tier: "T-work", extraSkills: ["creative-generation", "content-engine"] },
   { key: "weekly-report", doc: "v1", tier: "T-work", extraSkills: ["weekly-client-reporting"] },
   { key: "ad-claim-compliance", doc: "v2", tier: "T-critical" }, // can't-fail — Claude, never Hermes
   { key: "case-study-builder", doc: "v2", tier: "T-work" },
@@ -36,7 +36,7 @@ export const PHASE_4: AgentSpec[] = [
   { key: "decision-memo-drafter", doc: "v1", tier: "T-critical" }, // can't-fail
   { key: "save-play", doc: "v1", tier: "T-work" },
   { key: "expansion-finder", doc: "v1", tier: "T-reason" },
-  { key: "discovery-prep", doc: "v1", tier: "T-work" },
+  { key: "discovery-prep", doc: "v1", tier: "T-work", extraSkills: ["proposal-drafting"] },
   { key: "call-summarizer", doc: "v1", tier: "T-work" },
   { key: "contract-drafter", doc: "v1", tier: "T-critical" }, // can't-fail
   { key: "unit-economics", doc: "v1", tier: "T-reason" },

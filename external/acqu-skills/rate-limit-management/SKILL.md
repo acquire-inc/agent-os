@@ -1,6 +1,7 @@
 ---
 name: rate-limit-management
 description: Prevent rate-limit exhaustion across all providers. Activates: Every 5 minutes + event (429 received).
+allowed-tools: [tool.21, tool.22, tool.connector-healthcheck, tool.rate-limit-tracker]
 ---
 # Rate Limit Management
 

@@ -44,6 +44,7 @@ RULES:
 export async function seedMemoryConsolidator(db: Db) {
   const skVerify = await ensureSkillFromDir(db, { key: "verification-before-completion", name: "Verification Before Completion" });
   const skMemory = await ensureSkillFromDir(db, { key: "memory-consolidation", name: "Memory Consolidation" });
+  const skPlaybook = await ensureSkillFromDir(db, { key: "playbook-capture", name: "Playbook Capture" });
 
   const mcpGdrive = await findMcpByName(db, "Google Drive");
   const mcpSlack = await findMcpByName(db, "Slack");
@@ -71,7 +72,7 @@ export async function seedMemoryConsolidator(db: Db) {
   await projectCronTriggerToJob(db, agent.id, "30 23 * * *", "Daily memory consolidation");
   await projectCronTriggerToJob(db, agent.id, "0 10 * * 0", "Weekly memory consolidation");
 
-  await setSkills(db, agent.id, [skVerify.id, skMemory.id]);
+  await setSkills(db, agent.id, [skVerify.id, skMemory.id, skPlaybook.id]);
   await setMcps(db, agent.id, [mcpGdrive.id, mcpSlack.id]);
 
   return agent.id;

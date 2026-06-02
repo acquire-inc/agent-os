@@ -1,6 +1,7 @@
 ---
 name: qbr-narrative
 description: Produce the 90-day QBR materials per client. Activates: 7 days before each scheduled QBR.
+allowed-tools: [tool.18, tool.21, tool.22, tool.churn-signal-engine, tool.client-health-score, tool.onboarding-orchestrator]
 ---
 # Qbr Narrative
 

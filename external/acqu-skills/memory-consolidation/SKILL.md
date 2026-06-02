@@ -1,6 +1,7 @@
 ---
 name: memory-consolidation
 description: Use weekly to compact run logs and summaries into durable "what we know" documents.
+allowed-tools: [tool.21, tool.22, tool.compliance-ruleset, tool.memory-consolidation-engine, tool.risk-register, tool.save-play-library]
 ---
 # Memory Consolidation
 1. Gather the week's run summaries and new documents per project.

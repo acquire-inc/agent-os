@@ -1,6 +1,7 @@
 ---
 name: packaging-analysis
 description: Test bundle/tier configurations; learn which packaging converts and expands best. Activates: Monthly + on-demand.
+allowed-tools: [tool.21, tool.22, tool.offer-registry, tool.price-book, tool.pricing-recommender-engine]
 ---
 # Packaging Analysis
 

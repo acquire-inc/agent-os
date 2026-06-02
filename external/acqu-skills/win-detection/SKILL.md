@@ -1,6 +1,7 @@
 ---
 name: win-detection
 description: Spot win moments worth capturing as proof. Activates: Daily 07:30 (after client-health) + event (milestone, great call).
+allowed-tools: [tool.21, tool.22, tool.memory-consolidation-engine, tool.save-play-library]
 ---
 # Win Detection
 

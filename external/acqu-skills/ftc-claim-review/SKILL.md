@@ -1,6 +1,7 @@
 ---
 name: ftc-claim-review
 description: Review every ad, lander, and advertorial for FTC/platform-policy violations *before* it goes live. Activates: Event (creative package approved by founder, before launcher runs).
+allowed-tools: [tool.21, tool.22]
 ---
 # Ftc Claim Review
 

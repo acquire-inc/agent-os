@@ -1,6 +1,7 @@
 ---
 name: case-study-narrative
 description: Turn a win into a structured, client-approved case study. Activates: Event (PM greenlights a win candidate).
+allowed-tools: [tool.21, tool.22]
 ---
 # Case Study Narrative
 

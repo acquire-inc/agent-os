@@ -1,6 +1,7 @@
 ---
 name: hook-writing
 description: Given a brief, produce ad copy variants (hook + body + CTA), image directions, and lander hero copy. Activates: On-demand (founder or `marketing-ad-ops` requests creative).
+allowed-tools: [tool.21, tool.22]
 ---
 # Hook Writing
 

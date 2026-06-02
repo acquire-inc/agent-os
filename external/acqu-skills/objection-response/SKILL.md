@@ -1,6 +1,7 @@
 ---
 name: objection-response
 description: During live calls (via Slack or earbud), surface relevant objection responses on demand. Activates: On-demand from Slack slash command `/objection {text}` mid-call.
+allowed-tools: [tool.18, tool.21, tool.22, tool.deal-desk, tool.discovery-brief, tool.objection-knowledge]
 ---
 # Objection Response
 

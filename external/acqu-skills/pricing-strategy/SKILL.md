@@ -1,6 +1,7 @@
 ---
 name: pricing-strategy
 description: Set and revise price points and packaging tiers from value metrics, willingness-to-pay signals, competitor pricing, and margin floors. Activates: Quarterly (last week) + on-demand.
+allowed-tools: [tool.21, tool.22, tool.offer-registry, tool.price-book, tool.pricing-recommender-engine]
 ---
 # Pricing Strategy
 

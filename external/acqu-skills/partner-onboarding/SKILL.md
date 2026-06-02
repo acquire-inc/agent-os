@@ -1,6 +1,7 @@
 ---
 name: partner-onboarding
 description: Onboard partners, generate their assets, answer their questions, keep them active. Activates: Event (partner accepted) + monthly check-in.
+allowed-tools: [tool.18, tool.21, tool.22, tool.churn-signal-engine, tool.client-health-score, tool.competitor-offer-scraper, tool.competitor-radar, tool.onboarding-orchestrator, tool.partner-registry]
 ---
 # Partner Onboarding
 

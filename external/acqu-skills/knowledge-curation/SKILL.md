@@ -1,6 +1,7 @@
 ---
 name: knowledge-curation
 description: Prevent rot. Flag stale, duplicate, conflicting, or orphaned knowledge; enforce naming; keep the tree clean. Activates: Weekly Sunday 08:00.
+allowed-tools: [tool.21, tool.22]
 ---
 # Knowledge Curation
 

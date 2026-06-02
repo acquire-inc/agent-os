@@ -1,6 +1,7 @@
 ---
 name: vertical-research
 description: Continuously map the offer landscape per vertical — what's being sold, at what price, with what guarantees, by whom — and surface gaps Acqu could exploit. Activates: Weekly (Monday 06:00) + on-demand ("research offers in [vertical]").
+allowed-tools: [tool.21, tool.22, tool.competitor-offer-scraper, tool.competitor-radar, tool.partner-registry]
 ---
 # Vertical Research
 

@@ -1,6 +1,7 @@
 ---
 name: pre-call-sequence
 description: Run the pre-call sequence — confirmation, prep, no-show recovery. Activates: Event (booking made) + cron (no-show check 1h post-call-time).
+allowed-tools: [tool.21, tool.22]
 ---
 # Pre Call Sequence
 

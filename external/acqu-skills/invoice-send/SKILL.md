@@ -1,6 +1,7 @@
 ---
 name: invoice-send
 description: Send the first invoice, watch for landing, escalate if it doesn't. Activates: Event (contract signed in tool.contract-engine).
+allowed-tools: [tool.18, tool.21, tool.22, tool.ar-ledger, tool.billing-engine, tool.dunning-engine]
 ---
 # Invoice Send
 

@@ -1,6 +1,7 @@
 ---
 name: bill-validation
 description: Process incoming bills → queue for approval → pay. Activates: Event (new bill in inbox).
+allowed-tools: [tool.21, tool.22]
 ---
 # Bill Validation
 

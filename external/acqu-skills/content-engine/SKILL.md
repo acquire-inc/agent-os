@@ -1,6 +1,7 @@
 ---
 name: content-engine
 description: Use to turn a source (transcript, win, teardown) into a multi-channel content set.
+allowed-tools: [tool.21, tool.22, tool.content-calendar, tool.transcript-to-content, tool.video-clip-finder]
 ---
 # Content Engine
 1. Extract the single sharpest insight from the source.

@@ -1,6 +1,7 @@
 ---
 name: capacity-modeling
 description: Given current state, how many new clients can Acqu onboard this month? When do we need to expand team/agents?. Activates: Weekly Friday 17:00 + on-demand.
+allowed-tools: [tool.21, tool.22]
 ---
 # Capacity Modeling
 

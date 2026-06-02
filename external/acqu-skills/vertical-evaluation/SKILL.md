@@ -1,6 +1,7 @@
 ---
 name: vertical-evaluation
 description: Continuously evaluate verticals Acqu doesn't yet serve — find the next 1-2 to test. Activates: Monthly (1st of month, 06:00).
+allowed-tools: [tool.21, tool.22, tool.agent-eval-suite, tool.agent-performance-tracker, tool.agent-registry, tool.competitor-offer-scraper, tool.competitor-radar, tool.partner-registry]
 ---
 # Vertical Evaluation
 

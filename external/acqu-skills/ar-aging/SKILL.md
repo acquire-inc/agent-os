@@ -1,6 +1,7 @@
 ---
 name: ar-aging
 description: Track overdue accounts; age receivables; surface revenue-at-risk and collections priorities. Activates: Daily 06:00.
+allowed-tools: [tool.21, tool.22]
 ---
 # Ar Aging
 

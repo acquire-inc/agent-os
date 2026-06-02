@@ -1,6 +1,7 @@
 ---
 name: churn-cause-classification
 description: Detect at-risk clients before they tell you. Activates: Daily 06:45 (after client-health).
+allowed-tools: [tool.18, tool.21, tool.22, tool.churn-signal-engine, tool.client-health-score, tool.onboarding-orchestrator]
 ---
 # Churn Cause Classification
 

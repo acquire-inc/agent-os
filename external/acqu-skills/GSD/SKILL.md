@@ -1,6 +1,7 @@
 ---
 name: GSD
 description: Build Cliently features from specs. Activates: On-demand (founder/PM assigns).
+allowed-tools: [tool.21, tool.22]
 ---
 # GSD
 

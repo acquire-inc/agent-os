@@ -1,6 +1,7 @@
 ---
 name: schema-enforcement
 description: Watch for new events appearing in the pipeline. Enforce schema. Activates: Hourly + on-demand.
+allowed-tools: [tool.21, tool.22]
 ---
 # Schema Enforcement
 

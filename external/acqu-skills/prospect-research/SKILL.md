@@ -1,6 +1,7 @@
 ---
 name: prospect-research
 description: For every booked discovery, build a one-page brief. Activates: T-12h before every scheduled call.
+allowed-tools: [tool.21, tool.22]
 ---
 # Prospect Research
 

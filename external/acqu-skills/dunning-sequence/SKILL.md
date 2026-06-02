@@ -1,6 +1,7 @@
 ---
 name: dunning-sequence
 description: Use on a payment-failure event or the daily sweep to recover failed payments before they churn — classify the failure, run the smart-retry + card-update ladder from policy, and escalate unrecovered accounts without ever shaming the client.
+allowed-tools: [tool.18, tool.21, tool.22, tool.ar-ledger, tool.billing-engine, tool.dunning-engine]
 ---
 # Dunning Sequence
 

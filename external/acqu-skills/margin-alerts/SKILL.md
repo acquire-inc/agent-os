@@ -1,6 +1,7 @@
 ---
 name: margin-alerts
 description: Use at the 23:30 nightly run to compute MTD margin per tenant, grade it against the margin thresholds (yellow/red/P0), and alert — ranked by dollar loss, with the cost line driving any red/P0.
+allowed-tools: [tool.21, tool.22, tool.cash-feed, tool.forecast-model, tool.revenue-ledger, tool.unit-economics-engine]
 ---
 # Margin Alerts
 

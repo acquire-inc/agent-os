@@ -1,6 +1,7 @@
 ---
 name: verification-before-completion
 description: Load on every agent before declaring a task done. The "did I actually check my work" discipline — re-read the output against the request, verify each claim against its source, and confirm guardrails held before finishing.
+allowed-tools: [tool.21, tool.22]
 ---
 # Verification Before Completion
 

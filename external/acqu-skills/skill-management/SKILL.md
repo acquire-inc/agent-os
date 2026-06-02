@@ -1,6 +1,7 @@
 ---
 name: skill-management
 description: Manage the skill registry — versions, performance, new-skill proposals, retirements. Activates: Weekly Sunday 09:00 + event (a pattern recurs in consolidation).
+allowed-tools: [tool.21, tool.22, tool.agent-eval-suite, tool.agent-performance-tracker, tool.agent-registry]
 ---
 # Skill Management
 

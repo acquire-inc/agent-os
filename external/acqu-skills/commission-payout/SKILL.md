@@ -1,6 +1,7 @@
 ---
 name: commission-payout
 description: Prepare commission payouts for approval; hand to bill-pay. Activates: Monthly (payout cycle).
+allowed-tools: [tool.21, tool.22]
 ---
 # Commission Payout
 

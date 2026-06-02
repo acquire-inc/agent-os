@@ -1,6 +1,7 @@
 ---
 name: churn-risk-detection
 description: Use when an account shows churn signals — confirm the risk and propose a save play.
+allowed-tools: [tool.18, tool.21, tool.22, tool.churn-signal-engine, tool.client-health-score, tool.compliance-ruleset, tool.onboarding-orchestrator, tool.risk-register]
 ---
 # Churn Risk Detection
 1. Confirm signals: usage/results decline, negative sentiment, unanswered comms, or renewal silence.

@@ -1,6 +1,7 @@
 ---
 name: expense-categorization
 description: Use at the 04:00 sweep and on new-transaction webhooks to categorize expenses against the chart of accounts, match vendors, update the ledger, and alert when a category crosses 80% of its monthly budget.
+allowed-tools: [tool.21, tool.22, tool.bill-pay-bridge, tool.expense-feed]
 ---
 # Expense Categorization
 

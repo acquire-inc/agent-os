@@ -1,6 +1,7 @@
 ---
 name: adversarial-offer-critique
 description: Adversarially review a draft offer in a fresh context — find the holes a buyer would find. Activates: Spawned by `offer-architect` at the end of each draft run.
+allowed-tools: [tool.21, tool.22, tool.offer-registry, tool.price-book, tool.pricing-recommender-engine]
 ---
 # Adversarial Offer Critique
 

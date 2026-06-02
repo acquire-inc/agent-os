@@ -1,6 +1,7 @@
 ---
 name: cashflow-forecast
 description: Monthly cashflow forecast — revenue, costs, runway. Activates: Monthly (1st, 08:00) + on-demand.
+allowed-tools: [tool.21, tool.22, tool.cash-feed, tool.forecast-model, tool.revenue-ledger, tool.unit-economics-engine]
 ---
 # Cashflow Forecast
 

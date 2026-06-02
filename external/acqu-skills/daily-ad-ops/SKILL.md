@@ -1,6 +1,7 @@
 ---
 name: daily-ad-ops
 description: Use every morning to pull yesterday's Meta ad performance, detect anomalies, and propose budget + creative changes for approval.
+allowed-tools: [tool.1, tool.20, tool.21, tool.22, tool.4, tool.6, tool.7]
 ---
 # Daily Ad Ops
 

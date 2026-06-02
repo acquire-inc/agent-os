@@ -1,6 +1,7 @@
 ---
 name: briefing-synthesis
 description: Use every morning at 08:00 to fuse the day's run summaries into the founder's ranked Top-3 priorities — highest expected impact on cashflow or risk, ranked ruthlessly, with one-line headline + why + the call for each.
+allowed-tools: [tool.1, tool.17, tool.18, tool.21, tool.22]
 ---
 # Briefing Synthesis
 

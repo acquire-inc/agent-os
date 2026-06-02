@@ -1,6 +1,7 @@
 ---
 name: pixel-anomaly-detection
 description: Watch every event firing for every connected pixel. Alert on degradation. Activates: Hourly + event (Pipeboard webhook on pixel anomaly).
+allowed-tools: [tool.1, tool.20, tool.21, tool.22, tool.4, tool.6, tool.7, tool.access-log-analyzer, tool.isolation-test-suite, tool.vault-auditor]
 ---
 # Pixel Anomaly Detection
 

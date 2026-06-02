@@ -1,6 +1,7 @@
 ---
 name: expense-anomaly
 description: Catch unusual spend before the bookkeeper would have. Activates: Daily 05:00.
+allowed-tools: [tool.21, tool.22, tool.access-log-analyzer, tool.bill-pay-bridge, tool.expense-feed, tool.isolation-test-suite, tool.vault-auditor]
 ---
 # Expense Anomaly
 

@@ -1,6 +1,7 @@
 ---
 name: angle-mining
 description: Find winning angles in the wild — competitor ads, parallel markets, cross-tenant winners — and drop briefs into the Creative DB. Activates: Daily 06:30 + on-demand.
+allowed-tools: [tool.21, tool.22]
 ---
 # Angle Mining
 

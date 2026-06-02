@@ -1,6 +1,7 @@
 ---
 name: attribution-rules
 description: Nightly job that links Meta `results` to Close opportunities → closed deals. The truth table. Activates: Daily 02:00.
+allowed-tools: [tool.21, tool.22]
 ---
 # Attribution Rules
 

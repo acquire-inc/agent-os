@@ -1,6 +1,7 @@
 ---
 name: agent-eval
 description: Run the per-agent KPI evaluation continuously. Like Greptile for agents. Activates: Daily 23:00.
+allowed-tools: [tool.21, tool.22, tool.agent-eval-suite, tool.agent-performance-tracker, tool.agent-registry]
 ---
 # Agent Eval
 

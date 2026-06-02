@@ -1,6 +1,7 @@
 ---
 name: lead-routing-qualification
 description: Use when new inbound leads arrive — score, qualify, and route them to the right rep.
+allowed-tools: [tool.18, tool.21, tool.22, tool.deal-desk, tool.discovery-brief, tool.objection-knowledge]
 ---
 # Lead Routing & Qualification
 1. Enrich the lead (company size, industry, role) from CRM + available enrichment.

@@ -1,6 +1,7 @@
 ---
 name: client-comms-tone
 description: Handle the 80% of client questions that are routine — reporting clarifications, scheduling, status updates. Activates: Event (inbound email/Slack from client).
+allowed-tools: [tool.17, tool.18, tool.21, tool.22, tool.churn-signal-engine, tool.client-health-score, tool.onboarding-orchestrator]
 ---
 # Client Comms Tone
 

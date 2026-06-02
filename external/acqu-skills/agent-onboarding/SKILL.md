@@ -1,6 +1,7 @@
 ---
 name: agent-onboarding
 description: When a new agent is added to the system, run it through its first 14 days — monitor errors, tune prompts, write the production playbook. Activates: Event (new agent created in tool.agent-registry).
+allowed-tools: [tool.18, tool.21, tool.22, tool.agent-eval-suite, tool.agent-performance-tracker, tool.agent-registry, tool.churn-signal-engine, tool.client-health-score, tool.onboarding-orchestrator]
 ---
 # Agent Onboarding
 

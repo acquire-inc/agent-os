@@ -1,6 +1,7 @@
 ---
 name: tech-writing
 description: Keep documentation current with the code. Activates: Event (PR merged to main).
+allowed-tools: [tool.21, tool.22]
 ---
 # Tech Writing
 

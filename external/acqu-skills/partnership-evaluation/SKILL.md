@@ -1,6 +1,7 @@
 ---
 name: partnership-evaluation
 description: Surface potential strategic partners (resellers, complementary agencies, podcast hosts, affiliate distributors). Activates: Weekly.
+allowed-tools: [tool.21, tool.22, tool.agent-eval-suite, tool.agent-performance-tracker, tool.agent-registry, tool.competitor-offer-scraper, tool.competitor-radar, tool.partner-registry]
 ---
 # Partnership Evaluation
 

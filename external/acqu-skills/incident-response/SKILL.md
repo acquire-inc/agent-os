@@ -1,6 +1,7 @@
 ---
 name: incident-response
 description: When something breaks, run the playbook: detect → triage → page → mitigate → post-mortem. Activates: Event (P0/P1 alert from any infra agent).
+allowed-tools: [tool.21, tool.22, tool.code-review-bot, tool.deploy-bridge, tool.error-watch, tool.incident-log]
 ---
 # Incident Response
 

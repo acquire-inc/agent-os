@@ -1,6 +1,7 @@
 ---
 name: anomaly-detection-security
 description: Watch for anomalous access and credential misuse. Activates: Hourly + event.
+allowed-tools: [tool.21, tool.22, tool.access-log-analyzer, tool.isolation-test-suite, tool.vault-auditor]
 ---
 # Anomaly Detection Security
 

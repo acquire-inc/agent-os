@@ -1,6 +1,7 @@
 ---
 name: onboarding-sequence
 description: Orchestrate the per-client onboarding workflow from contract-signed to first-lead-delivered. Activates: Event (contract signed in Function 2.4).
+allowed-tools: [tool.18, tool.21, tool.22, tool.churn-signal-engine, tool.client-health-score, tool.onboarding-orchestrator]
 ---
 # Onboarding Sequence
 

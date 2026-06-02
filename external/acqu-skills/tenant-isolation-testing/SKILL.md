@@ -1,6 +1,7 @@
 ---
 name: tenant-isolation-testing
 description: Continuously verify tenant A can never reach tenant B's data. The "Swiss-cheese" verification. Activates: Daily 04:30 + event (any schema/RLS change merged to main, from D5.1).
+allowed-tools: [tool.21, tool.22, tool.access-log-analyzer, tool.code-review-bot, tool.deploy-bridge, tool.error-watch, tool.incident-log, tool.isolation-test-suite, tool.vault-auditor]
 ---
 # Tenant Isolation Testing
 

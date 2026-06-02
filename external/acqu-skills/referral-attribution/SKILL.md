@@ -1,6 +1,7 @@
 ---
 name: referral-attribution
 description: Track referrals end-to-end, compute commissions, catch fraud. Activates: Event (referral signup/conversion) + daily reconciliation.
+allowed-tools: [tool.21, tool.22]
 ---
 # Referral Attribution
 

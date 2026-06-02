@@ -1,6 +1,7 @@
 ---
 name: vendor-evaluation
 description: Track every vendor's renewal date. Recommend keep/cut/renegotiate before each. Activates: Weekly Monday 09:00 + 30 days before each renewal.
+allowed-tools: [tool.21, tool.22, tool.agent-eval-suite, tool.agent-performance-tracker, tool.agent-registry]
 ---
 # Vendor Evaluation
 

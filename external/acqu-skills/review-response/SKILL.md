@@ -1,6 +1,7 @@
 ---
 name: review-response
 description: Watch public mentions and reviews; draft responses; escalate negatives. Activates: Daily 08:00 + event (new review).
+allowed-tools: [tool.21, tool.22]
 ---
 # Review Response
 

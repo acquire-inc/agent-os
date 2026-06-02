@@ -1,6 +1,7 @@
 ---
 name: launch-discipline
 description: Push approved creative packages to Meta paused, run dry-run, surface the diff. Activates: Event (creative package approved by founder/PM).
+allowed-tools: [tool.1, tool.2, tool.20, tool.21, tool.22, tool.4, tool.6, tool.7, tool.arcads-launcher]
 ---
 # Launch Discipline
 

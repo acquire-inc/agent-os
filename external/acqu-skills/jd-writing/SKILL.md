@@ -1,6 +1,7 @@
 ---
 name: jd-writing
 description: Draft JDs, screen LinkedIn profiles, prepare interview kits for the 1-2 human roles still needed (typically: head of growth, head of fulfillment, specialist closer). Activates: On-demand.
+allowed-tools: [tool.21, tool.22]
 ---
 # Jd Writing
 

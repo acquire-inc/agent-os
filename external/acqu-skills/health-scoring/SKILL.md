@@ -1,6 +1,7 @@
 ---
 name: health-scoring
 description: Score every active client's health daily. Detect early signals of disengagement. Activates: Daily 06:30.
+allowed-tools: [tool.21, tool.22, tool.connector-healthcheck, tool.rate-limit-tracker]
 ---
 # Health Scoring
 

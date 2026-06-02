@@ -1,6 +1,7 @@
 ---
 name: market-signal-analysis
 description: Watch macro signals in target verticals (demand shifts, seasonality, regulation, economic conditions). Activates: Monthly + on-demand.
+allowed-tools: [tool.21, tool.22, tool.competitor-offer-scraper, tool.competitor-radar, tool.partner-registry]
 ---
 # Market Signal Analysis
 

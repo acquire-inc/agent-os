@@ -1,6 +1,7 @@
 ---
 name: expansion-pitch
 description: Find accounts ready to expand — second vertical, more spend, additional service. Activates: Weekly Monday 08:00.
+allowed-tools: [tool.21, tool.22]
 ---
 # Expansion Pitch
 

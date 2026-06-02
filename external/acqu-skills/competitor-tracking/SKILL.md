@@ -1,6 +1,7 @@
 ---
 name: competitor-tracking
 description: Track competitor moves in Acqu's verticals and Cliently's space. Activates: Weekly Tuesday 06:00.
+allowed-tools: [tool.21, tool.22, tool.competitor-offer-scraper, tool.competitor-radar, tool.partner-registry]
 ---
 # Competitor Tracking
 

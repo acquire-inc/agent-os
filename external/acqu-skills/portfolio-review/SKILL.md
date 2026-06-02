@@ -1,6 +1,7 @@
 ---
 name: portfolio-review
 description: Friday 16:00 — across all active clients, what's working, what's not, the cross-cutting patterns. Activates: Weekly Friday 16:00.
+allowed-tools: [tool.21, tool.22, tool.agent-eval-suite, tool.agent-performance-tracker, tool.agent-registry]
 ---
 # Portfolio Review
 

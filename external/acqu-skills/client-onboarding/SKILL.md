@@ -1,6 +1,7 @@
 ---
 name: client-onboarding
 description: Use when a new client signs — runs the standard onboarding sequence and sets up their workspace.
+allowed-tools: [tool.18, tool.21, tool.22, tool.churn-signal-engine, tool.client-health-score, tool.onboarding-orchestrator]
 ---
 # Client Onboarding
 1. Create the client folder, kickoff doc, and shared assets from the template.

@@ -1,6 +1,7 @@
 ---
 name: funnel-anomaly-detection
 description: Continuously watch conversion rates per funnel step. Flag drops fast. Activates: Hourly + on-demand.
+allowed-tools: [tool.21, tool.22, tool.access-log-analyzer, tool.isolation-test-suite, tool.vault-auditor]
 ---
 # Funnel Anomaly Detection
 

@@ -1,6 +1,7 @@
 ---
 name: testimonial-request
 description: Ask for testimonials/reviews at the right moments. Activates: Event (win detected, milestone, post-QBR) — timed for peak goodwill.
+allowed-tools: [tool.21, tool.22, tool.code-review-bot, tool.deploy-bridge, tool.error-watch, tool.incident-log]
 ---
 # Testimonial Request
 

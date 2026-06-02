@@ -1,6 +1,7 @@
 ---
 name: e2e-test-writing
 description: E2E test new features. Reproduce reported bugs. Activates: Event (PR ready for QA) + event (bug filed).
+allowed-tools: [tool.21, tool.22, tool.code-review-bot, tool.deploy-bridge, tool.error-watch, tool.incident-log]
 ---
 # E2e Test Writing
 

@@ -1,6 +1,7 @@
 ---
 name: support-triage
 description: Triage and respond to support tickets. Escalate the hard ones. Activates: Event (new ticket in Cliently support inbox).
+allowed-tools: [tool.21, tool.22]
 ---
 # Support Triage
 

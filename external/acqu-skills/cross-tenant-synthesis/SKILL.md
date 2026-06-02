@@ -1,6 +1,7 @@
 ---
 name: cross-tenant-synthesis
 description: Answer ad-hoc cross-tenant queries; surface patterns nobody asked about. Activates: On-demand + daily 22:00 batch.
+allowed-tools: [tool.21, tool.22]
 ---
 # Cross Tenant Synthesis
 

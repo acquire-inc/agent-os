@@ -1,6 +1,7 @@
 ---
 name: platform-change-impact
 description: Monitor the platforms Acqu depends on for changes that affect operations. This is critical given the platform dependency — a Meta API deprecation or policy change can break everything. Activates: Daily 05:30.
+allowed-tools: [tool.21, tool.22]
 ---
 # Platform Change Impact
 

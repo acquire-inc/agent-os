@@ -1,6 +1,7 @@
 ---
 name: adversarial-creative-critique
 description: Fresh-context critique of creative-studio output. Activates: Spawned by `creative-studio`.
+allowed-tools: [tool.1, tool.20, tool.21, tool.22, tool.4, tool.6, tool.7]
 ---
 # Adversarial Creative Critique
 

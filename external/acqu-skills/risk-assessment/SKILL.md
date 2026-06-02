@@ -1,6 +1,7 @@
 ---
 name: risk-assessment
 description: Maintain the risk register; surface top risks; track mitigations. Activates: Monthly (1st) + event (a new material risk surfaces from any function).
+allowed-tools: [tool.21, tool.22, tool.compliance-ruleset, tool.risk-register]
 ---
 # Risk Assessment
 

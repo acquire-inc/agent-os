@@ -1,6 +1,7 @@
 ---
 name: revenue-recognition
 description: Recognize revenue correctly by type; keep the ledger clean for Profitability and Treasury. Activates: Daily 02:30 (before attribution-reconciler).
+allowed-tools: [tool.21, tool.22, tool.cash-feed, tool.forecast-model, tool.revenue-ledger, tool.unit-economics-engine]
 ---
 # Revenue Recognition
 

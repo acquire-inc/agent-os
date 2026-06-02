@@ -1,6 +1,7 @@
 ---
 name: icp-scoring
 description: Score every inbound application against ICP, route to Close, send confirmation, kick off the booking concierge. Activates: Webhook on form submission.
+allowed-tools: [tool.21, tool.22]
 ---
 # Icp Scoring
 

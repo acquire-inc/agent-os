@@ -1,6 +1,7 @@
 ---
 name: hormozi-offer-construction
 description: Turn an approved gap-brief into a full offer spec — name, headline, body, deliverables, guarantee, price, terms — ready to test. Activates: On-demand (founder approves a gap-brief).
+allowed-tools: [tool.21, tool.22, tool.offer-registry, tool.price-book, tool.pricing-recommender-engine]
 ---
 # Hormozi Offer Construction
 

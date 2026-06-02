@@ -1,6 +1,7 @@
 ---
 name: geo-evaluation
 description: Identify new geographies for verticals Acqu already runs. Activates: Quarterly + on-demand.
+allowed-tools: [tool.21, tool.22, tool.agent-eval-suite, tool.agent-performance-tracker, tool.agent-registry]
 ---
 # Geo Evaluation
 

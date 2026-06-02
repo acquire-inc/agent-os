@@ -1,6 +1,7 @@
 ---
 name: contract-redlining-rules
 description: Generate the contract from the approved offer + price + closer notes. Activates: Event (Close opportunity moved to "Verbal Yes").
+allowed-tools: [tool.21, tool.22, tool.contract-engine, tool.contract-tracker]
 ---
 # Contract Redlining Rules
 

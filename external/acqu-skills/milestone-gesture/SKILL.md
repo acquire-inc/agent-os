@@ -1,6 +1,7 @@
 ---
 name: milestone-gesture
 description: Catch milestones (90 days, 6 months, 12 months, first $X in pipeline) and run the gesture. Activates: Event (tool.loyalty-milestones fires).
+allowed-tools: [tool.21, tool.22]
 ---
 # Milestone Gesture
 

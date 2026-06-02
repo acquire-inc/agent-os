@@ -1,6 +1,7 @@
 ---
 name: client-health-scan
 description: Use to assess each client account's health from usage, results, sentiment, and communication cadence.
+allowed-tools: [tool.18, tool.21, tool.22, tool.churn-signal-engine, tool.client-health-score, tool.connector-healthcheck, tool.onboarding-orchestrator, tool.rate-limit-tracker]
 ---
 # Client Health Scan
 1. Pull results trend, last-contact recency, open issues, and recent call sentiment (Fireflies).

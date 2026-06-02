@@ -1,6 +1,7 @@
 ---
 name: runway-modeling
 description: Runway in months at current burn; scenario modeling; threshold alerts. Activates: Weekly Monday 07:00 + on burn change.
+allowed-tools: [tool.21, tool.22]
 ---
 # Runway Modeling
 
