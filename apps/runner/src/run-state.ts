@@ -12,12 +12,20 @@
 
 import type { Autonomy } from "@agent-os/core";
 
+/** WR-09 fix: cap the per-run reasons array so a pathological loop can't
+ *  grow it unbounded. The autonomy itself is idempotent (won't move below
+ *  propose) so memory is the only concern. */
+const MAX_RATCHET_REASONS = 20;
+
 interface RunState {
   /** Mid-run autonomy override. If set, the PreToolUse gate uses this
    *  instead of the bundle's original autonomy for the rest of the run. */
   autonomyOverride: Autonomy | null;
-  /** Audit trail — every reason a ratchet fired in this run. */
+  /** Audit trail — every reason a ratchet fired in this run. Capped at
+   *  MAX_RATCHET_REASONS; overflow is counted in `ratchetOverflowCount`. */
   ratchetReasons: string[];
+  /** Number of ratchet calls dropped after the reasons[] hit MAX. */
+  ratchetOverflowCount: number;
 }
 
 const runs = new Map<string, RunState>();
@@ -25,7 +33,7 @@ const runs = new Map<string, RunState>();
 function ensure(runId: string): RunState {
   let state = runs.get(runId);
   if (!state) {
-    state = { autonomyOverride: null, ratchetReasons: [] };
+    state = { autonomyOverride: null, ratchetReasons: [], ratchetOverflowCount: 0 };
     runs.set(runId, state);
   }
   return state;
@@ -50,7 +58,11 @@ export function ratchetAutonomy(runId: string, to: Autonomy, reason: string): vo
     return;
   }
   state.autonomyOverride = to;
-  state.ratchetReasons.push(reason);
+  if (state.ratchetReasons.length < MAX_RATCHET_REASONS) {
+    state.ratchetReasons.push(reason);
+  } else {
+    state.ratchetOverflowCount++;
+  }
   console.warn(
     `[runner] autonomy ratchet for run ${runId}: ${current} → ${to} (reason: ${reason})`,
   );

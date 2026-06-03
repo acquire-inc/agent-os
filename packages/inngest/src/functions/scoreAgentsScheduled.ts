@@ -27,7 +27,7 @@ import {
   type RunSample,
   type ScorecardJobSink,
 } from "@agent-os/core";
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { inngest } from "../client.js";
 
 const { agents, runSummaries, agentScorecards, relayEvents } = schema;
@@ -49,7 +49,8 @@ function buildSink(db: Db): ScorecardJobSink {
           status: runSummaries.status,
           costActualUsd: runSummaries.costActualUsd,
           highlights: runSummaries.highlights,
-          findingCount: runSummaries.findingCount,
+          // WR-01: findingCount removed from the select — we now query
+          // relay_events for severity-filtered counts (see below).
           approvalCount: runSummaries.approvalCount,
         })
         .from(runSummaries)
@@ -63,10 +64,14 @@ function buildSink(db: Db): ScorecardJobSink {
         .orderBy(desc(runSummaries.endedAt))
         .limit(100);
 
-      // For each run, count cantfail.* events in relay_events.
+      // For each run, count cantfail.* + medium-or-higher findings in relay_events.
       const runIds = rows.map((r) => r.runId);
       const cantfailCounts = new Map<string, number>();
+      const findingsHighMedCounts = new Map<string, number>();
       if (runIds.length > 0) {
+        // CR-03 fix: use parameterized inArray() instead of sql.raw() with
+        // manually-quoted UUID literals. Defense-in-depth against any future
+        // refactor that sources runIds from a less-trusted path.
         const cfRows = await db
           .select({
             runId: relayEvents.runId,
@@ -77,12 +82,36 @@ function buildSink(db: Db): ScorecardJobSink {
             and(
               eq(relayEvents.tenantId, input.tenantId),
               sql`${relayEvents.eventName} LIKE 'cantfail.%'`,
-              sql`${relayEvents.runId} = ANY(${sql.raw(`ARRAY[${runIds.map((id) => `'${id}'::uuid`).join(",")}]`)})`,
+              inArray(relayEvents.runId, runIds),
             ),
           )
           .groupBy(relayEvents.runId);
         for (const cf of cfRows) {
           if (cf.runId) cantfailCounts.set(cf.runId, Number(cf.cnt));
+        }
+
+        // WR-01 fix: only count finding.recorded events whose payload.severity
+        // is in {medium, high, critical}. Previously the sink read
+        // run_summaries.findingCount which is a total across all severities;
+        // chatty low-severity findings tripped the maxFindingsRatePerRun
+        // threshold (0.1) and demoted agents on noise.
+        const findingRows = await db
+          .select({
+            runId: relayEvents.runId,
+            cnt: count().as("cnt"),
+          })
+          .from(relayEvents)
+          .where(
+            and(
+              eq(relayEvents.tenantId, input.tenantId),
+              eq(relayEvents.eventName, "finding.recorded"),
+              inArray(relayEvents.runId, runIds),
+              sql`(${relayEvents.payload}->>'severity') IN ('medium','high','critical')`,
+            ),
+          )
+          .groupBy(relayEvents.runId);
+        for (const f of findingRows) {
+          if (f.runId) findingsHighMedCounts.set(f.runId, Number(f.cnt));
         }
       }
 
@@ -98,7 +127,12 @@ function buildSink(db: Db): ScorecardJobSink {
         const verification = (h.verification as { passed?: boolean } | undefined) ?? {};
         const scopeLock =
           (h.scope_lock as { refused_expansion_attempts?: unknown[] } | undefined) ?? {};
-        const outputQuality = (h.output_quality as { passed?: boolean } | undefined) ?? {};
+        // CR-02 fix: distinguish "skill applied" from "skill failed". The
+        // output-quality-gate skill only runs on the 4 agents bound to it;
+        // every other run should not be counted as an application.
+        const outputQualityRaw = h.output_quality;
+        const outputQualityApplied = outputQualityRaw !== undefined && outputQualityRaw !== null;
+        const outputQuality = (outputQualityRaw as { passed?: boolean } | undefined) ?? {};
 
         // Approval signal: approvalCount > 0 means the run cycled. We don't
         // distinguish approve vs reject from run_summaries alone — that lives
@@ -116,10 +150,11 @@ function buildSink(db: Db): ScorecardJobSink {
           approvalRejected: rejected,
           costUsd: Number(r.costActualUsd ?? 0),
           budgetCapUsd: capUsd,
-          findingsHighMed: r.findingCount ?? 0,
+          findingsHighMed: findingsHighMedCounts.get(r.runId) ?? 0,
           cantfailEventCount: cantfailCounts.get(r.runId) ?? 0,
           scopeLockRefusals: (scopeLock.refused_expansion_attempts ?? []).length,
-          outputQualityFailed: outputQuality.passed === false,
+          outputQualityApplied,
+          outputQualityFailed: outputQualityApplied && outputQuality.passed === false,
         };
       });
 
@@ -231,30 +266,41 @@ export const scoreAgentsScheduled = inngest.createFunction(
 
     let scored = 0;
     const results: { agentKey: string; verdict: string; appliedAutonomy: string }[] = [];
+    const failed: { agentKey: string; error: string }[] = [];
 
+    // CR-09 fix: wrap each step.run in try/catch so one bad agent doesn't
+    // halt the entire sweep. Without isolation, Inngest's function-level
+    // retry stampedes every agent on every retry attempt, eventually
+    // silently exhausting retries and stopping scoring for everyone.
     for (const t of targets) {
-      const res = await step.run(`score-${t.id}`, async () => {
-        return await runScorecardJob(
-          {
-            tenantId: t.tenantId,
-            agentId: t.id,
-            agentKey: t.key,
-            currentAutonomy: (t.autonomy as Autonomy) ?? "propose",
-            isCantFail: isCantFail(t.key),
-            windowStart,
-            windowEnd,
-          },
-          sink,
-        );
-      });
-      scored++;
-      results.push({
-        agentKey: res.agentKey,
-        verdict: res.verdict,
-        appliedAutonomy: res.appliedAutonomy,
-      });
+      try {
+        const res = await step.run(`score-${t.id}`, async () => {
+          return await runScorecardJob(
+            {
+              tenantId: t.tenantId,
+              agentId: t.id,
+              agentKey: t.key,
+              currentAutonomy: (t.autonomy as Autonomy) ?? "propose",
+              isCantFail: isCantFail(t.key),
+              windowStart,
+              windowEnd,
+            },
+            sink,
+          );
+        });
+        scored++;
+        results.push({
+          agentKey: res.agentKey,
+          verdict: res.verdict,
+          appliedAutonomy: res.appliedAutonomy,
+        });
+      } catch (e) {
+        const msg = (e as Error).message;
+        failed.push({ agentKey: t.key, error: msg });
+        console.error(`[scoreAgents] failed to score ${t.key}: ${msg}`);
+      }
     }
 
-    return { scored, results };
+    return { scored, failed_count: failed.length, results, failed };
   },
 );

@@ -48,7 +48,11 @@ const PATTERNS: readonly PatternEntry[] = [
     pattern: /\b(ignore|disregard|forget)\s+(all\s+)?(previous|prior|the\s+above|your)\s+(instructions|rules|prompt|directives|context)\b/gi,
     category: "direct_override",
   },
-  { pattern: /\byou\s+are\s+now\s+a?\s*[a-z\s]{0,40}\b(assistant|agent|model)?\b/gi, category: "direct_override" },
+  // WR-02 fix: require an explicit role-name suffix. Previously the optional
+  // `(assistant|agent|model)?` plus a greedy 40-char gap made this regex match
+  // any "you are now ..." English sentence (e.g. "you are now a customer",
+  // "you are now able to..."). Production scrapes tripped this on benign text.
+  { pattern: /\byou\s+are\s+now\s+(a|an|the)?\s*[a-z][a-z\s]{0,40}\s+(assistant|agent|model|admin|developer|system|user|root|chatbot)\b/gi, category: "direct_override" },
   { pattern: /\b(pretend|act)\s+(you\s+are|as\s+if|like)\s+(a|an)?\s*\b/gi, category: "direct_override" },
   { pattern: /\bnew\s+(instructions|directive|system\s+prompt)\s*:/gi, category: "direct_override" },
 
@@ -155,30 +159,41 @@ export function scrubInjections(text: string): ScrubResult {
   };
 }
 
+/** Max recursion depth for scrubToolResult — guards against pathological
+ *  deeply-nested payloads while comfortably covering real browser results. */
+const SCRUB_MAX_DEPTH = 6;
+
+function deepScrub(node: unknown, all: InjectionMatch[], depth: number): unknown {
+  if (depth > SCRUB_MAX_DEPTH) return node;
+  if (typeof node === "string") {
+    const { scrubbed, detections } = scrubInjections(node);
+    all.push(...detections);
+    return scrubbed;
+  }
+  if (Array.isArray(node)) {
+    return node.map((n) => deepScrub(n, all, depth + 1));
+  }
+  if (node && typeof node === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      out[k] = deepScrub(v, all, depth + 1);
+    }
+    return out;
+  }
+  return node;
+}
+
 /**
- * Convenience wrapper for the runner: scrubs `result` (or each string field
- * of a result object) and returns the scrubbed shape plus the detection list.
- * For nested results, only top-level string fields are scrubbed (deeper
- * structures are out of scope — add a recursive variant when needed).
+ * Recursive scrub for tool results. Walks Arrays + Objects up to depth
+ * SCRUB_MAX_DEPTH so nested browser content (pages[].body, chunks[], etc.)
+ * is scrubbed too. Non-string leaves pass through unchanged.
+ *
+ * WR-04 fix: previously only scrubbed top-level string fields, which made
+ * the runtime guard a paper tiger for the canonical use case (browser
+ * results have nested string fields).
  */
 export function scrubToolResult(result: unknown): { result: unknown; detections: InjectionMatch[] } {
-  if (typeof result === "string") {
-    const { scrubbed, detections } = scrubInjections(result);
-    return { result: scrubbed, detections };
-  }
-  if (result && typeof result === "object" && !Array.isArray(result)) {
-    const out: Record<string, unknown> = {};
-    const all: InjectionMatch[] = [];
-    for (const [k, v] of Object.entries(result as Record<string, unknown>)) {
-      if (typeof v === "string") {
-        const { scrubbed, detections } = scrubInjections(v);
-        out[k] = scrubbed;
-        all.push(...detections);
-      } else {
-        out[k] = v;
-      }
-    }
-    return { result: out, detections: all };
-  }
-  return { result, detections: [] };
+  const all: InjectionMatch[] = [];
+  const scrubbed = deepScrub(result, all, 0);
+  return { result: scrubbed, detections: all };
 }

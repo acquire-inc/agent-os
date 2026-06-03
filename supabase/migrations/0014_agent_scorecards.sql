@@ -18,12 +18,16 @@ CREATE TABLE IF NOT EXISTS agent_scorecards (
   window_end TIMESTAMPTZ NOT NULL,
   sample_size INTEGER NOT NULL,
   -- Computed rates (NaN serializes to null).
-  verification_rate NUMERIC(5,4),
-  approval_rate NUMERIC(5,4),
-  avg_cost_utilization NUMERIC(5,4),
-  findings_rate_per_run NUMERIC(8,4),
-  scope_lock_refusals_per_run NUMERIC(8,4),
-  output_quality_failure_rate NUMERIC(5,4),
+  -- WR-13 fix: widen rate columns from NUMERIC(5,4) so they capture more
+  -- precision than the controller's threshold deltas. NUMERIC(7,6) keeps
+  -- 6 fractional digits which matches what JS .toString() typically emits
+  -- without truncation-then-oscillation if a row is later re-read.
+  verification_rate NUMERIC(7,6),
+  approval_rate NUMERIC(7,6),
+  avg_cost_utilization NUMERIC(7,6),
+  findings_rate_per_run NUMERIC(10,6),
+  scope_lock_refusals_per_run NUMERIC(10,6),
+  output_quality_failure_rate NUMERIC(7,6),
   cantfail_events INTEGER NOT NULL DEFAULT 0,
   -- The verdict.
   verdict TEXT NOT NULL CHECK (verdict IN ('promote','hold','demote','force_demote_safety','insufficient_data')),
@@ -45,6 +49,20 @@ CREATE INDEX IF NOT EXISTS agent_scorecards_unapplied_idx
   WHERE applied_at IS NULL;
 
 -- RLS — tenant isolation.
+-- WR-14: is_tenant_member() is defined by migration 0008_is_tenant_member.sql.
+-- This migration assumes that ordering; if you apply 0014 to a fresh DB
+-- without 0008, the policy creation will fail. The check below asserts
+-- the function exists before we create the policy.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE p.proname = 'is_tenant_member' AND n.nspname = 'public'
+  ) THEN
+    RAISE EXCEPTION 'is_tenant_member() function missing — apply migration 0008 first';
+  END IF;
+END$$;
+
 ALTER TABLE agent_scorecards ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY tenant_isolation ON agent_scorecards

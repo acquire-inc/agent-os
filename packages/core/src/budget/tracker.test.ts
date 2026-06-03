@@ -149,6 +149,23 @@ function main() {
     assert(breaches.length === 1, `cap_breached emitted exactly once (got ${breaches.length})`);
   }
 
+  console.log("\n• Group 6b — WR-06 fix: openRun on a collision throws");
+  {
+    const { tracker } = newTracker();
+    tracker.openRun(RUN, 2.0);
+    let threw = false;
+    try {
+      tracker.openRun(RUN, 5.0); // collision
+    } catch (e) {
+      threw = true;
+      assert(
+        (e as Error).message.includes("already open"),
+        "error message names the collision",
+      );
+    }
+    assert(threw, "openRun on existing run throws");
+  }
+
   console.log("\n• Group 7 — summary captures the final state");
   {
     const { tracker } = newTracker();

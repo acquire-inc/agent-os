@@ -22,6 +22,7 @@ function cleanRun(): RunSample {
     findingsHighMed: 0,
     cantfailEventCount: 0,
     scopeLockRefusals: 0,
+    outputQualityApplied: true,
     outputQualityFailed: false,
   };
 }

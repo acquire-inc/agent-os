@@ -14,6 +14,7 @@ import {
   diskSkillSource,
   hashEmbedder,
   indexDocument,
+  isCantFail,
   listBlueprints,
   loadBlueprint,
   openrouterLlm,
@@ -36,7 +37,7 @@ import {
 } from "@agent-os/core";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { pathToFileURL } from "node:url";
 import { adminGuide, apiGuide } from "./guide.js";
@@ -81,6 +82,26 @@ if (!architectLlm) {
 const architectSkillSource = diskSkillSource(process.env.REPO_ROOT ?? process.cwd());
 
 type Vars = { auth: ApiKeyContext };
+// CR-07 fix: Inngest webhook is mounted before the project's api-key auth
+// because Inngest signs its own requests with INNGEST_SIGNING_KEY. If that
+// env var is unset in production, the webhook accepts unsigned POSTs and
+// any caller can trigger every registered Inngest function (including
+// cross-tenant scorecard runs via { agentId, tenantId } payloads).
+// Fail loud at startup.
+if (process.env.NODE_ENV === "production" && !process.env.INNGEST_SIGNING_KEY) {
+  throw new Error(
+    "INNGEST_SIGNING_KEY is required in production (NODE_ENV=production). " +
+      "Without it, /api/inngest is unauthenticated and can be triggered by anyone " +
+      "to invoke any registered Inngest function across any tenant.",
+  );
+}
+if (!process.env.INNGEST_SIGNING_KEY) {
+  console.warn(
+    "[api] WARNING: INNGEST_SIGNING_KEY is unset. /api/inngest is unauthenticated. " +
+      "Acceptable for local dev with INNGEST_DEV=1; never in production.",
+  );
+}
+
 const app = new Hono<{ Variables: Vars }>();
 
 // --- Public ---
@@ -355,7 +376,7 @@ app.post("/api/admin/agents", requireAdmin, async (c) => {
   if (!b.key || !b.name) return c.json({ error: "key and name required" }, 400);
   const [agent] = await db.insert(schema.agents).values({
     tenantId, key: b.key, name: b.name, persona: b.persona ?? null,
-    backend: b.backend ?? "claude-agent-sdk", model: b.model ?? "claude-sonnet-4-6", autonomy: b.autonomy ?? "propose",
+    backend: b.backend ?? "claude-agent-sdk", model: b.model ?? "anthropic/claude-sonnet-4.6", autonomy: b.autonomy ?? "propose",
   }).returning();
   return c.json({ agent }, 201);
 });
@@ -571,14 +592,43 @@ app.post("/api/admin/tenants/me/apply-model-override", requireAdmin, async (c) =
   const [tenant] = await db.select().from(schema.tenants).where(eq(schema.tenants.id, tenantId)).limit(1);
   if (!tenant?.defaultModelOverride)
     return c.json({ error: "no default_model_override set on this tenant" }, 400);
+
+  // CR-04 fix: T-critical can't-fail agents are EXEMPT from
+  // tenants.default_model_override per CLAUDE.md non-negotiable
+  // ("Tier wins, override loses"). Filter them out of the bulk rewrite.
+  // Without this, every T-critical agent in the tenant would be rewritten
+  // to a non-Opus model, then fail-closed at runtime via
+  // assertCantFailModel + cantfail.model_violation — non-functional until
+  // re-seeded.
+  const allAgents = await db
+    .select({ id: schema.agents.id, key: schema.agents.key })
+    .from(schema.agents)
+    .where(eq(schema.agents.tenantId, tenantId));
+  const overridable = allAgents.filter((a) => !isCantFail(a.key));
+  const skipped = allAgents.filter((a) => isCantFail(a.key)).map((a) => a.key);
+  const overridableIds = overridable.map((a) => a.id);
+
+  if (overridableIds.length === 0) {
+    return c.json({
+      applied: tenant.defaultModelOverride,
+      rewritten: 0,
+      skipped_cantfail: skipped,
+      agents: [],
+    });
+  }
+
   const updated = await db
     .update(schema.agents)
     .set({ model: tenant.defaultModelOverride })
-    .where(eq(schema.agents.tenantId, tenantId))
+    .where(
+      and(eq(schema.agents.tenantId, tenantId), inArray(schema.agents.id, overridableIds)),
+    )
     .returning({ id: schema.agents.id, key: schema.agents.key, model: schema.agents.model });
+
   return c.json({
     applied: tenant.defaultModelOverride,
     rewritten: updated.length,
+    skipped_cantfail: skipped,
     agents: updated.map((a) => ({ key: a.key, model: a.model })),
   });
 });

@@ -37,8 +37,13 @@ export interface RunSample {
   /** True iff scope_lock.refused_expansion_attempts.length > 0
    *  (from the scope-lock-discipline skill) — drift signal. */
   scopeLockRefusals: number;
-  /** True iff output_quality.passed === false for this run
-   *  (from the output-quality-gate skill). */
+  /** True iff the output-quality-gate skill RAN on this run (i.e. the agent
+   *  is bound to the skill and it produced a verdict). Read from
+   *  highlights.output_quality !== undefined. CR-02 fix: previously the
+   *  predicate was tautological — every run was counted as a skill application
+   *  regardless of whether the skill ran. */
+  outputQualityApplied: boolean;
+  /** True iff outputQualityApplied AND output_quality.passed === false. */
   outputQualityFailed: boolean;
 }
 
@@ -57,13 +62,19 @@ export interface ScorecardThresholds {
   maxScopeLockRefusalsPerRun: number;
   /** Demote if output-quality failure rate exceeds this. */
   maxOutputQualityFailureRate: number;
+  /** Promote bar — tighter than minVerificationRate. WR-07 fix: was hardcoded. */
+  minVerificationRateForPromote: number;
+  /** Promote bar — cost util must be below this. WR-07 fix: was hardcoded. */
+  maxCostUtilizationForPromote: number;
 }
 
 export const DEFAULT_THRESHOLDS: ScorecardThresholds = {
   minSampleSize: 20,
   minApprovalRateForPromote: 0.9,
   minVerificationRate: 0.85,
+  minVerificationRateForPromote: 0.95,
   maxCostUtilization: 0.85,
+  maxCostUtilizationForPromote: 0.765, // 0.9 * 0.85 — was hardcoded as a multiplier
   maxFindingsRatePerRun: 0.1,
   maxScopeLockRefusalsPerRun: 0.5,
   maxOutputQualityFailureRate: 0.1,
@@ -145,14 +156,13 @@ export function scoreAgent(
     }
     findingsSum += r.findingsHighMed;
     scopeLockRefusalsSum += r.scopeLockRefusals;
-    if (r.outputQualityFailed || !r.outputQualityFailed) {
-      // We can't tell from this typed shape if the skill ran — treat
-      // outputQualityFailed=true as both "ran and failed" and false as
-      // "either didn't run or ran clean". Conservative: count only failures.
-      // (When the eval-job reads from highlights jsonb, it knows the
-      // distinction; this typed shape is summary only.)
+    // CR-02 fix: only count runs where the output-quality-gate skill actually
+    // ran. Previously the guard was tautological (`x || !x`) which counted
+    // every run as a skill application — corrupted the rate for the vast
+    // majority of agents (only 4 are bound to output-quality-gate).
+    if (r.outputQualityApplied) {
+      outputQualityApplications++;
       if (r.outputQualityFailed) outputQualityFailures++;
-      outputQualityApplications++; // treat every run as a potential application
     }
     cantfailEvents += r.cantfailEventCount;
   }
@@ -241,8 +251,8 @@ export function scoreAgent(
   // earn its way via an approval cycle.
   const approvalClear =
     !Number.isNaN(approvalRate) && approvalRate >= thresholds.minApprovalRateForPromote;
-  const verificationClear = verificationRate >= 0.95; // tighter than the demote floor
-  const costClear = avgCostUtilization < thresholds.maxCostUtilization * 0.9;
+  const verificationClear = verificationRate >= thresholds.minVerificationRateForPromote;
+  const costClear = avgCostUtilization < thresholds.maxCostUtilizationForPromote;
 
   if (approvalClear && verificationClear && costClear) {
     return {
@@ -264,8 +274,8 @@ export function scoreAgent(
   const holdReasons: string[] = [];
   if (Number.isNaN(approvalRate)) holdReasons.push("no approval cycle in window");
   if (!Number.isNaN(approvalRate) && !approvalClear) holdReasons.push(`approval ${approvalRate.toFixed(2)} < ${thresholds.minApprovalRateForPromote}`);
-  if (!verificationClear) holdReasons.push(`verification ${verificationRate.toFixed(2)} < 0.95 (promote bar)`);
-  if (!costClear) holdReasons.push(`cost_util ${avgCostUtilization.toFixed(2)} >= ${(thresholds.maxCostUtilization * 0.9).toFixed(2)} (promote bar)`);
+  if (!verificationClear) holdReasons.push(`verification ${verificationRate.toFixed(2)} < ${thresholds.minVerificationRateForPromote} (promote bar)`);
+  if (!costClear) holdReasons.push(`cost_util ${avgCostUtilization.toFixed(2)} >= ${thresholds.maxCostUtilizationForPromote} (promote bar)`);
 
   return {
     sampleSize,

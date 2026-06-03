@@ -55,7 +55,10 @@ TypeScript (strict) · TanStack Router SPA + Hono API · Postgres + pgvector (Su
 
 ## Can't-fail agents — ALWAYS Claude Opus (T-critical), never Hermes — EXEMPT from `tenants.default_model_override`
 
-`ad-claim-compliance`, `tenant-isolation-tester`, `security-anomaly-watchdog`, `access-auditor`, `contract-drafter`, `contract-lifecycle-manager`, `pricing-architect`, `discount-governor`, `decision-memo-drafter`, `offer-architect`, `offer-validator`, `reinvestment-advisor`, `risk-register-keeper`, `cliently.dev` (code-writing).
+`ad-claim-compliance`, `tenant-isolation-tester`, `security-anomaly-watchdog`, `access-auditor`, `secrets-rotation`, `contract-drafter`, `contract-lifecycle-manager`, `pricing-architect`, `discount-governor`, `decision-memo-drafter`, `offer-architect`, `offer-validator`, `reinvestment-advisor`, `risk-register-keeper`.
+
+> **Note:** `cliently.dev` (code-writing) lives in the Cliently product track, not AgentOS. Its can't-fail status is owned by that track's doctrine. The AgentOS `CANT_FAIL_KEYS` set is exactly the 14 above.
+> **Note:** `secrets-rotation` is part of the security tier (Phase 9) — touches tenant vault credentials, fails closed if it goes wrong. T-critical.
 
 **Tier wins, override loses.** T-critical agents always run Opus and are EXEMPT from `tenants.default_model_override` (Phase 8.5). The seed function skips the override when `isCantFail(spec.key)` is true; the runner asserts the resolved model at SessionStart and emits `cantfail.model_violation` (Relay event) + fails the run closed if a T-critical agent is ever dispatched on a non-Opus model. The override is the cost-saver default for non-critical tiers only — it never reaches the can't-fail set. See `docs/plans/AGENT-OS-PLAN.md` Open Q #1 (RESOLVED) for the implementation contract.
 

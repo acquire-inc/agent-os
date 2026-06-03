@@ -32,6 +32,7 @@ function cleanRun(): RunSample {
     findingsHighMed: 0,
     cantfailEventCount: 0,
     scopeLockRefusals: 0,
+    outputQualityApplied: true,
     outputQualityFailed: false,
   };
 }
@@ -143,6 +144,24 @@ function main() {
     const card = scoreAgent(runs);
     assert(card.verdict === "demote", `verdict=demote (got ${card.verdict})`);
     assert(card.outputQualityFailureRate === 0.2, "outputQualityFailureRate=0.2 (>0.1)");
+  }
+
+  console.log("\n• Group 9b (CR-02 fix) — runs without the skill applied don't count toward rate");
+  {
+    // Build 25 runs where the skill never ran (outputQualityApplied=false).
+    // Set outputQualityFailed=true to confirm it's IGNORED when not applied.
+    const runs = fill(25, () =>
+      withOverride(cleanRun(), { outputQualityApplied: false, outputQualityFailed: true }),
+    );
+    const card = scoreAgent(runs);
+    assert(
+      card.outputQualityFailureRate === 0,
+      `outputQualityFailureRate=0 when skill never ran (got ${card.outputQualityFailureRate})`,
+    );
+    assert(
+      card.verdict !== "demote" || !card.triggeredThresholds.some((t) => t.includes("outputQuality")),
+      "demote (if any) is NOT triggered by output-quality when skill never ran",
+    );
   }
 
   console.log("\n• Group 10 — hold when verification just above floor but below promote bar");

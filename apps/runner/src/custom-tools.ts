@@ -102,15 +102,20 @@ export const customToolDispatch: Record<string, CustomToolHandler> = {
       console.warn(
         `[runner] tool.browser: ${detections.length} prompt-injection pattern(s) redacted from result (categories: ${categoriesSeen.join(", ")})`,
       );
-      // Phase 22: ratchet the rest of the run to propose. The injection
-      // attempt has touched the planner's context (the redaction marker is
-      // still there); the safer floor for any subsequent tool call is
-      // operator-in-the-loop.
-      if (ctx.runId) {
+      // WR-03 fix: steganographic-only matches (BOM, RTL/LTR marks, ZWJ, etc.)
+      // commonly appear in legitimate non-ASCII content (Arabic/Hebrew text,
+      // Windows-exported Excel snippets, emoji ZWJ sequences). They get
+      // recorded as findings but do NOT trigger the autonomy ratchet — the
+      // redaction marker is the audit trail; the ratchet would produce an
+      // operator-noise firehose.
+      const nonSteganographic = categoriesSeen.filter((c) => c !== "steganographic");
+      // Phase 22: ratchet the rest of the run to propose ONLY when the
+      // match included a real-attack category (anything beyond steganographic).
+      if (ctx.runId && nonSteganographic.length > 0) {
         ratchetAutonomy(
           ctx.runId,
           "propose",
-          `prompt-injection detected in tool.browser result (categories: ${categoriesSeen.join(", ")})`,
+          `prompt-injection detected in tool.browser result (categories: ${nonSteganographic.join(", ")})`,
         );
       }
       // Best-effort Relay emit. Skip if we don't have tenant context (e.g.
@@ -120,10 +125,16 @@ export const customToolDispatch: Record<string, CustomToolHandler> = {
           const db = getDb();
           for (const cat of categoriesSeen) {
             const catDetections = detections.filter((d) => d.category === cat);
+            // WR-03 fix: steganographic = medium (often benign non-ASCII).
+            // Other categories = high (real attack patterns).
+            // WR-12 fix: base64-encode the span preview so the operator must
+            // explicitly decode it. A determined attacker could craft a
+            // payload whose first-100 chars exfiltrate into operator logs.
+            const severity = cat === "steganographic" ? "medium" : "high";
             await recordFinding(db, {
               tenantId: ctx.tenantId,
               category: "anomaly",
-              severity: "high",
+              severity,
               title: "prompt-injection attempt redacted",
               agentId: ctx.agentId ?? null,
               payload: {
@@ -132,7 +143,9 @@ export const customToolDispatch: Record<string, CustomToolHandler> = {
                 category: cat,
                 detail: `${catDetections.length} ${cat} injection pattern(s) detected in tool.browser result; redacted before planner read`,
                 count: catDetections.length,
-                first_span_preview: catDetections[0]!.matchedSpan.slice(0, 100),
+                first_span_preview_b64: Buffer.from(
+                  catDetections[0]!.matchedSpan.slice(0, 100),
+                ).toString("base64"),
               },
             }).catch((e) => {
               console.error(`[runner] failed to recordFinding for injection cat=${cat}: ${(e as Error).message}`);

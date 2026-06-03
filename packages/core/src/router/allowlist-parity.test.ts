@@ -2,14 +2,21 @@
 // to for T-critical) MUST equal the runner's T_CRITICAL_MODEL_ALLOWLIST (the
 // slugs assertCantFailModel accepts). If someone changes
 // DEFAULT_TIER_MODELS["T-critical"].primary to a new Opus slug without
-// updating apps/runner/src/execute.ts, every T-critical run fails-close at
-// runtime. This test surfaces the drift at CI time.
+// updating the runner, every T-critical run fails-close at runtime.
+//
+// WR-08 fix: previously this test regex-extracted the runner literal from
+// `apps/runner/src/execute.ts` as a string. That worked but was brittle
+// against any rename / refactor / type-cast. The runner now imports the
+// canonical allowlist from @agent-os/core directly, so this test reduces
+// to a single-source-of-truth check: the router export is the only set.
+// We re-import it under both alias names and assert reference equality.
 // Run: pnpm --filter @agent-os/core test:parity
 
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { T_CRITICAL_ALLOWLIST } from "./tier-models.js";
+import { T_CRITICAL_ALLOWLIST as RouterAllowlistViaIndex } from "../index.js";
 
 let passed = 0;
 let failed = 0;
@@ -23,53 +30,48 @@ function assert(cond: unknown, msg: string) {
   }
 }
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const runnerFile = resolve(__dirname, "../../../../apps/runner/src/execute.ts");
-
-let runnerSource: string;
-try {
-  runnerSource = readFileSync(runnerFile, "utf8");
-} catch {
-  console.error(
-    `could not locate ${runnerFile} — parity test requires both sources. Update path if repo layout changed.`,
-  );
-  process.exit(1);
-}
-
-const match = runnerSource.match(
-  /T_CRITICAL_MODEL_ALLOWLIST\s*=\s*new\s+Set\(\s*\[([^\]]+)\]/,
-);
-assert(match !== null, "found T_CRITICAL_MODEL_ALLOWLIST literal in runner source");
-
-if (!match) {
-  console.error("first 200 chars of runner source for debug:");
-  console.error(runnerSource.slice(0, 200));
-  process.exit(1);
-}
-
-const runnerSet = new Set(
-  [...match[1]!.matchAll(/"([^"]+)"/g)].map((m) => m[1] as string),
-);
-
 console.log(`\n• router T_CRITICAL_ALLOWLIST: ${JSON.stringify([...T_CRITICAL_ALLOWLIST])}`);
-console.log(`• runner T_CRITICAL_MODEL_ALLOWLIST: ${JSON.stringify([...runnerSet])}`);
+console.log(`• index re-export: ${JSON.stringify([...RouterAllowlistViaIndex])}`);
 
 assert(
-  runnerSet.size === T_CRITICAL_ALLOWLIST.size,
-  `allowlist sizes match (router=${T_CRITICAL_ALLOWLIST.size}, runner=${runnerSet.size})`,
+  T_CRITICAL_ALLOWLIST === RouterAllowlistViaIndex,
+  "router/tier-models.ts T_CRITICAL_ALLOWLIST === @agent-os/core index re-export (single source of truth)",
 );
 
-for (const el of T_CRITICAL_ALLOWLIST) {
-  assert(runnerSet.has(el), `router element ${el} present in runner allowlist`);
+assert(
+  T_CRITICAL_ALLOWLIST.size > 0,
+  `T_CRITICAL_ALLOWLIST is non-empty (size=${T_CRITICAL_ALLOWLIST.size})`,
+);
+
+for (const slug of T_CRITICAL_ALLOWLIST) {
+  assert(
+    typeof slug === "string" && slug.startsWith("anthropic/"),
+    `allowlisted slug ${slug} is anthropic-namespaced`,
+  );
 }
 
-for (const el of runnerSet) {
-  assert(T_CRITICAL_ALLOWLIST.has(el), `runner element ${el} present in router allowlist`);
-}
-
-if (failed > 0) {
-  console.error(`\nrouter: ${JSON.stringify([...T_CRITICAL_ALLOWLIST])}`);
-  console.error(`runner: ${JSON.stringify([...runnerSet])}`);
+// Guard: assert the runner source imports T_CRITICAL_ALLOWLIST from
+// @agent-os/core and does NOT fork to a local literal. Fail loud if a
+// future refactor re-introduces a local Set.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const runnerFile = resolve(__dirname, "../../../../apps/runner/src/execute.ts");
+try {
+  const src = readFileSync(runnerFile, "utf8");
+  assert(
+    /import\s+\{[^}]*T_CRITICAL_ALLOWLIST[^}]*\}\s+from\s+["']@agent-os\/core["']/.test(src),
+    "runner imports T_CRITICAL_ALLOWLIST from @agent-os/core (not declared locally)",
+  );
+  // Detect a fork: a top-level `const T_CRITICAL_MODEL_ALLOWLIST = new Set(["..."])`
+  // declaring a fresh literal would be a regression. The current line
+  // `const T_CRITICAL_MODEL_ALLOWLIST = T_CRITICAL_ALLOWLIST;` is fine.
+  const forkRe = /const\s+T_CRITICAL_MODEL_ALLOWLIST\s*=\s*new\s+Set\(/;
+  assert(!forkRe.test(src), "runner does NOT declare a local `new Set(...)` for T_CRITICAL_MODEL_ALLOWLIST");
+} catch (e) {
+  if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+    console.error(`could not locate ${runnerFile} — parity test requires the runner source. Update the path if repo layout changed.`);
+    process.exit(1);
+  }
+  throw e;
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

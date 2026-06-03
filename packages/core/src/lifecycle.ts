@@ -1,6 +1,6 @@
 import { schema, type Db } from "@agent-os/db";
 import type { ApprovalOption } from "@agent-os/shared";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { indexDocument, type Embedder } from "./knowledge.js";
 import { emit } from "./relay/emit.js";
 import { composeRunSummary, CostInvariantViolation } from "./relay/summary.js";
@@ -382,7 +382,9 @@ export async function setAutonomy(
   },
 ): Promise<{ id: string; key: string; autonomy: string } | null> {
   return await db.transaction(async (tx) => {
-    // Read current to compute the prev-current transition for the event.
+    // CR-05 fix: single WHERE clause combining id + tenant gate. Previously
+    // two separate SELECTs leaked another tenant's agent row into the
+    // application layer before the gate fired.
     const [current] = await tx
       .select({
         id: schema.agents.id,
@@ -391,26 +393,25 @@ export async function setAutonomy(
       })
       .from(schema.agents)
       .where(
-        eq(schema.agents.id, args.agentId),
+        and(eq(schema.agents.id, args.agentId), eq(schema.agents.tenantId, args.tenantId)),
       );
     if (!current) return null;
-    // Tenant gate.
-    const [tenantCheck] = await tx
-      .select({ tenantId: schema.agents.tenantId })
-      .from(schema.agents)
-      .where(eq(schema.agents.id, args.agentId));
-    if (!tenantCheck || tenantCheck.tenantId !== args.tenantId) return null;
 
     if (current.autonomy === args.nextAutonomy) {
-      // No-op. The controller should already guard, but defense-in-depth:
-      // emit nothing, return current row.
+      // WR-10 fix: when current already equals target, return current AND
+      // do NOT emit lifecycle.changed (no real change happened). Callers
+      // inspect the returned autonomy; they should also accept that no
+      // event was emitted. The controller guards this at the job layer
+      // (only invokes when changed=true), so this branch is defense-only.
       return current;
     }
 
     const [updated] = await tx
       .update(schema.agents)
       .set({ autonomy: args.nextAutonomy })
-      .where(eq(schema.agents.id, args.agentId))
+      .where(
+        and(eq(schema.agents.id, args.agentId), eq(schema.agents.tenantId, args.tenantId)),
+      )
       .returning({
         id: schema.agents.id,
         key: schema.agents.key,

@@ -5,6 +5,7 @@ import {
   emit,
   isCantFail,
   raiseCapBreachApproval,
+  T_CRITICAL_ALLOWLIST,
 } from "@agent-os/core";
 import { getBudgetTracker } from "./budget.js";
 import { clearRunState } from "./run-state.js";
@@ -20,7 +21,10 @@ import { buildPostToolUseHook, buildPreToolUseHook, recordToolUse } from "./hook
 // at runtime — any other path that produced a non-Opus model for a T-critical
 // agent (a manual UPDATE, a race in a future feature, a bug in the override
 // logic) fails the run closed before model dispatch.
-const T_CRITICAL_MODEL_ALLOWLIST = new Set(["anthropic/claude-opus-4.8"]);
+// WR-08 fix: import the allowlist from @agent-os/core so the router and
+// runner cannot drift without the parity test catching it via simple
+// set equality (no fragile regex-extract from source).
+const T_CRITICAL_MODEL_ALLOWLIST = T_CRITICAL_ALLOWLIST;
 
 let cachedRelayDb: Db | null = null;
 function relayDb(): Db | null {
@@ -367,70 +371,84 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
   // the budget.* event stream is populated. Skipped if cap is unset (the
   // tracker treats that as "no enforcement").
   // Phase 19: also emit the budget.* Relay events.
-  if (capUsd > 0 && result.costUsd > 0) {
-    const r = tracker.reserveSpend(bundle.run.id, result.costUsd, { phase: "runner.synthesize" });
-    if (r.ok && r.reservationId) {
-      await emitBudget("budget.reserved", {
-        amount_usd: result.costUsd,
-        reserved_total: r.state.reservedTotal,
-        cap_usd: capUsd,
-        reservation_id: r.reservationId,
-      });
-      const c = tracker.commitSpend(bundle.run.id, r.reservationId, result.costUsd, {
-        phase: "runner.synthesize",
-      });
-      if (c.ok) {
-        await emitBudget("budget.committed", {
+  // CR-08 fix: wrap synthesize + summary in try/finally so closeRun +
+  // clearRunState always fire, even if emit / approval raise throws.
+  // WR-11 fix: always emit budget.summary regardless of cap, so cantfail /
+  // CRA / cap=0 paths produce an audit trail too.
+  try {
+    if (capUsd > 0 && result.costUsd > 0) {
+      const r = tracker.reserveSpend(bundle.run.id, result.costUsd, { phase: "runner.synthesize" });
+      if (r.ok && r.reservationId) {
+        await emitBudget("budget.reserved", {
           amount_usd: result.costUsd,
-          committed_total: c.state.committedTotal,
+          reserved_total: r.state.reservedTotal,
           cap_usd: capUsd,
           reservation_id: r.reservationId,
-          delta: c.delta,
         });
-      }
-    } else if (!r.ok && r.reason === "would_breach_cap") {
-      await emitBudget("budget.cap_breached", {
-        requested_amount_usd: result.costUsd,
-        committed_total: r.state.committedTotal,
-        cap_usd: capUsd,
-      });
-      // Phase 23: surface the breach as an Approval so the operator can
-      // decide between raise / accept-truncated / abort. Best-effort; the
-      // emit-only path above is the guaranteed audit trail.
-      const db = relayDb();
-      if (db) {
-        try {
-          await raiseCapBreachApproval(db, {
-            runId: bundle.run.id,
-            tenantId: bundle.agent.tenantId,
-            agentId: bundle.agent.id,
-            requestedUsd: result.costUsd,
-            committedUsd: r.state.committedTotal,
-            capUsd,
-            sdkSessionId: bundle.run.sdkSessionId,
+        const c = tracker.commitSpend(bundle.run.id, r.reservationId, result.costUsd, {
+          phase: "runner.synthesize",
+        });
+        if (c.ok) {
+          await emitBudget("budget.committed", {
+            amount_usd: result.costUsd,
+            committed_total: c.state.committedTotal,
+            cap_usd: capUsd,
+            reservation_id: r.reservationId,
+            delta: c.delta,
           });
-        } catch (e) {
-          console.error(
-            `[runner] failed to raiseCapBreachApproval for run ${bundle.run.id}: ${(e as Error).message}`,
-          );
+        }
+      } else if (!r.ok && r.reason === "would_breach_cap") {
+        await emitBudget("budget.cap_breached", {
+          requested_amount_usd: result.costUsd,
+          committed_total: r.state.committedTotal,
+          cap_usd: capUsd,
+        });
+        // Phase 23: surface the breach as an Approval so the operator can
+        // decide between raise / accept-truncated / abort. Best-effort; the
+        // emit-only path above is the guaranteed audit trail.
+        const db = relayDb();
+        if (db) {
+          try {
+            await raiseCapBreachApproval(db, {
+              runId: bundle.run.id,
+              tenantId: bundle.agent.tenantId,
+              agentId: bundle.agent.id,
+              requestedUsd: result.costUsd,
+              committedUsd: r.state.committedTotal,
+              capUsd,
+              sdkSessionId: bundle.run.sdkSessionId,
+            });
+          } catch (e) {
+            console.error(
+              `[runner] failed to raiseCapBreachApproval for run ${bundle.run.id}: ${(e as Error).message}`,
+            );
+          }
         }
       }
     }
+  } finally {
+    try {
+      const summary = tracker.closeRun(bundle.run.id, { final_status: result.status });
+      if (summary) {
+        // WR-11 fix: always emit budget.summary regardless of cap so the
+        // audit trail is complete even for cap=0 / cantfail / CRA paths.
+        await emitBudget("budget.summary", {
+          committed_total: summary.committedTotal,
+          reserved_total: summary.reservedTotal,
+          released_total: summary.releasedTotal,
+          cap_usd: summary.capUsd,
+          cap_utilization_pct: summary.metadata?.capUtilizationPct,
+          final_status: result.status,
+        }).catch((e) => {
+          console.error(`[runner] failed budget.summary emit: ${(e as Error).message}`);
+        });
+      }
+    } finally {
+      // Phase 22: free per-run autonomy override state. Innermost finally so
+      // we always free state even if closeRun or its emit throws.
+      clearRunState(bundle.run.id);
+    }
   }
-  const summary = tracker.closeRun(bundle.run.id, { final_status: result.status });
-  if (summary) {
-    await emitBudget("budget.summary", {
-      committed_total: summary.committedTotal,
-      reserved_total: summary.reservedTotal,
-      released_total: summary.releasedTotal,
-      cap_usd: summary.capUsd,
-      cap_utilization_pct: summary.metadata?.capUtilizationPct,
-      final_status: result.status,
-    });
-  }
-
-  // Phase 22: free per-run autonomy override state.
-  clearRunState(bundle.run.id);
 
   return result;
 }

@@ -85,7 +85,7 @@ export const agents = pgTable("agents", {
   name: text("name").notNull(),
   persona: text("persona"),
   backend: text("backend").notNull().default("claude-agent-sdk"),
-  model: text("model").notNull().default("claude-sonnet-4-6"),
+  model: text("model").notNull().default("anthropic/claude-sonnet-4.6"),
   // Tier intent (declared); the router resolves this to `model` at seed time
   // via DEFAULT_TIER_MODELS + tenants.tier_overrides. Migration 0013.
   modelTier: text("model_tier").$type<
@@ -506,12 +506,12 @@ export const agentScorecards = pgTable("agent_scorecards", {
   windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
   windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
   sampleSize: integer("sample_size").notNull(),
-  verificationRate: numeric("verification_rate", { precision: 5, scale: 4 }),
-  approvalRate: numeric("approval_rate", { precision: 5, scale: 4 }),
-  avgCostUtilization: numeric("avg_cost_utilization", { precision: 5, scale: 4 }),
-  findingsRatePerRun: numeric("findings_rate_per_run", { precision: 8, scale: 4 }),
-  scopeLockRefusalsPerRun: numeric("scope_lock_refusals_per_run", { precision: 8, scale: 4 }),
-  outputQualityFailureRate: numeric("output_quality_failure_rate", { precision: 5, scale: 4 }),
+  verificationRate: numeric("verification_rate", { precision: 7, scale: 6 }),
+  approvalRate: numeric("approval_rate", { precision: 7, scale: 6 }),
+  avgCostUtilization: numeric("avg_cost_utilization", { precision: 7, scale: 6 }),
+  findingsRatePerRun: numeric("findings_rate_per_run", { precision: 10, scale: 6 }),
+  scopeLockRefusalsPerRun: numeric("scope_lock_refusals_per_run", { precision: 10, scale: 6 }),
+  outputQualityFailureRate: numeric("output_quality_failure_rate", { precision: 7, scale: 6 }),
   cantfailEvents: integer("cantfail_events").notNull().default(0),
   verdict: text("verdict")
     .$type<"promote" | "hold" | "demote" | "force_demote_safety" | "insufficient_data">()

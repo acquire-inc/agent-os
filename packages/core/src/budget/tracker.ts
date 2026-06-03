@@ -75,10 +75,20 @@ export class BudgetTracker {
     this.sink = sink ?? (() => {});
   }
 
-  /** Start tracking a run. Called once at run start. Returns the state. */
+  /** Start tracking a run. Called once at run start. Returns the state.
+   *
+   * WR-06 fix: throw on key collision instead of silently returning the
+   * existing state. The prior behavior leaked the old cap + reservations
+   * into the new run when a runId was accidentally reused (test fixture,
+   * a misbehaving caller, etc.) — silent failure mode. The executeRun
+   * path opens exactly once per run; legitimate reuse does not exist.
+   */
   openRun(runId: string, capUsd: number): RunBudgetState {
-    const existing = this.runs.get(runId);
-    if (existing) return existing;
+    if (this.runs.has(runId)) {
+      throw new Error(
+        `BudgetTracker.openRun: run ${runId} already open — would leak prior reservations/cap into a new run`,
+      );
+    }
     const state: RunBudgetState = {
       runId,
       capUsd,

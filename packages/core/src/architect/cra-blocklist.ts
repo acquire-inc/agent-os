@@ -134,15 +134,25 @@ export interface CraCheckResult {
   matchedKeyword: string | null;
 }
 
+/** Escape regex metacharacters in a literal phrase. */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * Returns the first matching CRA category if any keyword from the bank hits
- * the input text. Case-insensitive. Returns clean result if no match.
+ * the input text. Case-insensitive, whole-word match.
+ *
+ * WR-05 fix: previously used substring `.includes()` which matched inside
+ * longer compound words (e.g. "credit eligibility" matched inside
+ * "noncredit eligibility-bypass"). Now uses `\b<keyword>\b` regex so
+ * matches must respect word boundaries.
  */
 export function checkCraProhibition(text: string): CraCheckResult {
-  const lower = text.toLowerCase();
   for (const category of CRA_CATEGORIES) {
     for (const keyword of CRA_KEYWORDS[category]) {
-      if (lower.includes(keyword.toLowerCase())) {
+      const re = new RegExp(`\\b${escapeRegex(keyword)}\\b`, "i");
+      if (re.test(text)) {
         return { prohibited: true, category, matchedKeyword: keyword };
       }
     }
