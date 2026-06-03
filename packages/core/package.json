@@ -12,11 +12,13 @@
     "test:tools-schema": "tsx src/integration.test.ts",
     "test:seed-tools": "tsx src/seed/seedAgent.test.ts",
     "test:architect": "tsx src/architect/architect.test.ts",
+    "test:immutability": "tsx src/architect/hydrate.immutability.test.ts",
     "test:security": "tsx src/security/findings.test.ts && tsx src/security/vault-rotate.test.ts && tsx src/security/access-audit.test.ts && tsx src/security/anomaly.test.ts",
     "test:relay": "tsx src/relay/relay.test.ts",
     "test:mirror": "tsx src/relay/mirror.test.ts",
     "test:waved": "tsx src/relay/waved.test.ts",
     "test:router": "tsx src/router/router.test.ts",
+    "test:parity": "tsx src/router/allowlist-parity.test.ts",
     "test:cantfail": "tsx src/seed/seedAgent.cantfail.test.ts"
   },
   "dependencies": {
