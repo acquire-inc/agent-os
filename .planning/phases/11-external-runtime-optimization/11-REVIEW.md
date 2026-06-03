@@ -1,212 +1,187 @@
 ---
 phase: 11-external-runtime-optimization
-reviewed: 2026-06-02T00:00:00Z
+reviewed: 2026-06-03T00:00:00Z
 depth: standard
-files_reviewed: 8
+mode: re-review-after-patches
+files_reviewed: 4
 files_reviewed_list:
   - .planning/phases/11-external-runtime-optimization/11-CONTEXT.md
   - .planning/phases/11-external-runtime-optimization/11-01-PLAN.md
   - .planning/phases/11-external-runtime-optimization/11-02-PLAN.md
   - .planning/phases/11-external-runtime-optimization/11-03-PLAN.md
-  - packages/core/src/router/tier-models.ts
-  - packages/core/src/router/resolve.ts
-  - packages/core/src/seed/seedAgent.ts
-  - apps/runner/src/execute.ts
 findings:
-  critical: 2
-  warning: 7
-  info: 4
-  total: 13
-status: issues_found
+  critical: 0
+  warning: 0
+  info: 0
+  total: 0
+status: clean
+recommendation: READY for /gsd:execute-phase 11
+prior_review_commit: f5186bb
+prior_findings_resolved: 13
 ---
 
-# Phase 11 Code Review — Findings
+# Phase 11 Code Review — Delta Re-review (post-patch verification)
 
 ## Summary
 
-Phase 11 is a doc + quarantined-branch phase with strong scope discipline. The runtime safety assertion in `assertCantFailModel` is sound for Path B propagation (verified — non-T-critical agents bypass the check; only T-critical agents on non-Opus models fail closed). However, several verify gates are weaker than the `<done>` blocks they protect, and there is a genuine doctrine-vs-code drift around `cliently.dev` that the Wave 2 plan steps on. Two BLOCKER-severity scope-fence-enforceability gaps would let `execute-phase` pass with the fence breached.
+Re-reviewed the 4 PLAN files after commit `f5186bb` ("patch all 13 code-review findings") applied
+patches against the 13 findings from the prior review. **All 13 findings are RESOLVED.** No new
+BLOCKER or WARNING-level defects were introduced by the patches. Phase 11 plans are READY for
+execution.
+
+The patches are surgical and consistent with the scope-fence: all edits land in `.planning/phases/`
+(PLAN.md / CONTEXT.md text) and do not touch the live-fleet (`scripts/seed/`,
+`external/acqu-skills/`, `CLAUDE.md`, the three top-level plans, `tier-models.ts`, `hydrate.ts`).
 
 ---
 
-## Critical (BLOCKER)
+## Patch Verification (13/13)
 
-### CR-01: 11-01 Task 3 live-fleet-modification verify gate is structurally broken — will pass when scope-fence is breached
+### Critical
 
-**File:** `.planning/phases/11-external-runtime-optimization/11-01-PLAN.md:224, 311`
+**CR-01 — RESOLVED** ✓
+`11-01-PLAN.md:331` (post-commit) + `:226-237` (pre-commit) — Both gates now use
+`git diff HEAD~1 --name-only` / `git diff HEAD --name-only` (no `--diff-filter=M`), pipe to
+`wc -l`, and exit 1 with `if [ "$modified" -ne 0 ]` / `if [ "$modified_pre" -ne 0 ]`. A/M/D/R
+modifications are all caught. The CR-01 callout in the `<done>` block names the regression
+("catches A/M/D/R").
 
-**Issue:** The gate that enforces "zero live-fleet changes" (the central scope-fence claim) has two defects:
+**CR-02 — RESOLVED** ✓
+`11-02-PLAN.md:300-323` — Shingle-based detector iterating all 8 candidate↔source pairs.
+Normalizes whitespace + case via `tr -s '[:space:]' '\n' | tr '[:upper:]' '[:lower:]'`. Emits
+sliding 8-word shingles via awk; computes shared shingles with `comm -12 <(... | sort -u) <(... |
+sort -u)`; threshold `> 10` triggers `exit 1`. Source-existence guard included. The 8-pair loop
+covers every candidate.
 
-1. Line 224 uses `git diff --stat HEAD --diff-filter=M ...` — `--diff-filter=M` excludes ADDITIONS (`A`) and DELETIONS (`D`). An agent that ADDS a file under `scripts/seed/` would NOT be caught. Same for deletions.
-2. The line-224 pipe `git diff --stat HEAD --diff-filter=M ... | wc -l` doesn't match the awk's expectation of "EMPTY" — `git diff --stat` returns a summary line even when the filter excludes everything.
+### Warnings
 
-**Fix:** Use `--name-only` (no summary footer) and drop `--diff-filter` to catch A/M/D/R alike:
-```bash
-modified=$(git diff HEAD~1 --name-only -- scripts/seed/ external/acqu-skills/ CLAUDE.md \
-  docs/plans/AGENT-OS-PLAN.md docs/plans/AGENTS-PLAN.md docs/plans/GENX-PLAN.md \
-  docs/plans/OPTIMIZATION-AUDIT.md packages/core/src/router/tier-models.ts \
-  packages/core/src/architect/hydrate.ts | wc -l)
-if [ "$modified" -ne 0 ]; then echo "FAIL: $modified live-fleet files modified"; exit 1; fi
-echo "OK: zero live-fleet changes"
-```
+**WR-01 — RESOLVED** ✓
+`11-02-PLAN.md:488-492` — Uses `git for-each-ref --contains="$branch_tip" --format='%(refname)'`
+piped through `grep -vE '^refs/(heads|remotes/origin)/feat/external-skills-extraction$'`.
+Excludes the branch's own local + origin refs; flags reachability from anywhere else (main,
+release, or any branch that merged the extraction work) with `exit 1`.
 
-### CR-02: 11-02 Task 2 verbatim-line copy-paste check is structurally inverted — silently passes any copy-paste
+**WR-02 — RESOLVED** ✓
+`11-03-PLAN.md:168-182` — DECISIONS template now carries a "Pre-existing drift to resolve before
+Phase 13" section. Names `cliently.dev`, references both `CLAUDE.md` and
+`packages/core/src/architect/hydrate.ts` `CANT_FAIL_KEYS`, and presents both reconciling decisions
+(drop from doctrine vs. add to code). The verify block at `11-03-PLAN.md:214-217` asserts both the
+section heading and `cliently.dev` presence with `exit 1` on miss.
 
-**File:** `.planning/phases/11-external-runtime-optimization/11-02-PLAN.md:279-283`
+**WR-03 — RESOLVED** ✓
+`11-01-PLAN.md:133` — Replaced the always-true grep chain with
+`git diff HEAD -- packages/core/src/router/tier-models.ts | wc -l | awk`, which exits 1 if any
+line of diff exists for the protected file.
 
-**Issue:** Two defects in the copy-paste detector:
+**WR-04 — RESOLVED** ✓
+`11-02-PLAN.md:324-333` — Anchored `^(...)$` allowlist regex enumerating all 28 EVENT_NAMES
+(verified count: 4+2+2+3+2+1+2+1+2+2+3+2+1+1 = 28). Three-segment `connector.health.degraded` /
+`recovered` is encoded as `connector\.health\.(degraded|recovered)` in the allowlist AND in the
+discovery prefix (`connector\.health` listed alongside the other prefixes), so the discovery grep
+captures the full 3-segment form before the allowlist check. Any non-allowlisted event triggers
+`exit 1`.
 
-1. `grep -F -x -f` requires EXACT FULL-LINE matches. A copy-paster who reformats indentation defeats this entirely. The threshold "≤3 incidental matches" trivially passes because true verbatim full-line matches are rare even when 95% of text is lifted.
-2. The filter pattern `^- |^[0-9]\.|^\*\*|^---` strips out exactly the high-signal lines (list items, numbered steps, bold markers, frontmatter). Doctrine SKILL.md content is mostly those. Filtering before counting is exactly backwards. Plus: the check only runs against 1 source path (verification-before-completion-v2). The other 7 candidates have NO copy-paste check.
+**WR-05 — RESOLVED** ✓
+`11-CONTEXT.md:168` — Scope-fence section now carries the "WR-05 enforceability note" explaining
+that operator gates 1-3 (`supabase db push`, `pnpm seed:phase-9`, `pnpm verify:isolation-live`)
+are enforced **by construction**, not by automated verify gate. The note cites three independent
+reasons (no PLAN shell-injects them, sandbox lacks Supabase service-role credentials,
+`verify:isolation-live` hard-fails on missing `RLS_TEST_DATABASE_URL`). Future plan revisions are
+explicitly told to add a verify gate if a shell-out path is introduced.
 
-The `<done>` block claims "no detectable copy-paste; Relay events from closed namespace only" — but this check cannot detect copy-paste.
+**WR-06 — RESOLVED** ✓
+`11-03-PLAN.md:198-199` — Downstream phases section now lists two Phase 12 checkbox items:
+(i) `agents.key` immutability regression test through bundle hydration, and (ii)
+`T_CRITICAL_ALLOWLIST` ↔ `T_CRITICAL_MODEL_ALLOWLIST` parity regression test. Both are properly
+attributed to WR-06 and explain the forward-looking risk they close.
 
-**Fix:** Fuzzy/shingle check across all 8 pairs. (See full fix block in the agent's report — uses normalized 8-word shingles + `comm -12` against both files; fails when ≥10 shared shingles.)
+**WR-07 — RESOLVED** ✓
+`11-02-PLAN.md:292-297` — Asserts exactly 1 line of `^bound_to:` via `grep -cE '^bound_to:'` with
+`-ne 1` exit 1; then asserts the value via `grep -qE '^bound_to:[[:space:]]+NONE\b'`. Whitespace-
+tolerant. Catches both multi-line duplicate-binding attacks and typo/case variants.
 
----
+### Info
 
-## Warnings
+**IN-01 — RESOLVED** ✓
+`11-01-PLAN.md:132` — Word-count gate tightened to `[1600, 2100]` from `[1400, 2200]`. Uses awk
+`exit 1` on out-of-range. The lower bound now meaningfully surfaces under-developed sections.
 
-### WR-01: Scope-fence "REFUSE to merge feat/external-skills-extraction" has no automated verify for other branches
+**IN-02 — RESOLVED** ✓
+`11-01-PLAN.md` action block at `11-02-PLAN.md:188-212` documents per-candidate encoding: 5
+single-source candidates use `source_path:`; 3 dual-source candidates
+(`prompt-injection-guardrail`, `output-quality-gate`, `secret-scan-veto`) use the `source_paths:`
+list form. Verify at `11-02-PLAN.md:298-299` accepts either via `grep -qE "^source_path(s)?:"`.
 
-**File:** `11-CONTEXT.md:165`, `11-02-PLAN.md:443-444`
+**IN-03 — RESOLVED** ✓
+`11-03-PLAN.md:211-213` — Counts table rows via `grep -cE '^\|.*KEEP-FOR-LATER'`, asserts exactly
+8. Confirmed by row count: each of the 8 candidate rows contains `<KEEP-FOR-LATER \| ... \| ...>`
+in the operator-decision column, exactly one matching line per row regardless of whether the
+"Recommended" column also contains a KEEP-FOR-LATER phrase.
 
-The scope-fence says merging into "any other branch" is refused. 11-02 Task 4 only checks `claude/exciting-davinci-yvptm`. An agent that ran `git checkout main && git merge feat/external-skills-extraction` would pass.
-
-**Fix:** Assert the branch's HEAD is unreachable from any other ref:
-```bash
-branch_tip=$(git rev-parse feat/external-skills-extraction)
-reachable_from=$(git for-each-ref --contains="$branch_tip" --format='%(refname)' | \
-  grep -vE '^refs/(heads|remotes/origin)/feat/external-skills-extraction$' | head -1)
-if [ -n "$reachable_from" ]; then echo "FAIL: branch reachable from $reachable_from"; exit 1; fi
-```
-
-### WR-02: Doctrine-vs-code drift — `cliently.dev` is can't-fail per CLAUDE.md but NOT in code-level CANT_FAIL_KEYS
-
-**File:** `11-02-PLAN.md:67, 109, 268, 313, 392`
-
-**Issue:** CLAUDE.md (project doctrine) explicitly lists `cliently.dev` (code-writing) as can't-fail. The actual `CANT_FAIL_KEYS` Set in `packages/core/src/architect/hydrate.ts` does **NOT** include `cliently.dev`. 11-02-PLAN.md takes the code position and proposes attaching `secret-scan-veto` to `cliently.dev` as "advisory", framing this as compliant with the T-critical exclusion rule.
-
-- If doctrine wins: attaching is a T-critical violation (scope-fence breach)
-- If code wins: doctrine is wrong and CLAUDE.md needs updating
-
-This phase refuses to modify CLAUDE.md or hydrate.ts, so neither side reconciles here. **Surface in 11-03-DECISIONS.md** as a pre-Phase-13 blocker.
-
-**Fix:** Add a new section to the 11-03-DECISIONS.md template:
-```markdown
-## Pre-existing drift to resolve before Phase 13
-- CLAUDE.md lists `cliently.dev` as can't-fail; CANT_FAIL_KEYS in hydrate.ts does NOT.
-- Decision: <update CLAUDE.md to drop cliently.dev | update CANT_FAIL_KEYS to add it | other>
-- Blocker for: secret-scan-veto attachment in Phase 13
-```
-
-### WR-03: 11-01 Task 1 verify gate for "tier-models.ts NOT modified" is structurally always-true
-
-**File:** `11-01-PLAN.md:133`
-
-Current check evaluates `((! grep) || grep) && echo` — left-to-right associativity makes it `1 && echo`, always true. Never fails the gate even if the file was modified.
-
-**Fix:** Use `git diff`:
-```bash
-git diff HEAD -- packages/core/src/router/tier-models.ts | wc -l | \
-  awk '{ if ($1 != "0") { print "FAIL: tier-models.ts modified"; exit 1; } else print "OK" }'
-```
-
-### WR-04: 11-02 Task 2 Relay-event closed-namespace check has false-positive coverage AND silent "WARN" non-failure
-
-**File:** `11-02-PLAN.md:285-288`
-
-Three defects:
-1. Regex `(emit|fires?) [a-z]+\.[a-z_]+` only matches `emit foo.bar` / `fires foo.bar` literal forms — natural prose like "emits a finding.recorded event" is missed.
-2. `connector.health.degraded` (3 segments) doesn't match the alternation pattern correctly — it triggers a false-positive WARN.
-3. The check writes `WARN:` and does NOT `exit 1`. The `<done>` block claims enforcement but the check cannot fail the gate.
-
-**Fix:** Use the canonical `EVENT_NAMES` list as an allowlist directly with proper regex anchoring + `exit 1` on failure.
-
-### WR-05: Scope-fence refusal "Run operator gates 1-3" has no verify gate
-
-**File:** `11-CONTEXT.md:167`
-
-The fence refuses `supabase db push`, `pnpm seed:phase-9`, `pnpm verify:isolation-live`. No verify in any plan asserts these were not run. The refusal is aspirational, not enforced.
-
-**Fix:** Either add an explicit gate (check for fresh migration mtimes, snapshot DB state) or document in the scope-fence that operator gates 1-3 are "shell-injected only — no autonomous run path exists, so enforcement is by-construction not by-assertion."
-
-### WR-06: `assertCantFailModel` Path B safety is sound today, but no regression test enforces it
-
-**File:** `apps/runner/src/execute.ts:60-92`
-
-**Status:** Path B propagation (demoting Hermes-4-* in `DEFAULT_TIER_MODELS`) does NOT affect this path — confirmed safe. Non-T-critical agents bypass the check; only T-critical agents on non-Opus models fail closed.
-
-**Forward-looking concern:** A future phase that changes the runner to honor in-flight tier-overrides could bypass `seedAgent`. The assertion still catches Opus-violation for T-critical agents since `isCantFail(b.agent.key)` reads the stable key. No regression test enforces `b.agent.key` immutability through bundle hydration.
-
-**Fix:** Add to 11-03-DECISIONS.md "downstream phases" section a checkbox: "Phase 12 must add a regression test for `agents.key` immutability through bundle hydration."
-
-### WR-07: 11-02 Task 2 verify for `bound_to: NONE` doesn't catch typos or multiple-binding variants
-
-**File:** `11-02-PLAN.md:277`
-
-`grep -q "bound_to: NONE"` matches one line. An author who writes `bound_to: NONE` AND `bound_to: secrets-rotation` (a second line ADDED below) passes the grep. Whitespace/case variants also bypass.
-
-**Fix:**
-```bash
-for s in agents/_candidates/*/SKILL.md; do
-  count=$(grep -cE '^bound_to:' "$s")
-  if [ "$count" -ne 1 ]; then echo "FAIL: $s has $count bound_to: lines"; exit 1; fi
-  grep -qE '^bound_to:[[:space:]]+NONE\b' "$s" || { echo "FAIL: $s bound_to not NONE"; exit 1; }
-done
-```
+**IN-04 — RESOLVED** ✓
+`11-01-PLAN.md:242-246, 332` — Both the pre-commit probe and the post-commit verify use
+`if touch /tmp/ref/.write_probe 2>/dev/null; then ... exit 1; fi`. Write-attempt probe is the
+actual non-writability assertion (not the always-succeeds `chmod a-w` check).
 
 ---
 
-## Info
+## New defects introduced by patches
 
-### IN-01: 11-01 Task 1 word-count gate `[1400, 2200]` is wide
+**None at BLOCKER or WARNING severity.**
 
-A 1400-word output likely cut a required section. Tighten to `[1600, 2100]` to surface under-development before commit.
+Two observations that do NOT meet the bar for a finding (kept as cross-cutting notes for the
+operator's awareness):
 
-### IN-02: Several candidates have dual-source structure but the Provenance schema only carries one `source_path`
+- The CR-02 shingle detector compares each candidate against its **primary** source only.
+  Three candidates have a documented secondary source (the IN-02 dual-source set:
+  `prompt-injection-guardrail` → `SELF_IMPROVEMENT_AND_GATES_SPEC.md` §B3,
+  `output-quality-gate` → §B1, `secret-scan-veto` → `gate-never-inject-client-keys/SKILL.md`).
+  Verbatim lifts from a secondary source would be missed. This is a known coverage gap, not a
+  regression — the prior review flagged only the primary-source case, and the patch covers
+  exactly what was asked. Not a blocker; can be tightened later if any secondary-source lift is
+  ever observed.
 
-`output-quality-gate` (voice-and-brand + B1), `prompt-injection-guardrail` (gate-platform-access-ladder + B3), `secret-scan-veto` (gate-security-auditor-veto + gate-never-inject-client-keys). The template needs `source_paths:` (list) OR explicit documentation that secondary refs go in `reauthor_notes`.
-
-### IN-03: 11-03-PLAN Task 2 KEEP-FOR-LATER count gate counts string occurrences, not table rows
-
-`grep -c "KEEP-FOR-LATER"` triggers on placeholder text AND "Recommended" column entries. Expected count is ~12, not 8. **Fix:** `grep -c "^|.*KEEP-FOR-LATER"` to bind to table rows.
-
-### IN-04: 11-01 Task 3 chmod-a-w check is a non-assertion
-
-`chmod a-w` on a tree you own succeeds silently — no "permission denied" emitted. The check passes regardless of /tmp/ref state.
-
-**Fix:** Use a write-attempt probe:
-```bash
-touch /tmp/ref/.write_probe 2>&1 >/dev/null
-if [ -f /tmp/ref/.write_probe ]; then rm /tmp/ref/.write_probe; echo "FAIL: writable"; exit 1; fi
-echo "OK: read-only"
-```
+- The WR-04 discovery grep uses `\b` word boundaries with `[a-z_]+`. An event-shaped token
+  embedded inside a longer identifier (e.g. `tool.result_handler` in prose) would be greedily
+  captured as `tool.result_handler`, fail the allowlist, and `exit 1`. This is the correct
+  fail-closed behavior, but it means prose that incidentally writes a quasi-event token will
+  trip the gate. Acceptable defensive posture for a closed-namespace check.
 
 ---
 
-## Cross-Cutting Observations (not findings)
+## Cross-cutting confirmations (re-verified)
 
-- **Source-path mapping confirmed:** All 8 candidate source paths exist under `/tmp/ref/.../hermes-runtime/skills/agentic/`. Mapping is sound.
-- **Relay namespace mapping confirmed:** All events cited in the PLANs are in `EVENT_NAMES` at `packages/core/src/relay/events.ts`. Closed-namespace constraint is satisfiable; the verify just needs hardening (WR-04).
-- **`assertCantFailModel` Path B safety confirmed:** Lines 60-62 short-circuit on `!isCantFail(b.agent.key)`. Path B propagation is safe through this assertion.
-- **`tier-models.ts` T-critical pin parity:** `T_CRITICAL_ALLOWLIST` (router) and `T_CRITICAL_MODEL_ALLOWLIST` (runner) are duplicated string literals. Worth a regression test in Phase 12 to enforce parity.
+- **Live-fleet protection**: All 13 patches landed in `.planning/` files only. Re-scanned the 4
+  plan files for any reference to writing to `scripts/seed/`, `external/acqu-skills/`,
+  `CLAUDE.md`, `tier-models.ts`, or `hydrate.ts` — none introduced.
+- **T-critical exclusion**: `bound_to: NONE` enforcement is now structurally sound (WR-07 fix).
+- **Scope-fence enforceability**: WR-05 note converts an aspirational refusal into a documented
+  by-construction guarantee. Operators are told what would break that guarantee.
+- **Operator decision capture**: WR-02 + WR-06 fixes make the 11-03 DECISIONS template the
+  canonical handoff point to Phase 12 / Phase 13.
 
 ---
 
 ## Recommendation
 
-**Do NOT run `/gsd:execute-phase 11` until CR-01 + CR-02 are patched** in the PLAN.md files. The BLOCKERs are structural verify-gate defects — `execute-phase` would self-verify "OK" while the scope-fence is actually breached, defeating the central guarantee of this phase.
+**READY for `/gsd:execute-phase 11`.**
 
-**Recommended fix path** (5 small patches, no execute-phase run needed):
-1. **CR-01** — patch `11-01-PLAN.md` Task 3's `git diff` invocation (1 verify gate)
-2. **CR-02** — patch `11-02-PLAN.md` Task 2's copy-paste check (1 verify gate; shingle-based)
-3. **WR-02** — add the cliently.dev drift section to `11-03-PLAN.md`'s DECISIONS template
-4. **WR-03** — patch `11-01-PLAN.md` Task 1's tier-models.ts unchanged-check (1 verify gate)
-5. **WR-04** — patch `11-02-PLAN.md` Task 2's Relay event check (`exit 1` on violation; use EVENT_NAMES allowlist)
+All 13 prior findings are resolved. The verify gates now match the strength of the `<done>`
+blocks they protect. No new defects of BLOCKER or WARNING severity were introduced by the
+patches.
 
-These are PLAN.md edits only (no live-fleet changes; consistent with Phase 11's scope-fence). After patching, the plan can be re-reviewed (`/gsd:code-review 11`) and then executed (`/gsd:execute-phase 11`).
+Execution-time reminders for the runtime agent (not findings — operator-facing notes):
+1. Task 3 of 11-01 uses `git diff HEAD~1` post-commit; the commit step must complete before that
+   verify runs (sequential ordering in the task block, already enforced).
+2. The WR-01 `git for-each-ref --contains` check at 11-02 Task 4 runs **after** the push
+   completes. If a future runner re-orders these steps, the check could pass before the branch
+   tip lands at origin; current ordering is correct.
+3. The CR-02 shingle check sources `/tmp/ref/.../hermes-runtime/skills/agentic/<src_slug>/SKILL.md`
+   — the chmod a-w invariant from IN-04 must hold throughout Task 2 of 11-02 (it does — Task 2
+   only reads).
 
 ---
 
-_Reviewed: 2026-06-02T00:00:00Z_
-_Reviewer: gsd-code-reviewer (standard depth, 8 files)_
+_Reviewed: 2026-06-03T00:00:00Z_
+_Reviewer: gsd-code-reviewer (standard depth, delta re-review mode)_
+_Prior review: 13 findings → 13 resolved → status clean_
