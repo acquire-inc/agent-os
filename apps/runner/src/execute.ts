@@ -5,6 +5,7 @@ import {
   emit,
   isCantFail,
 } from "@agent-os/core";
+import { getBudgetTracker } from "./budget.js";
 import { createDb, type Db } from "@agent-os/db";
 import type { ApiClient, Bundle } from "./api-client.js";
 import type { RunnerConfig } from "./config.js";
@@ -305,23 +306,45 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<Ru
 }
 
 export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConfig): Promise<RunResult> {
+  const tracker = getBudgetTracker();
+  const capUsd = bundle.agent.budgetCapUsd ?? 0;
+  tracker.openRun(bundle.run.id, capUsd);
+
+  let result: RunResult;
   try {
     // SessionStart safety — fail closed BEFORE any model dispatch if a
     // T-critical agent resolved to a non-Opus model. Per AGENT-OS-PLAN.md
     // Open Q #1 (RESOLVED). Belt-and-suspenders for the seedAgent exemption.
     const violation = await assertCantFailModel(api, bundle);
-    if (violation) return violation;
-
-    // CRA prohibition belt-and-suspenders. Even if the architect refused
-    // an offending blueprint (architect.refused), a manually-authored seed
-    // could still land. Fail-closed at SessionStart per CLAUDE.md HARD GATE.
-    const craViolation = await assertNotCraProhibited(api, bundle);
-    if (craViolation) return craViolation;
-
-    return cfg.dryRun ? await dryRun(api, bundle) : await liveRun(api, bundle, cfg);
+    if (violation) {
+      result = violation;
+    } else {
+      // CRA prohibition belt-and-suspenders. Even if the architect refused
+      // an offending blueprint (architect.refused), a manually-authored seed
+      // could still land. Fail-closed at SessionStart per CLAUDE.md HARD GATE.
+      const craViolation = await assertNotCraProhibited(api, bundle);
+      if (craViolation) {
+        result = craViolation;
+      } else {
+        result = cfg.dryRun ? await dryRun(api, bundle) : await liveRun(api, bundle, cfg);
+      }
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await api.postActivity(bundle.run.id, "error", message).catch(() => {});
-    return { status: "failed", summary: `Run failed: ${message}`, tokensIn: 0, tokensOut: 0, costUsd: 0 };
+    result = { status: "failed", summary: `Run failed: ${message}`, tokensIn: 0, tokensOut: 0, costUsd: 0 };
   }
+
+  // Phase 17: synthesize a reserve + commit for the run's total spend so
+  // the budget.* event stream is populated. Skipped if cap is unset (the
+  // tracker treats that as "no enforcement").
+  if (capUsd > 0 && result.costUsd > 0) {
+    const r = tracker.reserveSpend(bundle.run.id, result.costUsd, { phase: "runner.synthesize" });
+    if (r.ok && r.reservationId) {
+      tracker.commitSpend(bundle.run.id, r.reservationId, result.costUsd, { phase: "runner.synthesize" });
+    }
+  }
+  tracker.closeRun(bundle.run.id, { final_status: result.status });
+
+  return result;
 }
