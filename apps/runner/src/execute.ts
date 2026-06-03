@@ -310,6 +310,32 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
   const capUsd = bundle.agent.budgetCapUsd ?? 0;
   tracker.openRun(bundle.run.id, capUsd);
 
+  // Phase 19: emit budget.* Relay events from BudgetTracker outputs when a db
+  // handle is available. Best-effort; never throws into the run.
+  const emitBudget = async (
+    eventName:
+      | "budget.reserved"
+      | "budget.committed"
+      | "budget.released"
+      | "budget.cap_breached"
+      | "budget.summary",
+    payload: Record<string, unknown>,
+  ): Promise<void> => {
+    const db = relayDb();
+    if (!db) return;
+    await emit(db, {
+      tenantId: bundle.agent.tenantId,
+      eventName,
+      actor: "system",
+      agentId: bundle.agent.id,
+      runId: bundle.run.id,
+      payload,
+      piiClass: "none",
+    }).catch((e) => {
+      console.error(`[runner] failed to emit ${eventName}: ${(e as Error).message}`);
+    });
+  };
+
   let result: RunResult;
   try {
     // SessionStart safety — fail closed BEFORE any model dispatch if a
@@ -338,13 +364,47 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
   // Phase 17: synthesize a reserve + commit for the run's total spend so
   // the budget.* event stream is populated. Skipped if cap is unset (the
   // tracker treats that as "no enforcement").
+  // Phase 19: also emit the budget.* Relay events.
   if (capUsd > 0 && result.costUsd > 0) {
     const r = tracker.reserveSpend(bundle.run.id, result.costUsd, { phase: "runner.synthesize" });
     if (r.ok && r.reservationId) {
-      tracker.commitSpend(bundle.run.id, r.reservationId, result.costUsd, { phase: "runner.synthesize" });
+      await emitBudget("budget.reserved", {
+        amount_usd: result.costUsd,
+        reserved_total: r.state.reservedTotal,
+        cap_usd: capUsd,
+        reservation_id: r.reservationId,
+      });
+      const c = tracker.commitSpend(bundle.run.id, r.reservationId, result.costUsd, {
+        phase: "runner.synthesize",
+      });
+      if (c.ok) {
+        await emitBudget("budget.committed", {
+          amount_usd: result.costUsd,
+          committed_total: c.state.committedTotal,
+          cap_usd: capUsd,
+          reservation_id: r.reservationId,
+          delta: c.delta,
+        });
+      }
+    } else if (!r.ok && r.reason === "would_breach_cap") {
+      await emitBudget("budget.cap_breached", {
+        requested_amount_usd: result.costUsd,
+        committed_total: r.state.committedTotal,
+        cap_usd: capUsd,
+      });
     }
   }
-  tracker.closeRun(bundle.run.id, { final_status: result.status });
+  const summary = tracker.closeRun(bundle.run.id, { final_status: result.status });
+  if (summary) {
+    await emitBudget("budget.summary", {
+      committed_total: summary.committedTotal,
+      reserved_total: summary.reservedTotal,
+      released_total: summary.releasedTotal,
+      cap_usd: summary.capUsd,
+      cap_utilization_pct: summary.metadata?.capUtilizationPct,
+      final_status: result.status,
+    });
+  }
 
   return result;
 }

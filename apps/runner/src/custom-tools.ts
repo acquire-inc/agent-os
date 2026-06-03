@@ -13,7 +13,7 @@
 // tool.access-log-analyzer. Each lazy-creates its db connection + (for
 // vault-rotate) the vault key from env vars on first call so handlers stay
 // process-isolated from runner module load — env may not be wired at import.
-import { scrubToolResult } from "@agent-os/core";
+import { recordFinding, scrubToolResult } from "@agent-os/core";
 import { runBrowserTool, type BrowserToolInput, type BrowserToolResult } from "@agent-os/tool-browser";
 import {
   runIsolationSuite,
@@ -42,9 +42,18 @@ export interface CustomToolDispatchResult {
   resultPath: string;
 }
 
+export interface CustomToolHandlerCtx {
+  outputDir: string;
+  /** Bundle metadata for Phase 19 Relay finding emission. Optional for
+   *  back-compat with handlers that don't need it. */
+  tenantId?: string;
+  runId?: string;
+  agentId?: string;
+}
+
 export type CustomToolHandler = (
   input: unknown,
-  ctx: { outputDir: string },
+  ctx: CustomToolHandlerCtx,
 ) => Promise<{ result: unknown }>;
 
 // Lazy singletons — created on first use, reused across dispatches.
@@ -85,13 +94,42 @@ export const customToolDispatch: Record<string, CustomToolHandler> = {
     // Phase 15: scrub prompt-injection patterns from browser-returned content
     // before piping back to the planner. The browser is the canonical
     // external-trust-boundary tool — scraped pages can contain hostile text.
-    // Detections are surfaced via the dispatched-tool result for the runner
-    // to emit as finding.recorded(category=anomaly, severity=high).
+    // Phase 19: emit finding.recorded for each distinct category detected.
     const { result: scrubbed, detections } = scrubToolResult(result);
     if (detections.length > 0) {
+      const categoriesSeen = [...new Set(detections.map((d) => d.category))];
       console.warn(
-        `[runner] tool.browser: ${detections.length} prompt-injection pattern(s) redacted from result (categories: ${[...new Set(detections.map((d) => d.category))].join(", ")})`,
+        `[runner] tool.browser: ${detections.length} prompt-injection pattern(s) redacted from result (categories: ${categoriesSeen.join(", ")})`,
       );
+      // Best-effort Relay emit. Skip if we don't have tenant context (e.g.
+      // tests dispatch without bundle metadata).
+      if (ctx.tenantId && ctx.runId) {
+        try {
+          const db = getDb();
+          for (const cat of categoriesSeen) {
+            const catDetections = detections.filter((d) => d.category === cat);
+            await recordFinding(db, {
+              tenantId: ctx.tenantId,
+              category: "anomaly",
+              severity: "high",
+              title: "prompt-injection attempt redacted",
+              agentId: ctx.agentId ?? null,
+              payload: {
+                source: "tool.browser",
+                run_id: ctx.runId,
+                category: cat,
+                detail: `${catDetections.length} ${cat} injection pattern(s) detected in tool.browser result; redacted before planner read`,
+                count: catDetections.length,
+                first_span_preview: catDetections[0]!.matchedSpan.slice(0, 100),
+              },
+            }).catch((e) => {
+              console.error(`[runner] failed to recordFinding for injection cat=${cat}: ${(e as Error).message}`);
+            });
+          }
+        } catch (e) {
+          console.error(`[runner] tool.browser injection-emit skipped (db unavailable): ${(e as Error).message}`);
+        }
+      }
     }
     return { result: scrubbed };
   },
@@ -152,7 +190,12 @@ export async function dispatchCustomTool(
     throw new Error(`no custom-tool handler registered for ${toolKey}`);
   }
   const outputDir = await mkdtemp(join(tmpdir(), `runner-${bundle.agent.key}-`));
-  const { result } = await handler(input, { outputDir });
+  const { result } = await handler(input, {
+    outputDir,
+    tenantId: bundle.agent.tenantId,
+    runId: bundle.run.id,
+    agentId: bundle.agent.id,
+  });
   const resultPath = join(outputDir, `${toolKey.replace(/[^a-zA-Z0-9._-]/g, "_")}-result.json`);
   await writeFile(resultPath, JSON.stringify(result, null, 2), "utf8");
   return { toolKey, resultPath };
