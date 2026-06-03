@@ -24,5 +24,14 @@ export {
   type InjectionMatch,
   type ScrubResult,
 } from "./security/injection-guard.js";
+export {
+  BudgetTracker,
+  type BudgetEvent,
+  type BudgetEventName,
+  type BudgetEventSink,
+  type CommitResult,
+  type ReleaseResult,
+  type ReserveResult,
+} from "./budget/tracker.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";

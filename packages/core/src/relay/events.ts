@@ -35,6 +35,16 @@ export const EVENT_NAMES = [
   // Budget cap (carrier: cost.checkBudget + Stop hook)
   "budget.warn",
   "budget.cap_hit",
+  // Budget reserve/commit/release pattern (Phase 16) — per the
+  // cost-ceiling-discipline skill. Reserves are tracked per-run;
+  // every spend goes through reserve -> commit (success) or release
+  // (failure). cap_breached fires when a reserve would push the run
+  // past budgetCapUsd; summary fires once at run close.
+  "budget.reserved",
+  "budget.committed",
+  "budget.released",
+  "budget.cap_breached",
+  "budget.summary",
 
   // Findings (carrier: D5.3 agents @ recordFinding)
   "finding.recorded",

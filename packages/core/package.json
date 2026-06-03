@@ -12,6 +12,7 @@
     "test:tools-schema": "tsx src/integration.test.ts",
     "test:seed-tools": "tsx src/seed/seedAgent.test.ts",
     "test:architect": "tsx src/architect/architect.test.ts",
+    "test:budget": "tsx src/budget/tracker.test.ts",
     "test:cra": "tsx src/architect/cra-blocklist.test.ts",
     "test:immutability": "tsx src/architect/hydrate.immutability.test.ts",
     "test:injection": "tsx src/security/injection-guard.test.ts",
