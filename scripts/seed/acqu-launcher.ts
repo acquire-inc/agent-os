@@ -40,6 +40,9 @@ export const launcherSpec: AgentSpec = {
     { key: "launch-discipline", name: "Launch Discipline" },
     { key: "naming-convention", name: "Naming Convention" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "scope-lock-discipline", name: "Scope Lock Discipline" },
+    { key: "shadow-mode-discipline", name: "Shadow Mode Discipline" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Pipeboard × Meta", "Slack"],
 };

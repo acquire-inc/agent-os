@@ -31,6 +31,7 @@ export const funnelMonitorSpec: AgentSpec = {
   cron: { schedule: "0 * * * *", jobName: "Hourly funnel anomaly check" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Slack"],
 };

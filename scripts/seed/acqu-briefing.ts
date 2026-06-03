@@ -34,6 +34,7 @@ export const briefingSpec: AgentSpec = {
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
     { key: "briefing-synthesis", name: "Briefing Synthesis" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Slack", "pgvector Knowledge"],
 };

@@ -35,6 +35,8 @@ export const leadTriageSpec: AgentSpec = {
   skills: [
     { key: "lead-routing-qualification", name: "Lead Routing & Qualification" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "prompt-injection-guardrail", name: "Prompt Injection Guardrail" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close", "Slack", "Twilio"],
 };

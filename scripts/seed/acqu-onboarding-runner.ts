@@ -36,6 +36,8 @@ export const onboardingRunnerSpec: AgentSpec = {
   skills: [
     { key: "client-onboarding", name: "Client Onboarding" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "shadow-mode-discipline", name: "Shadow Mode Discipline" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close", "Slack", "Google Drive", "Gmail"],
 };

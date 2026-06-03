@@ -48,6 +48,7 @@ export const vitalsSpec: AgentSpec = {
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
     { key: "morning-vitals", name: "Morning Vitals" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Pipeboard × Meta", "Close", "Slack"],
 };

@@ -34,6 +34,7 @@ export const revenueRecognizerSpec: AgentSpec = {
   cron: { schedule: "30 2 * * *", jobName: "Nightly revenue recognition" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close"],
 };

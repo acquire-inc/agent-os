@@ -39,6 +39,7 @@ export const forecastRunnerSpec: AgentSpec = {
   cron: { schedule: "0 8 1 * *", jobName: "Monthly 90-day forecast" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close", "Google Drive", "Slack"],
 };

@@ -37,6 +37,7 @@ export const connectorHealthMonitorSpec: AgentSpec = {
   skills: [
     { key: "connector-health", name: "Connector Health" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Slack"],
 };

@@ -37,6 +37,7 @@ export const intelSpec: AgentSpec = {
   cron: { schedule: "0 22 * * *", jobName: "Nightly intel batch" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close", "Pipeboard × Meta", "Google Drive", "Slack"],
 };

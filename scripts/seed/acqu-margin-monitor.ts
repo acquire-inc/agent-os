@@ -35,6 +35,7 @@ export const marginMonitorSpec: AgentSpec = {
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
     { key: "margin-alerts", name: "Margin Alerts" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Slack"],
 };

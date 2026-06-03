@@ -34,6 +34,7 @@ export const expenseTrackerSpec: AgentSpec = {
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
     { key: "expense-categorization", name: "Expense Categorization" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Slack", "Stripe", "QuickBooks"],
 };

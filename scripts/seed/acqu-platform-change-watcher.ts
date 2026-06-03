@@ -36,6 +36,7 @@ export const platformChangeWatcherSpec: AgentSpec = {
   cron: { schedule: "30 5 * * *", jobName: "Daily platform changelog scan" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Slack"],
 };

@@ -35,6 +35,8 @@ export const creativeMinerSpec: AgentSpec = {
   skills: [
     { key: "competitor-ad-teardown", name: "Competitor Ad Teardown" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "prompt-injection-guardrail", name: "Prompt Injection Guardrail" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Google Drive", "Slack", "Pipeboard × Meta"],
 };

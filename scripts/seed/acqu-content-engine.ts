@@ -40,6 +40,10 @@ export const contentEngineSpec: AgentSpec = {
   skills: [
     { key: "content-engine", name: "Content Engine" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "output-quality-gate", name: "Output Quality Gate" },
+    { key: "scope-lock-discipline", name: "Scope Lock Discipline" },
+    { key: "shadow-mode-discipline", name: "Shadow Mode Discipline" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Google Drive", "Slack"],
 };

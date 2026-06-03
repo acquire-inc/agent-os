@@ -37,6 +37,9 @@ export const weeklyReportSpec: AgentSpec = {
   skills: [
     { key: "weekly-client-reporting", name: "Weekly Client Reporting" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "output-quality-gate", name: "Output Quality Gate" },
+    { key: "shadow-mode-discipline", name: "Shadow Mode Discipline" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Pipeboard × Meta", "Close", "Google Drive", "Slack"],
 };

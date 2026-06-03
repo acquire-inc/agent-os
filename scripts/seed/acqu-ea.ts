@@ -45,6 +45,8 @@ export const eaSpec: AgentSpec = {
   skills: [
     { key: "clarify-before-acting", name: "Clarify Before Acting" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "shadow-mode-discipline", name: "Shadow Mode Discipline" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Gmail", "Slack", "Google Calendar"],
 };

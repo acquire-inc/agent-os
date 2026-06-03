@@ -38,6 +38,9 @@ export const clientCommsSpec: AgentSpec = {
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
     { key: "clarify-before-acting", name: "Clarify Before Acting" },
+    { key: "output-quality-gate", name: "Output Quality Gate" },
+    { key: "shadow-mode-discipline", name: "Shadow Mode Discipline" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close", "Google Drive", "Slack", "Gmail"],
 };

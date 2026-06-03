@@ -41,6 +41,8 @@ export const dunningManagerSpec: AgentSpec = {
     { key: "dunning-sequence", name: "Dunning Sequence" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
     { key: "clarify-before-acting", name: "Clarify Before Acting" },
+    { key: "shadow-mode-discipline", name: "Shadow Mode Discipline" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close", "Slack", "Stripe"],
 };

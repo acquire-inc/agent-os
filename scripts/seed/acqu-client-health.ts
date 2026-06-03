@@ -37,6 +37,7 @@ export const clientHealthSpec: AgentSpec = {
   skills: [
     { key: "client-health-scan", name: "Client Health Scan" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close", "Slack"],
 };

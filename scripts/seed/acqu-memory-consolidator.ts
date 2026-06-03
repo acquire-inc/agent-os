@@ -41,6 +41,8 @@ export const memoryConsolidatorSpec: AgentSpec = {
   skills: [
     { key: "memory-consolidation", name: "Memory Consolidation" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "shadow-mode-discipline", name: "Shadow Mode Discipline" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Google Drive", "Slack", "pgvector Knowledge"],
 };

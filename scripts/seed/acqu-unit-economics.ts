@@ -44,6 +44,7 @@ export const unitEconomicsSpec: AgentSpec = {
   cron: { schedule: "0 9 * * 6", jobName: "Saturday unit-economics roll" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close", "Pipeboard × Meta", "Slack"],
 };

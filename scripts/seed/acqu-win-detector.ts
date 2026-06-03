@@ -36,6 +36,7 @@ export const winDetectorSpec: AgentSpec = {
   cron: { schedule: "30 7 * * *", jobName: "Daily win scan" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close", "Pipeboard × Meta", "Slack"],
 };

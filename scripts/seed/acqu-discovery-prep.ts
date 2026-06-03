@@ -40,6 +40,8 @@ export const discoveryPrepSpec: AgentSpec = {
   cron: null,
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "prompt-injection-guardrail", name: "Prompt Injection Guardrail" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close", "Google Drive", "Slack"],
 };

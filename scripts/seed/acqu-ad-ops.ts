@@ -82,6 +82,8 @@ export const adOpsSpec: AgentSpec = {
     { key: "daily-ad-ops", name: "Daily Ad Ops" },
     { key: "verification-before-completion", name: "Verification Before Completion" },
     { key: "clarify-before-acting", name: "Clarify Before Acting" },
+    { key: "scope-lock-discipline", name: "Scope Lock Discipline" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   // No custom tools bound today. The doctrine plans tool.rules-engine,
   // tool.rate-limit-guard, and tool.pixel-health as deterministic tools; until

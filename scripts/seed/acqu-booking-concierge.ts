@@ -33,6 +33,7 @@ export const bookingConciergeSpec: AgentSpec = {
   cron: { schedule: "0 * * * *", jobName: "Hourly booking concierge sweep" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Close", "Slack", "Twilio", "Gmail"],
 };

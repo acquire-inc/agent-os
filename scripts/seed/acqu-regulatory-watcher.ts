@@ -30,6 +30,7 @@ export const regulatoryWatcherSpec: AgentSpec = {
   cron: { schedule: "0 6 * * 4", jobName: "Thursday regulatory scan" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Slack", "Google Drive"],
 };

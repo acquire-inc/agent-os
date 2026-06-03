@@ -31,6 +31,7 @@ export const runwayWatcherSpec: AgentSpec = {
   cron: { schedule: "0 7 * * 1", jobName: "Weekly runway model" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Slack", "Google Drive"],
 };

@@ -44,6 +44,7 @@ export const complianceHealthSpec: AgentSpec = {
   cron: { schedule: "0 6 * * *", jobName: "Daily compliance health" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Pipeboard × Meta", "Slack"],
 };

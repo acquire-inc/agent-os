@@ -37,6 +37,7 @@ export const agentEvaluatorSpec: AgentSpec = {
   cron: { schedule: "0 23 * * *", jobName: "Nightly agent evaluation" },
   skills: [
     { key: "verification-before-completion", name: "Verification Before Completion" },
+    { key: "cost-ceiling-discipline", name: "Cost Ceiling Discipline" },
   ],
   mcpNames: ["Slack"],
 };
