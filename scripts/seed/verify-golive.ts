@@ -31,6 +31,10 @@ export interface GoLiveFacts {
   tablesPresent: Record<string, boolean>;
   /** tool keys that are irreversible but NOT approval-gated — a safety-gate hole (should be empty). */
   unsafeTools: string[];
+  /** can't-fail agents with NO critical eval_case row seeded — not measurable before launch. */
+  cantFailWithoutEval: string[];
+  /** count of seeded skill rows whose allowed_tools_json is empty (least-privilege not set). */
+  skillsMissingAllowedTools: number;
 }
 
 export interface GoLiveCheck { name: string; ok: boolean; detail: string }
@@ -74,6 +78,20 @@ export function evaluateGoLive(facts: GoLiveFacts): GoLiveResult {
     detail: facts.unsafeTools.length ? `UNGATED: ${facts.unsafeTools.join(", ")}` : "all irreversible tools require approval",
   });
 
+  // Readiness (mirrors readiness.test at the DB level): every can't-fail agent must have a critical
+  // eval row actually seeded — manifest-ready isn't the same as actually-seeded.
+  checks.push({
+    name: "can't-fail eval coverage",
+    ok: facts.cantFailWithoutEval.length === 0,
+    detail: facts.cantFailWithoutEval.length ? `NO critical eval: ${facts.cantFailWithoutEval.join(", ")}` : "every can't-fail agent has a critical eval",
+  });
+  // Least-privilege actually persisted on the skill rows.
+  checks.push({
+    name: "skills carry allowed-tools",
+    ok: facts.skillsMissingAllowedTools === 0,
+    detail: facts.skillsMissingAllowedTools ? `${facts.skillsMissingAllowedTools} skill(s) missing allowed_tools_json` : "all skills carry allowed-tools",
+  });
+
   return { ok: checks.every((c) => c.ok), checks };
 }
 
@@ -97,6 +115,15 @@ async function gatherFacts(db: ReturnType<typeof createDb>, tenantId: string): P
     .filter((t) => t.reversible === false && t.requiresApproval === false)
     .map((t) => t.toolKey);
 
+  // can't-fail agents with a critical eval_case row seeded.
+  const cantFailCriticalEvals = new Set(
+    evalRows.filter((e) => e.severity === "critical" && (CANT_FAIL_AGENTS as readonly string[]).includes(e.agentKey)).map((e) => e.agentKey),
+  );
+  const cantFailWithoutEval = (CANT_FAIL_AGENTS as readonly string[]).filter((k) => !cantFailCriticalEvals.has(k));
+
+  const skillRows = await db.select({ allowed: schema.skills.allowedToolsJson }).from(schema.skills).where(eq(schema.skills.tenantId, tenantId));
+  const skillsMissingAllowedTools = skillRows.filter((s) => !Array.isArray(s.allowed) || (s.allowed as unknown[]).length === 0).length;
+
   return {
     totalAgents: agentRows.length,
     enabledAgents: agentRows.filter((a) => a.enabled).length,
@@ -106,6 +133,8 @@ async function gatherFacts(db: ReturnType<typeof createDb>, tenantId: string): P
     offPropose: cantFailRows.filter((r) => r.autonomy !== "propose").map((r) => ({ key: r.key, autonomy: r.autonomy })),
     tablesPresent,
     unsafeTools,
+    cantFailWithoutEval,
+    skillsMissingAllowedTools,
   };
 }
 

@@ -23,6 +23,8 @@ function goodFacts(): GoLiveFacts {
     offPropose: [],
     tablesPresent: { ...allTables },
     unsafeTools: [],
+    cantFailWithoutEval: [],
+    skillsMissingAllowedTools: 0,
   };
 }
 
@@ -75,6 +77,16 @@ function main() {
   unsafe.unsafeTools = ["tool.rogue-irreversible"];
   const r3 = evaluateGoLive(unsafe);
   assert(!r3.ok && !check(unsafe, "no irreversible tool ungated").ok, "irreversible-but-ungated tool fails the gate");
+
+  // ── a can't-fail agent without a seeded critical eval fails the gate ──
+  const noEval = goodFacts();
+  noEval.cantFailWithoutEval = ["offer-architect"];
+  assert(!evaluateGoLive(noEval).ok && !check(noEval, "can't-fail eval coverage").ok, "can't-fail agent without a critical eval fails the gate");
+
+  // ── skills missing allowed-tools fails the gate ──
+  const noAllowed = goodFacts();
+  noAllowed.skillsMissingAllowedTools = 3;
+  assert(!evaluateGoLive(noAllowed).ok && !check(noAllowed, "skills carry allowed-tools").ok, "skills missing allowed-tools fail the gate");
 
   // ── floors don't trip when the fleet GROWS (adding agents is safe) ──
   const grown = goodFacts();
