@@ -41,5 +41,10 @@ export {
   type ScorecardThresholds,
   type Verdict,
 } from "./eval/scorecard.js";
+export {
+  computeNextAutonomy,
+  type Autonomy,
+  type ControllerDecision,
+} from "./eval/controller.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";

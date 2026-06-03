@@ -493,3 +493,32 @@ export const runSummaries = pgTable("run_summaries", {
     .default("tenant_only"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Phase 20: agent_scorecards — persisted output of the eval scorecard job.
+ * Mirrors supabase/migrations/0014_agent_scorecards.sql.
+ */
+export const agentScorecards = pgTable("agent_scorecards", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  agentKey: text("agent_key").notNull(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
+  sampleSize: integer("sample_size").notNull(),
+  verificationRate: numeric("verification_rate", { precision: 5, scale: 4 }),
+  approvalRate: numeric("approval_rate", { precision: 5, scale: 4 }),
+  avgCostUtilization: numeric("avg_cost_utilization", { precision: 5, scale: 4 }),
+  findingsRatePerRun: numeric("findings_rate_per_run", { precision: 8, scale: 4 }),
+  scopeLockRefusalsPerRun: numeric("scope_lock_refusals_per_run", { precision: 8, scale: 4 }),
+  outputQualityFailureRate: numeric("output_quality_failure_rate", { precision: 5, scale: 4 }),
+  cantfailEvents: integer("cantfail_events").notNull().default(0),
+  verdict: text("verdict")
+    .$type<"promote" | "hold" | "demote" | "force_demote_safety" | "insufficient_data">()
+    .notNull(),
+  rationale: text("rationale").notNull(),
+  triggeredThresholds: jsonb("triggered_thresholds").$type<string[]>().notNull().default([]),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  appliedAutonomy: text("applied_autonomy"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
