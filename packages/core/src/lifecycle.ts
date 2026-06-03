@@ -357,6 +357,85 @@ export async function recordAutonomyEvent(
   });
 }
 
+/**
+ * Phase 21: setAutonomy — update an agent's autonomy ladder position.
+ *
+ * Called by the scorecard scheduled job after computeNextAutonomy() returns
+ * a decision with changed=true. Atomic update + lifecycle.changed Relay
+ * event emission in the same transaction. No-op if nextAutonomy === current
+ * autonomy (defensive — the controller already guards this).
+ *
+ * Note: this is the autonomy-ladder mutation. It is orthogonal to
+ * lifecycleState (active/paused/archived/draft). An agent's autonomy can
+ * move while its lifecycleState stays "active"; ditto vice versa.
+ *
+ * Returns the updated agent row, or null if the agent does not exist on
+ * this tenant (cross-tenant or missing).
+ */
+export async function setAutonomy(
+  db: Db,
+  args: {
+    tenantId: string;
+    agentId: string;
+    nextAutonomy: "propose" | "execute_safe" | "execute_full";
+    reason: string;
+  },
+): Promise<{ id: string; key: string; autonomy: string } | null> {
+  return await db.transaction(async (tx) => {
+    // Read current to compute the prev-current transition for the event.
+    const [current] = await tx
+      .select({
+        id: schema.agents.id,
+        key: schema.agents.key,
+        autonomy: schema.agents.autonomy,
+      })
+      .from(schema.agents)
+      .where(
+        eq(schema.agents.id, args.agentId),
+      );
+    if (!current) return null;
+    // Tenant gate.
+    const [tenantCheck] = await tx
+      .select({ tenantId: schema.agents.tenantId })
+      .from(schema.agents)
+      .where(eq(schema.agents.id, args.agentId));
+    if (!tenantCheck || tenantCheck.tenantId !== args.tenantId) return null;
+
+    if (current.autonomy === args.nextAutonomy) {
+      // No-op. The controller should already guard, but defense-in-depth:
+      // emit nothing, return current row.
+      return current;
+    }
+
+    const [updated] = await tx
+      .update(schema.agents)
+      .set({ autonomy: args.nextAutonomy })
+      .where(eq(schema.agents.id, args.agentId))
+      .returning({
+        id: schema.agents.id,
+        key: schema.agents.key,
+        autonomy: schema.agents.autonomy,
+      });
+    if (!updated) throw new Error("setAutonomy: update returned no row");
+
+    await emit(tx, {
+      tenantId: args.tenantId,
+      eventName: "lifecycle.changed",
+      actor: "system",
+      agentId: args.agentId,
+      runId: null,
+      payload: {
+        kind: "autonomy",
+        previous: current.autonomy,
+        next: args.nextAutonomy,
+        reason: args.reason,
+      },
+    });
+
+    return updated;
+  });
+}
+
 /** Autonomous memory: persist a run summary as an agent-generated document and,
  *  when an embedder is supplied, vector-index it so future runs can retrieve it. */
 export async function writeRunMemory(db: Db, run: typeof schema.runs.$inferSelect, embedder?: Embedder) {

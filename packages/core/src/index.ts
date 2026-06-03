@@ -46,5 +46,11 @@ export {
   type Autonomy,
   type ControllerDecision,
 } from "./eval/controller.js";
+export {
+  runScorecardJob,
+  type ScorecardJobInputs,
+  type ScorecardJobResult,
+  type ScorecardJobSink,
+} from "./eval/job.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";
