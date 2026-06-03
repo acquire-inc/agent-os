@@ -82,4 +82,4 @@ The Architect MUST refuse to assemble any agent whose function touches eligibili
 
 ## Current phase
 
-> Update this line each session. **Now: Session A from `/docs/acqu-os-session-runbook.md` — load doctrine + prove one agent (`vitals`) runs end-to-end as data.** OS-core shipped through safety hooks 1a/1b/1c; build deltas from Main §6 (OpenRouter, Inngest, Browserbase, Railway, Nango) queued behind the agent seed.
+> Update this line each session. **Now: Phases 11-19 complete (external runtime optimization → AgentOS safety regressions → 5-candidate ATTACH → CRA blocklist → injection guard runtime → BudgetTracker reserve/commit + runner integration → agent-evaluator scorecard → Relay emission wiring).** AgentOS hardening cycle done; backlog (Phase 20+) recorded in ROADMAP.md. Operator gates 1-3 from Phase 9 still deferred (need Supabase service-role + live DB access).
