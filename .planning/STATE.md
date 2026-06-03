@@ -46,6 +46,12 @@ wired into CI.
 - P12: 12 thin primary skills brought to canonical anatomy (## Steps + a doctrine-grounded
   ## Guardrails section each — the missing safety rails). author-skill-anatomy.ts (idempotent +
   --check gate); _skill-anatomy 64 tests.
+- P13: eval coverage 29→44 / 27→42 agents — reasoning workhorses (intel/forecast/expansion/…),
+  creative/launch, revenue ops.
+- P14 (capstone): readiness.test.ts aggregate go-live gate (9/9, enumerates 93 agents, asserts the
+  can't-fail/eval/skill/tool invariants) + docs/plans/GO-LIVE-READINESS.md. **Agent DATA finalized
+  + go-live ready.** Actual cutover still gated on platform P0s (Relay/RLS/Inngest/tool-map) +
+  operator Hermes fork — NOT agent-scope.
 NOTE on the external-restructure instructions (OUTPUT 2): its inputs (AgentOS audit docs +
 feat/external-skills-extraction branch + /agents/_candidates + zip) do NOT exist in this repo, and
 several premises mismatch (the two "missing" skills already exist; CANT_FAIL_AGENTS not
