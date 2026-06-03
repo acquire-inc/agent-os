@@ -7,6 +7,7 @@
 // Same helpers back the dry-run path so the wiring is verifiable without a key.
 import { autonomyGate, buildApprovalOptions } from "@agent-os/core";
 import type { ApiClient } from "./api-client.js";
+import { effectiveAutonomy } from "./run-state.js";
 
 export interface ToolEvent {
   toolName: string;
@@ -77,9 +78,14 @@ export function buildPreToolUseHook(api: ApiClient, runId: string, ctx: GateCtx)
         (event.toolName as string | undefined) ??
         "unknown",
     );
+    // Phase 22: consult the per-run autonomy override before the gate.
+    // The override is set by safety-relevant detections (e.g. prompt-injection
+    // match in tool.browser results) to ratchet the rest of the run down to
+    // propose. effectiveAutonomy returns the override if any, else ctx.autonomy.
+    const liveAutonomy = effectiveAutonomy(runId, ctx.autonomy);
     const decision = autonomyGate({
       toolName,
-      autonomy: ctx.autonomy,
+      autonomy: liveAutonomy,
       escalationPolicy: ctx.escalationPolicy,
     });
     if (decision === "allow") {

@@ -14,6 +14,7 @@
 // vault-rotate) the vault key from env vars on first call so handlers stay
 // process-isolated from runner module load — env may not be wired at import.
 import { recordFinding, scrubToolResult } from "@agent-os/core";
+import { ratchetAutonomy } from "./run-state.js";
 import { runBrowserTool, type BrowserToolInput, type BrowserToolResult } from "@agent-os/tool-browser";
 import {
   runIsolationSuite,
@@ -101,6 +102,17 @@ export const customToolDispatch: Record<string, CustomToolHandler> = {
       console.warn(
         `[runner] tool.browser: ${detections.length} prompt-injection pattern(s) redacted from result (categories: ${categoriesSeen.join(", ")})`,
       );
+      // Phase 22: ratchet the rest of the run to propose. The injection
+      // attempt has touched the planner's context (the redaction marker is
+      // still there); the safer floor for any subsequent tool call is
+      // operator-in-the-loop.
+      if (ctx.runId) {
+        ratchetAutonomy(
+          ctx.runId,
+          "propose",
+          `prompt-injection detected in tool.browser result (categories: ${categoriesSeen.join(", ")})`,
+        );
+      }
       // Best-effort Relay emit. Skip if we don't have tenant context (e.g.
       // tests dispatch without bundle metadata).
       if (ctx.tenantId && ctx.runId) {

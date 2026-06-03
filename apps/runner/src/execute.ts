@@ -6,6 +6,7 @@ import {
   isCantFail,
 } from "@agent-os/core";
 import { getBudgetTracker } from "./budget.js";
+import { clearRunState } from "./run-state.js";
 import { createDb, type Db } from "@agent-os/db";
 import type { ApiClient, Bundle } from "./api-client.js";
 import type { RunnerConfig } from "./config.js";
@@ -405,6 +406,9 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
       final_status: result.status,
     });
   }
+
+  // Phase 22: free per-run autonomy override state.
+  clearRunState(bundle.run.id);
 
   return result;
 }

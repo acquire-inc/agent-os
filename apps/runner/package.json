@@ -11,7 +11,8 @@
     "test": "tsx src/custom-tools.test.ts",
     "test:budget": "tsx src/budget.test.ts",
     "test:cantfail": "tsx src/cantfail.test.ts",
-    "test:predispatch": "tsx src/predispatch.test.ts"
+    "test:predispatch": "tsx src/predispatch.test.ts",
+    "test:run-state": "tsx src/run-state.test.ts"
   },
   "dependencies": {
     "@agent-os/core": "workspace:*",
