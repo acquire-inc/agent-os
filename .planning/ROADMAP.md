@@ -28,10 +28,23 @@ A multi-tenant Agent OS — the control plane that runs Acquire Inc (Acqu) on ag
 - [x] **Phase 17: Runner BudgetTracker integration** — `executeRun` opens/closes the budget lifecycle on every exit path; synthesizes reserve+commit for terminal spend. 11 assertions; no regressions. **(closed 2026-06-03)**
 - [x] **Phase 18: Agent evaluator scorecard (pure module)** — `scoreAgent()` with 5 verdicts (`force_demote_safety`, `insufficient_data`, `demote`, `hold`, `promote`) gated by 5 thresholds. 33 assertions. **(closed 2026-06-03)**
 - [x] **Phase 19: Relay emission wiring** — BudgetEvent → Relay `budget.*` events from `executeRun`; injection detections → `finding.recorded` from `tool.browser` handler. Best-effort emission; never throws into the run. **(closed 2026-06-03)**
+- [x] **Phase 20: Scorecard controller + `agent_scorecards` migration** — `computeNextAutonomy` controller (5 verdicts → autonomy moves) + migration 0014 + Drizzle table. 25 new assertions. Cant-fail agents capped at `execute_safe`. **(closed 2026-06-03)**
+- [x] **Phase 21: `setAutonomy` lifecycle + scorecard job** — `setAutonomy(db, args)` atomic update + `lifecycle.changed` Relay event. `runScorecardJob(inputs, sink)` pure orchestrator with 4-callback sink interface for testability. 25 assertions. **(closed 2026-06-03)**
+- [x] **Phase 22: Per-run autonomy ratchet on injection match** — Closes Phase 13 SKILL workflow step 5. `apps/runner/src/run-state.ts` singleton + PreToolUse hook integration; `tool.browser` triggers ratchet to `propose`. 19 assertions. **(closed 2026-06-03)**
 
 ## Backlog (Tier 2 — recorded for future planning)
 
-- Phase 20+ candidates: `agent_scorecards` table + scheduled job applying Phase 18 verdicts; runner-state-driven autonomy ratchet on injection match; per-tool reserve/commit using cost estimates; cap-breach Approval surfacing; Stagehand backend implementation for `tool.browser`; cross-tenant scorecard aggregation (moat lens); database-backed BudgetTracker persistence.
+- Inngest scheduled function wrapping `runScorecardJob` for each active agent on a cron
+- Operator dashboard view over `agent_scorecards` + `agent_scorecards_xtenant_agg`
+- Cap-breach Approval surfacing (Phase 13 `cost-ceiling-discipline` workflow step 5)
+- Stagehand backend implementation for `tool.browser`
+- DB-backed `BudgetTracker` persistence
+- Per-tool reserve/commit using per-tool cost estimate column
+- Cross-tenant scorecard aggregation (moat lens — read from the existing view)
+- Per-tenant threshold overrides (agent-onboarder tight cycle)
+- Connector tool integration for the autonomy ratchet (`tool.connector.*` same trigger pattern)
+
+**Capstone for this work session:** `.planning/CAPSTONE-2026-06-03.md`
 
 ## Phase Details
 

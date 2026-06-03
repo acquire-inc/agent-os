@@ -82,4 +82,4 @@ The Architect MUST refuse to assemble any agent whose function touches eligibili
 
 ## Current phase
 
-> Update this line each session. **Now: Phases 11-19 complete (external runtime optimization → AgentOS safety regressions → 5-candidate ATTACH → CRA blocklist → injection guard runtime → BudgetTracker reserve/commit + runner integration → agent-evaluator scorecard → Relay emission wiring).** AgentOS hardening cycle done; backlog (Phase 20+) recorded in ROADMAP.md. Operator gates 1-3 from Phase 9 still deferred (need Supabase service-role + live DB access).
+> Update this line each session. **Now: Phases 11-22 complete (AgentOS hardening cycle — safety regressions, 5-skill ATTACH, CRA blocklist, injection-guard runtime + autonomy ratchet, BudgetTracker reserve/commit, eval scorecard + controller + setAutonomy + scorecard job).** Eval-driven autonomy ladder is now load-bearing code; cant-fail / CRA / injection / cost floors all enforced. Backlog (Tier 2) in ROADMAP.md; capstone in `.planning/CAPSTONE-2026-06-03.md`. Operator gates 1-3 from Phase 9 + Phase 20 migration 0014 push still deferred.
