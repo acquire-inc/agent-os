@@ -43,7 +43,10 @@ function main() {
   for (const k of ["lead-triage", "booking-concierge", "onboarding-runner", "billing-runner"]) {
     assert(agents.has(k), `chain participant covered: ${k}`);
   }
-  assert(agents.size >= 25, `eval coverage spans ≥25 agents (got ${agents.size})`);
+  for (const k of ["intel", "forecast-runner", "expansion-finder", "market-signal-scanner", "vertical-scout", "save-play", "call-summarizer"]) {
+    assert(agents.has(k), `reasoning workhorse covered: ${k}`);
+  }
+  assert(agents.size >= 40, `eval coverage spans ≥40 agents (got ${agents.size})`);
 
   console.log(`\nResult: ${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);
