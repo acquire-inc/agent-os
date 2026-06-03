@@ -1,4 +1,10 @@
-import { autonomyGate, buildApprovalOptions, emit, isCantFail } from "@agent-os/core";
+import {
+  autonomyGate,
+  buildApprovalOptions,
+  checkCraProhibition,
+  emit,
+  isCantFail,
+} from "@agent-os/core";
 import { createDb, type Db } from "@agent-os/db";
 import type { ApiClient, Bundle } from "./api-client.js";
 import type { RunnerConfig } from "./config.js";
@@ -87,6 +93,48 @@ async function assertCantFailModel(api: ApiClient, b: Bundle): Promise<RunResult
     );
   }
   const message = `cantfail.model_violation: agent ${b.agent.key} (T-critical) resolved to ${b.agent.model}; expected ${violation.expected}. Run fail-closed per AGENT-OS-PLAN.md Open Q #1.`;
+  await api.postActivity(b.run.id, "error", message).catch(() => {});
+  return { status: "failed", summary: message, tokensIn: 0, tokensOut: 0, costUsd: 0 };
+}
+
+/**
+ * SessionStart safety check: CRA prohibition is a global invariant per
+ * CLAUDE.md HARD GATE. Even if the architect refusal step was bypassed
+ * (manually-authored seed, direct DB insert), the runtime guard fails the
+ * run closed before model dispatch. Emits cantfail.cra_violation.
+ */
+async function assertNotCraProhibited(api: ApiClient, b: Bundle): Promise<RunResult | null> {
+  // Check the agent's persona (the system prompt) + the job instructions
+  // (the per-run task text). Both feed the model; CRA-touching content in
+  // either is a violation.
+  const text = `${b.agent.persona ?? ""} ${b.job?.instructions ?? ""}`;
+  const cra = checkCraProhibition(text);
+  if (!cra.prohibited || !cra.category || !cra.matchedKeyword) return null;
+
+  const violation = {
+    agent_key: b.agent.key,
+    category: cra.category,
+    matched_keyword: cra.matchedKeyword,
+  };
+  const db = relayDb();
+  if (db) {
+    await emit(db, {
+      tenantId: b.agent.tenantId,
+      eventName: "cantfail.cra_violation",
+      actor: "system",
+      agentId: b.agent.id,
+      runId: b.run.id,
+      payload: violation,
+      piiClass: "none",
+    }).catch((e) => {
+      console.error(`[runner] failed to emit cantfail.cra_violation: ${(e as Error).message}`);
+    });
+  } else {
+    console.error(
+      `[runner] cantfail.cra_violation cannot be emitted to Relay — DATABASE_URL unset; violation: ${JSON.stringify(violation)}`,
+    );
+  }
+  const message = `cantfail.cra_violation: agent ${b.agent.key} systemPrompt matches CRA-prohibited category=${cra.category} keyword="${cra.matchedKeyword}". Run fail-closed; global invariant per CLAUDE.md.`;
   await api.postActivity(b.run.id, "error", message).catch(() => {});
   return { status: "failed", summary: message, tokensIn: 0, tokensOut: 0, costUsd: 0 };
 }
@@ -263,6 +311,12 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
     // Open Q #1 (RESOLVED). Belt-and-suspenders for the seedAgent exemption.
     const violation = await assertCantFailModel(api, bundle);
     if (violation) return violation;
+
+    // CRA prohibition belt-and-suspenders. Even if the architect refused
+    // an offending blueprint (architect.refused), a manually-authored seed
+    // could still land. Fail-closed at SessionStart per CLAUDE.md HARD GATE.
+    const craViolation = await assertNotCraProhibited(api, bundle);
+    if (craViolation) return craViolation;
 
     return cfg.dryRun ? await dryRun(api, bundle) : await liveRun(api, bundle, cfg);
   } catch (err) {

@@ -21,6 +21,15 @@ export * from "./openrouterLlm.js";
 export { buildSystemPrompt, buildUserPrompt } from "./prompt.js";
 export { parseTeamProposal, ParseError } from "./parse.js";
 export { hydrate, isCantFail } from "./hydrate.js";
+export {
+  CRA_CATEGORIES,
+  CRA_KEYWORDS,
+  CraProhibitionError,
+  assertNotCraProhibited,
+  checkCraProhibition,
+  type CraCategory,
+  type CraCheckResult,
+} from "./cra-blocklist.js";
 export { loadBlueprint, listBlueprints } from "./persist.js";
 
 const DEFAULT_LLM_BUDGET_USD = 0.2;

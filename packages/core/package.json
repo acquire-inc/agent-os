@@ -12,6 +12,7 @@
     "test:tools-schema": "tsx src/integration.test.ts",
     "test:seed-tools": "tsx src/seed/seedAgent.test.ts",
     "test:architect": "tsx src/architect/architect.test.ts",
+    "test:cra": "tsx src/architect/cra-blocklist.test.ts",
     "test:immutability": "tsx src/architect/hydrate.immutability.test.ts",
     "test:security": "tsx src/security/findings.test.ts && tsx src/security/vault-rotate.test.ts && tsx src/security/access-audit.test.ts && tsx src/security/anomaly.test.ts",
     "test:relay": "tsx src/relay/relay.test.ts",

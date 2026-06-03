@@ -3,6 +3,7 @@
 // to the safe defaults (architect can never bypass these).
 
 import type { AgentSpec } from "../seed/seedAgent.js";
+import { checkCraProhibition } from "./cra-blocklist.js";
 import type { AgentBlueprint, TeamBlueprintProposal } from "./types.js";
 
 export interface ResolverContext {
@@ -67,6 +68,19 @@ export function hydrate(
     if (CANT_FAIL_KEYS.has(blueprint.key)) {
       warnings.push(
         `refusing to assemble can't-fail agent "${blueprint.key}" — must be authored by hand against the human can't-fail-agent flow`,
+      );
+      continue;
+    }
+
+    // CRA prohibition (CLAUDE.md HARD GATE). Check role + systemPrompt for
+    // eligibility-decisioning language across credit / employment / housing /
+    // insurance / government-benefit. Match -> skip blueprint, append warning.
+    // The caller is responsible for emitting Relay event "architect.refused".
+    const craText = `${blueprint.role ?? ""} ${blueprint.systemPrompt ?? ""}`;
+    const cra = checkCraProhibition(craText);
+    if (cra.prohibited && cra.category && cra.matchedKeyword) {
+      warnings.push(
+        `refusing CRA-prohibited blueprint "${blueprint.key}" — category=${cra.category} matched="${cra.matchedKeyword}". Global invariant; no per-tenant override.`,
       );
       continue;
     }
