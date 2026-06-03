@@ -18,7 +18,7 @@ export interface Bundle {
   mcpServers: { name: string; transport: string; endpoint: string | null; authType: string; credentials: { vaultRef?: string; token?: string; ttlSeconds: number } | null }[];
   // Custom registry tools bound to the agent (Phase 7). Optional for wire
   // back-compat with API responses that predate the tools registry.
-  tools?: { key: string; name: string; kind: string; inputSchema: unknown; requiresApproval: boolean; reversible: boolean }[];
+  tools?: { key: string; name: string; kind: string; inputSchema: unknown; requiresApproval: boolean; reversible: boolean; costEstimateUsd?: string | number }[];
   knowledge: { chunk: string; source: string }[];
   envVars: Record<string, string>;
   autonomy: string;

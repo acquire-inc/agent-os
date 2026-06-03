@@ -248,6 +248,10 @@ export const tools = pgTable("tools", {
   requiresApproval: boolean("requires_approval").notNull().default(true),
   reversible: boolean("reversible").notNull().default(false),
   status: text("status").notNull().default("active"),
+  /** Phase 26: per-invocation USD cost estimate. Used by the runner's
+   *  reserve-before / commit-after wrapping in dispatchCustomTool. 0 means
+   *  free / no estimate. Mirrors migration 0016. */
+  costEstimateUsd: numeric("cost_estimate_usd", { precision: 12, scale: 4 }).notNull().default("0"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

@@ -14,6 +14,7 @@
 // vault-rotate) the vault key from env vars on first call so handlers stay
 // process-isolated from runner module load — env may not be wired at import.
 import { recordFinding, scrubToolResult } from "@agent-os/core";
+import { getBudgetTracker } from "./budget.js";
 import { ratchetAutonomy } from "./run-state.js";
 import { runBrowserTool, type BrowserToolInput, type BrowserToolResult } from "@agent-os/tool-browser";
 import {
@@ -200,7 +201,43 @@ export function deriveAllowedTools(bundle: Bundle): string[] {
   return [...toolKeys, ...mcpNames];
 }
 
-/** Dispatch a custom tool call. Defense in depth — the gate also checks. */
+/** Sentinel error thrown when a tool dispatch is refused because the
+ *  reserve would breach the agent's budget cap. Callers (the SDK hook or
+ *  the runner orchestrator) can map this to a propose / approval / abort
+ *  path per the cost-ceiling-discipline skill workflow step 5. */
+export class CapBreachError extends Error {
+  readonly toolKey: string;
+  readonly requestedUsd: number;
+  readonly committedUsd: number;
+  readonly capUsd: number;
+
+  constructor(toolKey: string, requestedUsd: number, committedUsd: number, capUsd: number) {
+    super(
+      `dispatchCustomTool: cap breach refused for ${toolKey} (requested $${requestedUsd.toFixed(4)} + committed $${committedUsd.toFixed(4)} > cap $${capUsd.toFixed(2)})`,
+    );
+    this.name = "CapBreachError";
+    this.toolKey = toolKey;
+    this.requestedUsd = requestedUsd;
+    this.committedUsd = committedUsd;
+    this.capUsd = capUsd;
+  }
+}
+
+/** Dispatch a custom tool call.
+ *
+ * Phase 26: wraps the handler with the BudgetTracker reserve-before /
+ * commit-after pattern from the cost-ceiling-discipline SKILL. The
+ * reserve uses the tool's per-invocation cost estimate (bundle.tools[].
+ * costEstimateUsd, sourced from migration 0016's tools.cost_estimate_usd).
+ * A reserve that would breach the run's cap throws CapBreachError — the
+ * tool call does NOT run.
+ *
+ * Best-effort: if the run was never opened in the singleton tracker
+ * (test fixtures, dry-run paths that don't call executeRun's openRun),
+ * we skip reserve/commit silently so dispatchCustomTool stays usable
+ * in isolation. The audit trail is only complete when executeRun is
+ * the entry point.
+ */
 export async function dispatchCustomTool(
   bundle: Bundle,
   toolKey: string,
@@ -214,14 +251,59 @@ export async function dispatchCustomTool(
   if (!handler) {
     throw new Error(`no custom-tool handler registered for ${toolKey}`);
   }
+
+  // Phase 26: reserve before dispatch. Skip if the tracker has no open run
+  // for this id (dispatchCustomTool used outside executeRun, e.g. a script
+  // or a dry-run test path).
+  const tracker = getBudgetTracker();
+  const estimateUsd = Number(bound.costEstimateUsd ?? "0");
+  let reservationId: string | null = null;
+  if (tracker.hasRun(bundle.run.id) && estimateUsd > 0) {
+    const r = tracker.reserveSpend(bundle.run.id, estimateUsd, {
+      tool: toolKey,
+      phase: "dispatch",
+    });
+    if (!r.ok && r.reason === "would_breach_cap") {
+      throw new CapBreachError(
+        toolKey,
+        estimateUsd,
+        r.state.committedTotal,
+        r.state.capUsd,
+      );
+    }
+    if (r.ok) reservationId = r.reservationId;
+  }
+
   const outputDir = await mkdtemp(join(tmpdir(), `runner-${bundle.agent.key}-`));
-  const { result } = await handler(input, {
-    outputDir,
-    tenantId: bundle.agent.tenantId,
-    runId: bundle.run.id,
-    agentId: bundle.agent.id,
-  });
-  const resultPath = join(outputDir, `${toolKey.replace(/[^a-zA-Z0-9._-]/g, "_")}-result.json`);
-  await writeFile(resultPath, JSON.stringify(result, null, 2), "utf8");
-  return { toolKey, resultPath };
+  try {
+    const { result } = await handler(input, {
+      outputDir,
+      tenantId: bundle.agent.tenantId,
+      runId: bundle.run.id,
+      agentId: bundle.agent.id,
+    });
+    const resultPath = join(outputDir, `${toolKey.replace(/[^a-zA-Z0-9._-]/g, "_")}-result.json`);
+    await writeFile(resultPath, JSON.stringify(result, null, 2), "utf8");
+
+    // Commit the estimate as the actual on success. Future enhancement:
+    // a handler that returns a true cost can supersede the estimate.
+    if (reservationId) {
+      tracker.commitSpend(bundle.run.id, reservationId, estimateUsd, {
+        tool: toolKey,
+        phase: "dispatch",
+      });
+    }
+    return { toolKey, resultPath };
+  } catch (err) {
+    // Release the reservation on any failure so subsequent dispatches
+    // can still proceed within the cap.
+    if (reservationId) {
+      tracker.releaseSpend(bundle.run.id, reservationId, {
+        tool: toolKey,
+        phase: "dispatch",
+        error: (err as Error).message,
+      });
+    }
+    throw err;
+  }
 }

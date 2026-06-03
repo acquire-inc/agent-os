@@ -44,6 +44,9 @@ export interface Bundle {
     inputSchema: unknown;
     requiresApproval: boolean;
     reversible: boolean;
+    /** Phase 26: per-invocation USD cost estimate from tools.cost_estimate_usd.
+     *  Used by the runner's reserve-before / commit-after wrap. */
+    costEstimateUsd: string;
   }[];
   knowledge: { chunk: string; source: string }[];
   envVars: Record<string, string>;
@@ -168,6 +171,9 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
       inputSchema: t.inputSchema,
       requiresApproval: t.requiresApproval,
       reversible: t.reversible,
+      // Phase 26: cost estimate flows through to the runner so dispatch can
+      // reserve before invoking the handler.
+      costEstimateUsd: t.costEstimateUsd ?? "0",
     })),
     knowledge,
     // Decrypt env values via the vault; never emit ciphertext. Omit if no decryptor.
