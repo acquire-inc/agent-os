@@ -27,11 +27,11 @@ Phase 11 (External Runtime Optimization) closed clean. The phase ran read-only s
 **Fork B (Isolation):** Keep ours — RLS + `is_tenant_member()` SECURITY DEFINER + 32 attack-vector tester. External runtime's per-tenant runtime separation is orthogonal; the ephemeral-container execution-plane idea stays on Tier 2 backlog as additive.
 
 **Per-candidate (8 candidates):**
-- 2 KEEP-FOR-LATER: `verification-before-completion-v2`, `clarify-before-acting-v2` (existing coverage already shipped in optimization audit Tier 1)
-- 6 ATTACH (queued for Phase 13): `prompt-injection-guardrail`, `output-quality-gate`, `shadow-mode-discipline`, `cost-ceiling-discipline`, `scope-lock-discipline`, `secret-scan-veto`
+- 3 KEEP-FOR-LATER: `verification-before-completion-v2`, `clarify-before-acting-v2` (existing coverage shipped in optimization audit Tier 1), `secret-scan-veto` (no AgentOS code-writing target — cliently.dev is out of AgentOS scope)
+- 5 ATTACH (queued for Phase 13): `prompt-injection-guardrail`, `output-quality-gate`, `shadow-mode-discipline`, `cost-ceiling-discipline`, `scope-lock-discipline`
 - 0 DROP, 0 SWAP (session stubs left intact)
 
-**WR-02 drift (cliently.dev):** Code follows doctrine. Phase 12 adds `cliently.dev` to `CANT_FAIL_KEYS` in `packages/core/src/architect/hydrate.ts` and re-seeds with T-critical tier.
+**WR-02 drift (cliently.dev):** Out of AgentOS scope. `cliently.dev` is the productized client-facing offering, not an AgentOS internal agent. No CANT_FAIL_KEYS edit. The doctrine line in CLAUDE.md is the Cliently product track's concern, not this AgentOS build.
 
 ## Code review
 
@@ -51,8 +51,8 @@ All 13 patches and all 4 plan files landed inside `.planning/phases/11-external-
 
 ## Downstream phases unblocked
 
-- **Phase 12 (proposed)** — Safety regressions + cliently.dev T-critical pin (3 items)
-- **Phase 13 (proposed)** — 6-candidate ATTACH implementation (1 item per candidate + tests)
+- **Phase 12 (proposed)** — AgentOS safety regressions only (2 items)
+- **Phase 13 (proposed)** — 5-candidate ATTACH implementation (1 item per candidate + tests)
 - **Tier 2 backlog** — unchanged
 
 ---

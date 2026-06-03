@@ -43,43 +43,41 @@
 | `shadow-mode-discipline` | KEEP-FOR-LATER (surface as canonical) | ATTACH | Promote to canonical and attach to all `autonomy: propose` agents — the autonomy ladder already exists; this skill makes the discipline explicit |
 | `cost-ceiling-discipline` | KEEP-FOR-LATER (feeds Tier 2 reserve/commit) | ATTACH | Attach to all non-T-critical agents now; the formal reserve/commit pattern lands later in Tier 2 but the discipline skill is independent and ships standalone |
 | `scope-lock-discipline` | ATTACH (ad-ops, launcher, content-engine) | ATTACH | Per recommendation |
-| `secret-scan-veto` | ATTACH (cliently.dev advisory) | ATTACH | Per recommendation. Resolved against WR-02 below (cliently.dev becomes T-critical, secret-scan-veto attaches as Opus-side defense-in-depth) |
+| `secret-scan-veto` | ATTACH (cliently.dev advisory) | KEEP-FOR-LATER | cliently.dev is NOT in AgentOS scope (separate productized track). No AgentOS code-writing agent exists today as an attach target. Park until/unless an AgentOS-internal code-writing agent is authored. |
 
 ---
 
 ## Pre-existing drift to resolve before Phase 13
 
-**Decision:** Update `CANT_FAIL_KEYS` to add `cliently.dev` (code follows doctrine).
+**Decision:** Out of scope for AgentOS. `cliently.dev` is the productized client-facing offering (Cliently product), not an AgentOS internal agent. The doctrine line in CLAUDE.md describing it as can't-fail belongs in the Cliently product track, not this AgentOS build. No CANT_FAIL_KEYS edit. No CLAUDE.md edit triggered by this phase — the doctrine drift, if any, is the Cliently product's concern to resolve in its own track.
 
-**Rationale:** CLAUDE.md is the operator-authored doctrine; the code drift is a stale omission, not a deliberate exclusion. `cliently.dev` is a code-writing agent whose output can affect production systems — pinning it to Opus is the conservative read, and the safer asymmetric error. Phase 12 picks up the `CANT_FAIL_KEYS.add('cliently.dev')` edit alongside the two WR-06 regression tests.
+**Rationale:** Operator explicitly scoped this work to AgentOS only. `cliently.dev` does not exist as a seed in `scripts/seed/`, has no AgentOS-internal callers, and is not in the AgentOS fleet manifest. Adding it to `CANT_FAIL_KEYS` would put an unused string in a runtime-critical Set with no test target — dead weight in the safety floor. The two WR-06 regression tests below stand on their own as AgentOS hardening; they do not require WR-02 to be resolved.
 
-**Blocker for Phase 13 `secret-scan-veto` attach:** resolved — secret-scan-veto attaches to `cliently.dev` as advisory defense-in-depth on top of T-critical Opus floor.
+**Blocker for Phase 13 `secret-scan-veto` attach:** dissolved — `secret-scan-veto` moves to KEEP-FOR-LATER (no AgentOS code-writing agent exists today as an attach target).
 
 ---
 
 ## Hard rules (re-affirmed for downstream phases)
 
-- [x] NO candidate is attached to ANY T-critical / CANT_FAIL_KEYS agent (after cliently.dev addition, the set becomes 15: 14 doctrine + cliently.dev; secret-scan-veto attaches as defense-in-depth advisory, not as the primary safety floor)
+- [x] NO candidate is attached to ANY T-critical / CANT_FAIL_KEYS agent (the set remains 14, unchanged by this phase)
 - [x] Branch `feat/external-skills-extraction` stays unmerged (still local-only at `3eb2bff` due to upstream 503; retry on next operator action)
 - [x] License: NONE → reauthored never copied. No verbatim copy detected in any candidate during this review.
-- [x] WR-02 cliently.dev drift resolved (decision above) BEFORE Phase 13 wires `secret-scan-veto`
+- [x] WR-02 cliently.dev drift: out of AgentOS scope (Cliently product track owns it)
 
 ---
 
 ## Downstream phases unblocked by these decisions
 
-- **Phase 12 (proposed)** — Safety regressions + cliently.dev pin:
+- **Phase 12 (proposed)** — AgentOS safety regressions only:
   - [ ] **WR-06** — `agents.key` immutability regression test through bundle hydration
   - [ ] **WR-06** — `T_CRITICAL_ALLOWLIST` ↔ `T_CRITICAL_MODEL_ALLOWLIST` parity regression test
-  - [ ] Add `cliently.dev` to `CANT_FAIL_KEYS` in `packages/core/src/architect/hydrate.ts`
-  - [ ] Re-seed cliently.dev with T-critical tier; assertCantFailModel coverage for it
   - [ ] Hermes-demote propagation NOT triggered (Path A held)
-- **Phase 13 (proposed)** — Candidate ATTACH implementations:
-  - [ ] `prompt-injection-guardrail` → attach to all agents with `tool.browser` or `tool.connector.*`
+- **Phase 13 (proposed)** — Candidate ATTACH implementations (5 of original 6; cliently.dev attach dropped):
+  - [ ] `prompt-injection-guardrail` → attach to all AgentOS agents with `tool.browser` or `tool.connector.*`
   - [ ] `output-quality-gate` → attach to creative-studio, client-comms, weekly-report, content-engine
-  - [ ] `shadow-mode-discipline` → promote to canonical; attach to all `autonomy: propose` agents
-  - [ ] `cost-ceiling-discipline` → attach to all non-T-critical agents
+  - [ ] `shadow-mode-discipline` → promote to canonical; attach to all `autonomy: propose` AgentOS agents
+  - [ ] `cost-ceiling-discipline` → attach to all non-T-critical AgentOS agents
   - [ ] `scope-lock-discipline` → attach to ad-ops, launcher, content-engine
-  - [ ] `secret-scan-veto` → attach to cliently.dev as advisory (alongside Opus T-critical floor)
+  - [ ] `secret-scan-veto` → KEEP-FOR-LATER (no AgentOS code-writing target exists)
   - [ ] `verification-before-completion-v2` and `clarify-before-acting-v2` parked
 - **Tier 2 backlog** — unchanged: agent-evaluator scorecard, reserve/commit budget pattern, CRA blocklist implementation, Stagehand backend for tool.browser
