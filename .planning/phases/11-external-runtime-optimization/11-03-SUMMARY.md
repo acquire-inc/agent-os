@@ -17,7 +17,7 @@ Phase 11 (External Runtime Optimization) closed clean. The phase ran read-only s
 | Wave | Deliverable | Commit | Push status |
 |---|---|---|---|
 | Wave 1 | `EXTERNAL-RUNTIME-RECONCILIATION.md` (2058 words) + `EXTERNAL-TEMPLATES-AUDIT.md` (3102 words) | `251f142` | pushed |
-| Wave 2 | 8 quarantined SKILL.md candidates + `SKILLS-EXTRACTION-REPORT.md` on `feat/external-skills-extraction` | `3eb2bff` | LOCAL-ONLY (upstream 503; retry pending) |
+| Wave 2 | 8 quarantined SKILL.md candidates + `SKILLS-EXTRACTION-REPORT.md` on `claude/phase-11-quarantine-skills` (originally local branch `feat/external-skills-extraction`) | `3eb2bff` | pushed (`feat/*` namespace was rejected by sandbox proxy; pushed under `claude/*`) |
 | Wave 3 | `11-03-DECISIONS.md` template + filled decisions | `ef5a4c4` + this commit | pushed |
 
 ## Decisions recorded
@@ -46,7 +46,7 @@ All 13 patches and all 4 plan files landed inside `.planning/phases/11-external-
 
 ## Pending operational items
 
-- [ ] Wave 2 push retry: `feat/external-skills-extraction` at `3eb2bff` is local-only — retry when upstream proxy heals
+- [x] Wave 2 push: now on GitHub as `claude/phase-11-quarantine-skills @ 3eb2bff`. Sandbox proxy rejected the `feat/*` namespace; ref renamed to `claude/*` resolved the 503.
 - [ ] Operator gates 1-3 still deferred (Phase 9 migrations + seed + isolation-live)
 
 ## Downstream phases unblocked
