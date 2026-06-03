@@ -17,5 +17,12 @@ export { closeRefresher } from "./security/refreshers/close.js";
 export { metaRefresher, stripeRefresher } from "./security/refreshers/stubs.js";
 export { findOrphanedGrants, type OrphanedGrantRow } from "./security/access-audit.js";
 export { detectUsageSpikes, type UsageSpikeRow } from "./security/anomaly.js";
+export {
+  scrubInjections,
+  scrubToolResult,
+  type InjectionCategory,
+  type InjectionMatch,
+  type ScrubResult,
+} from "./security/injection-guard.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";

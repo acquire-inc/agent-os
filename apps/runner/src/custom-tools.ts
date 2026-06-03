@@ -13,6 +13,7 @@
 // tool.access-log-analyzer. Each lazy-creates its db connection + (for
 // vault-rotate) the vault key from env vars on first call so handlers stay
 // process-isolated from runner module load — env may not be wired at import.
+import { scrubToolResult } from "@agent-os/core";
 import { runBrowserTool, type BrowserToolInput, type BrowserToolResult } from "@agent-os/tool-browser";
 import {
   runIsolationSuite,
@@ -81,7 +82,18 @@ export const customToolDispatch: Record<string, CustomToolHandler> = {
     const result: BrowserToolResult = await runBrowserTool(input as BrowserToolInput, {
       outputDir: ctx.outputDir,
     });
-    return { result };
+    // Phase 15: scrub prompt-injection patterns from browser-returned content
+    // before piping back to the planner. The browser is the canonical
+    // external-trust-boundary tool — scraped pages can contain hostile text.
+    // Detections are surfaced via the dispatched-tool result for the runner
+    // to emit as finding.recorded(category=anomaly, severity=high).
+    const { result: scrubbed, detections } = scrubToolResult(result);
+    if (detections.length > 0) {
+      console.warn(
+        `[runner] tool.browser: ${detections.length} prompt-injection pattern(s) redacted from result (categories: ${[...new Set(detections.map((d) => d.category))].join(", ")})`,
+      );
+    }
+    return { result: scrubbed };
   },
   // D-01: runner-dispatched RLS test uses ctx.db (likely service-role) — for
   // cron sanity ONLY; HARD GATE verification uses scripts/verify/isolation-live.ts
