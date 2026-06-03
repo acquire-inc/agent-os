@@ -4,6 +4,7 @@ import {
   checkCraProhibition,
   emit,
   isCantFail,
+  raiseCapBreachApproval,
 } from "@agent-os/core";
 import { getBudgetTracker } from "./budget.js";
 import { clearRunState } from "./run-state.js";
@@ -393,6 +394,27 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
         committed_total: r.state.committedTotal,
         cap_usd: capUsd,
       });
+      // Phase 23: surface the breach as an Approval so the operator can
+      // decide between raise / accept-truncated / abort. Best-effort; the
+      // emit-only path above is the guaranteed audit trail.
+      const db = relayDb();
+      if (db) {
+        try {
+          await raiseCapBreachApproval(db, {
+            runId: bundle.run.id,
+            tenantId: bundle.agent.tenantId,
+            agentId: bundle.agent.id,
+            requestedUsd: result.costUsd,
+            committedUsd: r.state.committedTotal,
+            capUsd,
+            sdkSessionId: bundle.run.sdkSessionId,
+          });
+        } catch (e) {
+          console.error(
+            `[runner] failed to raiseCapBreachApproval for run ${bundle.run.id}: ${(e as Error).message}`,
+          );
+        }
+      }
     }
   }
   const summary = tracker.closeRun(bundle.run.id, { final_status: result.status });

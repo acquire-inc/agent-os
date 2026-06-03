@@ -61,3 +61,14 @@ export function buildApprovalOptions(toolName: string): { key: string; label: st
     { key: "none", label: "Deny" },
   ];
 }
+
+/** Phase 23: Approval options surfaced when a run's BudgetTracker reserve
+ *  would breach `agents.budgetCapUsd`. The cost-ceiling-discipline SKILL
+ *  workflow step 5 specifies these three operator levers. */
+export function buildCapBreachApprovalOptions(): { key: string; label: string }[] {
+  return [
+    { key: "raise", label: "Raise the cap for this run only (one-shot, does not persist)" },
+    { key: "truncated", label: "Accept the partial output and close as status=truncated" },
+    { key: "abort", label: "Abort the run" },
+  ];
+}

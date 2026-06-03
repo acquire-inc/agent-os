@@ -436,6 +436,40 @@ export async function setAutonomy(
   });
 }
 
+/**
+ * Phase 23: raise a cap-breach Approval per the cost-ceiling-discipline SKILL
+ * workflow step 5. Wraps raiseApproval with the standard cap-breach option set
+ * (raise / truncated / abort). The caller (runner) emits budget.cap_breached
+ * separately — this surfaces the breach to the operator.
+ */
+export async function raiseCapBreachApproval(
+  db: Db,
+  args: {
+    runId: string;
+    tenantId: string;
+    agentId: string;
+    requestedUsd: number;
+    committedUsd: number;
+    capUsd: number;
+    sdkSessionId?: string | null;
+  },
+) {
+  const overUsd = args.committedUsd + args.requestedUsd - args.capUsd;
+  return await raiseApproval(db, {
+    runId: args.runId,
+    tenantId: args.tenantId,
+    agentId: args.agentId,
+    context: `Cap breach: run committed $${args.committedUsd.toFixed(4)} + requested $${args.requestedUsd.toFixed(4)} would exceed cap $${args.capUsd.toFixed(2)} by $${overUsd.toFixed(4)}.`,
+    proposedAction: "cap.breach",
+    options: [
+      { key: "raise", label: "Raise the cap for this run only (one-shot, does not persist)" },
+      { key: "truncated", label: "Accept the partial output and close as status=truncated" },
+      { key: "abort", label: "Abort the run" },
+    ],
+    sdkSessionId: args.sdkSessionId,
+  });
+}
+
 /** Autonomous memory: persist a run summary as an agent-generated document and,
  *  when an embedder is supplied, vector-index it so future runs can retrieve it. */
 export async function writeRunMemory(db: Db, run: typeof schema.runs.$inferSelect, embedder?: Embedder) {

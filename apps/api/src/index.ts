@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { serve as inngestServe } from "inngest/hono";
-import { inngest, runScheduledAgent } from "@agent-os/inngest";
+import { inngest, runScheduledAgent, scoreAgentsScheduled } from "@agent-os/inngest";
 import { createDb, schema } from "@agent-os/db";
 import {
   ArchitectError,
@@ -36,7 +36,7 @@ import {
 } from "@agent-os/core";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { pathToFileURL } from "node:url";
 import { adminGuide, apiGuide } from "./guide.js";
@@ -92,7 +92,11 @@ app.get("/api/admin-guide", (c) => c.json(adminGuide));
 // Mounted BEFORE the /api/* api-key middleware: Inngest authenticates inbound
 // calls with INNGEST_SIGNING_KEY via its own serve handler, not the project
 // bearer key, so this route must not pass through verifyApiKey.
-app.on(["GET", "POST", "PUT"], "/api/inngest", inngestServe({ client: inngest, functions: [runScheduledAgent] }));
+app.on(
+  ["GET", "POST", "PUT"],
+  "/api/inngest",
+  inngestServe({ client: inngest, functions: [runScheduledAgent, scoreAgentsScheduled] }),
+);
 
 // --- API key auth for everything else under /api ---
 app.use("/api/*", async (c, next) => {
@@ -441,6 +445,49 @@ app.post("/api/admin/architect/propose", requireAdmin, async (c) => {
     if (e instanceof ArchitectError) return c.json({ error: e.message, code: e.code }, 400);
     throw e;
   }
+});
+
+// Phase 25: operator dashboard endpoints over agent_scorecards.
+// GET /api/admin/scorecards?agent_id=<uuid>&limit=20 — recent scorecards
+// GET /api/admin/scorecards/latest — most recent scorecard per agent
+app.get("/api/admin/scorecards", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const agentIdFilter = c.req.query("agent_id");
+  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const where = agentIdFilter
+    ? and(eq(schema.agentScorecards.tenantId, tenantId), eq(schema.agentScorecards.agentId, agentIdFilter))
+    : eq(schema.agentScorecards.tenantId, tenantId);
+  const rows = await db
+    .select()
+    .from(schema.agentScorecards)
+    .where(where)
+    .orderBy(desc(schema.agentScorecards.createdAt))
+    .limit(Number.isFinite(limit) ? limit : 50);
+  return c.json({ scorecards: rows });
+});
+
+app.get("/api/admin/scorecards/latest", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  // Most recent scorecard per agent. Drizzle doesn't have DISTINCT ON natively,
+  // so we use a window function via raw SQL through a subquery.
+  const rows = await db.execute<{
+    id: string;
+    agent_id: string;
+    agent_key: string;
+    verdict: string;
+    rationale: string;
+    applied_autonomy: string | null;
+    sample_size: number;
+    created_at: Date;
+  }>(sql`
+    SELECT DISTINCT ON (agent_id)
+      id, agent_id, agent_key, verdict, rationale, applied_autonomy,
+      sample_size, created_at
+    FROM agent_scorecards
+    WHERE tenant_id = ${tenantId}::uuid
+    ORDER BY agent_id, created_at DESC
+  `);
+  return c.json({ scorecards: rows });
 });
 
 app.get("/api/admin/architect/blueprints", requireAdmin, async (c) => {
