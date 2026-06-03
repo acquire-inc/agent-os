@@ -165,6 +165,7 @@ This phase REFUSES to:
 - Merge `feat/external-skills-extraction` into any other branch
 - Clone, remote-add, or push to any non-`bunn-os/agent-os` repo
 - Run operator gates 1-3 (`supabase db push`, `pnpm seed:phase-9`, `pnpm verify:isolation-live`)
+  - **WR-05 enforceability note**: this refusal is enforced **by construction**, not by automated verify gate. None of the 3 PLANs invoke or shell-inject these commands; they require a live Supabase service-role connection that the sandbox does not have; the `verify:isolation-live` script hard-fails on missing `RLS_TEST_DATABASE_URL`. The Phase 11 execution path provably cannot trigger them. If a future plan revision adds a shell-out, the operator must add a corresponding verify gate (e.g., snapshot `migrations` table row count pre/post, or check shell command history).
 - Implement the Hermes-fork resolution before operator review of `EXTERNAL-RUNTIME-RECONCILIATION.md`
 
 </scope_fence>
