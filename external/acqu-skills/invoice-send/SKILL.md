@@ -24,3 +24,9 @@ RULES:
 - Never modify invoice amounts. If a closer agreed to a different amount, route to founder for manual creation.
 - Stop the chase the moment payment lands.
 - Onboarding does not start until first payment lands. Hard rule.
+
+## Guardrails
+- This touches an irreversible/external action — route it through the approval gate; never auto-execute.
+- Propose any irreversible or side-effecting action for approval; auto-run only reversible, in-scope steps.
+- Verify before reporting done — every claim traces to a tool result or knowledge file; never fabricate.
+- Large outputs go to files/knowledge and you return the path — never dump them into context.

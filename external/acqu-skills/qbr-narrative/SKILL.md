@@ -15,6 +15,7 @@ INPUT: tenant_id + the QBR date 7 days out.
 OUTPUT: a draft QBR deck at /Clients/{tenant}/QBR/{quarter}.pptx (or markdown then pptx).
 
 CONTENT:
+## Steps
 1. 90-day numbers: spend, leads, CPL, calls, deals, ROAS. Trend graphs vs. target.
 2. What we tested (creative angles, audiences, offers) and what won/lost.
 3. The 3 biggest wins of the quarter — with specifics, not generic.
@@ -28,3 +29,8 @@ RULES:
 - Use the client's voice expectation from kb:clients/{tenant}/.
 - If retention is at risk (score < 70), the deck must directly address it — don't paper over.
 - Every claim sourced. Every number with a timestamp.
+
+## Guardrails
+- Propose any irreversible or side-effecting action for approval; auto-run only reversible, in-scope steps.
+- Verify before reporting done — every claim traces to a tool result or knowledge file; never fabricate.
+- Large outputs go to files/knowledge and you return the path — never dump them into context.

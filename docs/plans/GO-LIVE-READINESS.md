@@ -22,7 +22,7 @@ enumerable, 103 skills, 44 eval cases across 42 agents.
 | **Tools (catalog + safety)** | ✅ | ~63-tool catalog with truthful metadata; side-effecting tools (dunning/deploy/ad-launch/contracts/ledgers) are approval+irreversible; invariant *irreversible ⇒ requires_approval* holds catalog-wide. (`_tools.test`, P9·09-01) |
 | **Connectors** | ✅ (defs) | Role-based enrichment binds each agent to the connectors its function needs (Stripe/QuickBooks/GitHub/Sentry/Calendar/…). Connection **status** (OAuth) is a per-tenant go-live credential step. (`_connectors.test`, P9·09-02) |
 | **Skills — least privilege** | ✅ | `allowed-tools` on **103/103** skills; `bundle.skills[].allowedTools` populated. (`author-allowed-tools --check`, P9·09-03) |
-| **Skills — anatomy + guardrails** | ✅ | Both universal safety skills canonical; 12 thin primary skills given `## Steps` + doctrine-grounded `## Guardrails` (gate-respect / propose-not-execute). (`_safety-skills.test`, `_skill-anatomy.test`, P10/P12) |
+| **Skills — anatomy + guardrails** | ✅ | **103/103** skills carry `## Guardrails`: 12 bespoke (gate-respect / propose-not-execute) + the rest a universal baseline (propose-irreversible / verify / files-not-context) plus a keyword domain rail. Both universal safety skills canonical. (`_safety-skills.test`, `_skill-anatomy.test`, `readiness.test`, P10/P12/P16) |
 | **Evals (evidence-driven promotion)** | ✅ for the consequential set | 44 cases / 42 agents: **all 14 can't-fail** (critical), high-volume monitors, chain participants, reasoning workhorses, revenue/creative agents. (`_evals.test`, P11/P13) |
 | **Autonomy + safety gate** | ✅ | New agents `propose`; can't-fail agents `maxAutonomyForAgent === propose` (auto-promotion ceiling enforced in code + seed invariant). Safety via hooks, not the model. |
 
@@ -58,6 +58,9 @@ the system cutover waits on:
 
 ## Optional agent-scope follow-ups (not blocking)
 
-- Guardrails pass on the remaining ~30 mid-size skills (the 12 thinnest are done).
-- Eval cases for the remaining niche agents as run data accrues.
-- DB-side mirror of the readiness invariants inside `verify-golive` (belt-and-suspenders).
+- Eval cases for the remaining niche agents as run data accrues (44/42 covers all consequential ones).
+- Deepen the universal-baseline guardrails on individual skills to bespoke where a domain rail would
+  add specific value (the baseline + keyword rail is in place fleet-wide).
+
+*(Done since first draft: guardrails fleet-wide 103/103 — P16; DB-side readiness mirror in
+verify-golive — P15.)*

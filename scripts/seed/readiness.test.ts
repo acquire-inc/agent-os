@@ -90,6 +90,12 @@ function main() {
     assert(/^##\s+Steps/m.test(md) && /^##\s+Guardrails/m.test(md), `safety skill ${s} is canonical`);
   }
 
+  // 9. EVERY skill in the library states its guardrails (fleet-wide anatomy).
+  const noGuardrails = [...skills].filter((s) => {
+    try { return !/^##\s+Guardrails/m.test(readFileSync(join(skillsDir, s, "SKILL.md"), "utf8")); } catch { return true; }
+  });
+  assert(noGuardrails.length === 0, `every skill has a ## Guardrails section${noGuardrails.length ? " — missing: " + noGuardrails.slice(0, 5).join(", ") : ""}`);
+
   console.log(`\nResult: ${passed} passed, ${failed} failed`);
   if (failed === 0) console.log("✓ AGENT-DATA GO-LIVE READY (platform P0s + Hermes decision tracked separately).");
   process.exit(failed > 0 ? 1 : 0);

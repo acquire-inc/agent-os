@@ -23,3 +23,9 @@ RULES:
 - Quote the prospect verbatim when capturing objections. Do not paraphrase.
 - The follow-up is in the closer's voice — pull tone from kb:sales/voice-of-{closer}.md.
 - If anything in the call contradicts what the prospect said in their application, flag it in the summary.
+
+## Guardrails
+- Draft for review; decisions and anything client-facing need human sign-off.
+- Propose any irreversible or side-effecting action for approval; auto-run only reversible, in-scope steps.
+- Verify before reporting done — every claim traces to a tool result or knowledge file; never fabricate.
+- Large outputs go to files/knowledge and you return the path — never dump them into context.

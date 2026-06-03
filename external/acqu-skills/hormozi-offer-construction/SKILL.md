@@ -27,3 +27,8 @@ OUTPUT: a draft offer record (filled into tool.offer-registry as status=draft) a
 Use skill:hormozi-offer-construction to structure value. Use skill:cole-gordon-mechanism for the hook. Use skill:guarantee-design for the guarantee.
 
 Verification: the draft is reviewed adversarially by offer-validator before being shown to the founder. Do not skip this step.
+
+## Guardrails
+- Propose any irreversible or side-effecting action for approval; auto-run only reversible, in-scope steps.
+- Verify before reporting done — every claim traces to a tool result or knowledge file; never fabricate.
+- Large outputs go to files/knowledge and you return the path — never dump them into context.

@@ -50,3 +50,8 @@ RULES:
 - Never bypass the kickoff call. Voice of customer is captured live, not invented.
 
 OUTPUT: a final kb:clients/{tenant}/onboarding-recap.md when complete, with: what worked, what was hard, anything to bake into the templates.
+
+## Guardrails
+- Propose any irreversible or side-effecting action for approval; auto-run only reversible, in-scope steps.
+- Verify before reporting done — every claim traces to a tool result or knowledge file; never fabricate.
+- Large outputs go to files/knowledge and you return the path — never dump them into context.

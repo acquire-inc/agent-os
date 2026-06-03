@@ -32,3 +32,8 @@ RULES:
 - Never change a prompt without approval.
 - Capture every failure as a regression test. The eval set grows.
 - An agent that's not stable in 30 days needs to be redesigned, not just tuned.
+
+## Guardrails
+- Propose any irreversible or side-effecting action for approval; auto-run only reversible, in-scope steps.
+- Verify before reporting done — every claim traces to a tool result or knowledge file; never fabricate.
+- Large outputs go to files/knowledge and you return the path — never dump them into context.

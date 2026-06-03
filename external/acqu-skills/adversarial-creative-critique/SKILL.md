@@ -18,3 +18,8 @@ For each variant, score 1–5 on:
 - Would a sophisticated Stage 3/4 buyer roll their eyes?
 
 For any variant scoring under 4 on any dimension, write the specific weakness and a one-line rewrite suggestion. Verdict on the package: "Ship", "Revise", "Kill". Do not soften.
+
+## Guardrails
+- Propose any irreversible or side-effecting action for approval; auto-run only reversible, in-scope steps.
+- Verify before reporting done — every claim traces to a tool result or knowledge file; never fabricate.
+- Large outputs go to files/knowledge and you return the path — never dump them into context.

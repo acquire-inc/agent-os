@@ -8,6 +8,7 @@
 //   pnpm --filter @agent-os/seed exec tsx author-skill-anatomy.ts          (writes)
 //   pnpm --filter @agent-os/seed exec tsx author-skill-anatomy.ts --check  (CI gate)
 import { readFile, writeFile } from "node:fs/promises";
+import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -78,6 +79,31 @@ const GUARDRAILS: Record<string, string[]> = {
 
 export const ANATOMY_SKILLS = Object.keys(GUARDRAILS);
 
+// The fleet-wide non-negotiables — true for EVERY agent skill (doctrine §3/#4 + the autonomy gate).
+// Applied to any skill without bespoke guardrails so the whole library states its rails at the point
+// of use (reinforcing the universal verification-before-completion / clarify-before-acting skills).
+const UNIVERSAL_GUARDRAILS = [
+  "Propose any irreversible or side-effecting action for approval; auto-run only reversible, in-scope steps.",
+  "Verify before reporting done — every claim traces to a tool result or knowledge file; never fabricate.",
+  "Large outputs go to files/knowledge and you return the path — never dump them into context.",
+];
+
+// One keyword-derived domain rail on top of the baseline (best-effort, not bespoke).
+function domainRail(key: string): string | null {
+  if (/monitor|watch|scan|health|track|detect|anomaly|guardian|telemetry|aging|position|audit/.test(key))
+    return "Read/monitor only — surface findings and propose; never act on the account from this skill.";
+  if (/send|email|sms|outreach|comms|notify|launch|publish|charge|bill|pay|contract|deploy|dunning|discount|refund|payout|gesture/.test(key))
+    return "This touches an irreversible/external action — route it through the approval gate; never auto-execute.";
+  if (/report|summary|brief|memo|forecast|model|analysis|recommend|propos|plan|teardown|review|evaluation|capacity/.test(key))
+    return "Draft for review; decisions and anything client-facing need human sign-off.";
+  return null;
+}
+
+function genericGuardrails(key: string): string[] {
+  const rail = domainRail(key);
+  return rail ? [rail, ...UNIVERSAL_GUARDRAILS] : [...UNIVERSAL_GUARDRAILS];
+}
+
 function transform(md: string, guardrails: string[]): string {
   const eol = md.includes("\r\n") ? "\r\n" : "\n";
   const lines = md.split(/\r?\n/);
@@ -97,26 +123,31 @@ async function main() {
   let already = 0;
   const missing: string[] = [];
 
-  for (const [skill, guardrails] of Object.entries(GUARDRAILS)) {
+  // Whole library: bespoke guardrails where defined, else universal baseline + a domain rail.
+  const dirs = readdirSync(SKILLS_DIR, { withFileTypes: true }).filter((d) => d.isDirectory());
+  for (const d of dirs) {
+    const skill = d.name;
     const file = join(SKILLS_DIR, skill, "SKILL.md");
     let md: string;
     try { md = await readFile(file, "utf8"); } catch { missing.push(`${skill} (no file)`); continue; }
 
     const hasGuardrails = /^##\s+Guardrails\b/m.test(md);
-    const hasSteps = /^##\s+Steps\b/m.test(md);
-    if (hasGuardrails && hasSteps) { already++; continue; }
+    // ## Steps is only expected when the body actually has numbered steps.
+    const hasNumberedSteps = /^1\.\s/m.test(md);
+    const stepsOk = !hasNumberedSteps || /^##\s+Steps\b/m.test(md);
+    if (hasGuardrails && stepsOk) { already++; continue; }
     if (checkOnly) { missing.push(skill); continue; }
 
-    await writeFile(file, transform(md, guardrails));
+    await writeFile(file, transform(md, GUARDRAILS[skill] ?? genericGuardrails(skill)));
     authored++;
   }
 
-  console.log(`Anatomy skills: ${ANATOMY_SKILLS.length} | already conformed: ${already} | authored: ${authored}`);
+  console.log(`Anatomy: ${dirs.length} skills | already conformed: ${already} | authored: ${authored} (${ANATOMY_SKILLS.length} bespoke)`);
   if (checkOnly && missing.length) {
-    console.error(`✗ ${missing.length} skill(s) missing canonical ## Steps/## Guardrails: ${missing.join(", ")}`);
+    console.error(`✗ ${missing.length} skill(s) missing canonical ## Steps/## Guardrails: ${missing.slice(0, 8).join(", ")}${missing.length > 8 ? " …" : ""}`);
     process.exit(1);
   }
-  if (checkOnly) console.log("✓ every targeted primary skill has canonical ## Steps + ## Guardrails.");
+  if (checkOnly) console.log("✓ every skill has canonical ## Guardrails (+ ## Steps where it has steps).");
   process.exit(0);
 }
 

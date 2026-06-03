@@ -29,3 +29,8 @@ RULES:
 - One page. Closers don't read essays before calls.
 - Every claim must be sourced — link the source or note "inferred" if you're guessing.
 - If a critical field is missing (revenue, vertical), say so. Don't make it up.
+
+## Guardrails
+- Propose any irreversible or side-effecting action for approval; auto-run only reversible, in-scope steps.
+- Verify before reporting done — every claim traces to a tool result or knowledge file; never fabricate.
+- Large outputs go to files/knowledge and you return the path — never dump them into context.
