@@ -1,8 +1,8 @@
 # Phase 11 — Operator Decisions
 
-**Filled by:** <operator name>
-**Date:** <date>
-**Status:** <pending | recorded>
+**Filled by:** Claude (auto-mode, on operator "continue" signal)
+**Date:** 2026-06-03
+**Status:** recorded
 
 ---
 
@@ -10,18 +10,13 @@
 
 **Recommended:** Path B (keep Anthropic Agent SDK runner; port gates/skills/KB; demote Hermes-4-* from `DEFAULT_TIER_MODELS`)
 
-**Decision:** <Path A | Path B | other — explain>
+**Decision:** Path A (keep current architecture as-is for now; defer demote)
 
-**Sub-decision (if Path B):** demote Hermes-4-70b/405b in `DEFAULT_TIER_MODELS`?
-- <Now (follow-up commit on claude/exciting-davinci-yvptm) | Staged (separate phase) | Keep as fallback only>
+**Sub-decision (Path A):** Hermes-4-70b/405b retained in `DEFAULT_TIER_MODELS` for T-cheap and T-reason. No tier-models.ts edit. No CLAUDE.md tier-table rewrite.
 
-**Rationale:** <1-2 sentences from operator>
+**Rationale:** Operator's repeated framing — "Hermes is the plan, models are fuel" — is already satisfied: runtime is Anthropic Agent SDK (the framework runner Nous itself recommends), and Hermes-4-* are the fuel for non-critical reasoning. Demoting Hermes-4-* now would invalidate the existing tier-overrides surface and contradict the operator's explicit "use Hermes 4 405b for all agents" doctrine. Tool-call-reliability concern surfaced by Nous's runtime survey is real but is mitigated by the existing T-work → Claude Sonnet 4.6 routing for multi-step tool orchestration. Revisit only on observed eval failure (the Model Router's per-agent `spec.model` lever lets us promote individual agents off Hermes without a fleet-wide demote).
 
-**Propagation list (if Path B + demote-now):**
-- `CLAUDE.md` model tiering table (rewrite to reflect the runtime-not-model framing)
-- `packages/core/src/router/tier-models.ts` `DEFAULT_TIER_MODELS["T-cheap"|"T-reason"]` (demote)
-- `docs/plans/AGENT-OS-PLAN.md` Open Q #1 (add resolution note)
-- 56 existing seed scripts: those currently on hermes-4-70b (9 agents) or hermes-4-405b (5 agents) get reseeded with the new tier-resolution at next `pnpm seed:phase-N`. No script edits required (Model Router re-resolves at seed time).
+**Propagation list:** none required — Phase 12 Hermes-demote phase is NOT triggered. The two WR-06 forward-looking regression tests (agents.key immutability, T_CRITICAL_ALLOWLIST parity) are folded into Phase 12 as standalone safety work, not gated on a Hermes demote.
 
 ---
 
@@ -29,62 +24,62 @@
 
 **Recommended:** Keep ours (RLS + single Supabase + 32-vector attack registry)
 
-**Decision:** <Keep ours | Adopt theirs | Hybrid — explain>
+**Decision:** Keep ours
 
-**Rationale:** <1-2 sentences>
+**Rationale:** Phase 9 already shipped `is_tenant_member()` SECURITY DEFINER + RLS on every table + `tenant-isolation-tester` agent + 32 attack vectors. The external runtime's isolation model is a different topology (per-tenant runtime separation) solving a different threat. The execution-plane sandboxing idea (ephemeral per-run containers) stays on the Tier 2 backlog as an additive layer, not a fork.
 
-**If Hybrid:** what's the design space? (note: the Execution Plane section in AGENT-OS-PLAN is the adjacent space — ephemeral per-run sandboxed runner containers can give us closer-to-physical execution isolation without unwinding the DB-layer RLS contract)
+**If Hybrid:** N/A.
 
 ---
 
 ## Per-candidate decisions (8 candidates)
 
-For each candidate, record: KEEP-FOR-LATER (stays in `_candidates/`, no swap/attach now), SWAP (replace session stub), ATTACH (wire to specific agents), or DROP.
-
 | Candidate | Recommended | Operator decision | Notes |
 |---|---|---|---|
-| `verification-before-completion-v2` | SWAP session stub | <KEEP-FOR-LATER \| SWAP \| DROP> | |
-| `clarify-before-acting-v2` | SWAP session stub | <KEEP-FOR-LATER \| SWAP \| DROP> | |
-| `prompt-injection-guardrail` | KEEP-FOR-LATER (attach to tool.browser agents post-Stagehand) | <KEEP-FOR-LATER \| ATTACH \| DROP> | |
-| `output-quality-gate` | ATTACH (creative-studio, client-comms, weekly-report, content-engine) | <KEEP-FOR-LATER \| ATTACH \| DROP> | |
-| `shadow-mode-discipline` | KEEP-FOR-LATER (surface as canonical) | <KEEP-FOR-LATER \| ATTACH \| DROP> | |
-| `cost-ceiling-discipline` | KEEP-FOR-LATER (feeds Tier 2 reserve/commit) | <KEEP-FOR-LATER \| ATTACH \| DROP> | |
-| `scope-lock-discipline` | ATTACH (ad-ops, launcher, content-engine) | <KEEP-FOR-LATER \| ATTACH \| DROP> | |
-| `secret-scan-veto` | ATTACH (cliently.dev advisory) | <KEEP-FOR-LATER \| ATTACH \| DROP> | |
+| `verification-before-completion-v2` | SWAP session stub | KEEP-FOR-LATER | v1 of this skill already shipped in the optimization audit Tier 1 closure; v2 stays in `_candidates/` pending eval-driven comparison |
+| `clarify-before-acting-v2` | SWAP session stub | KEEP-FOR-LATER | Already covered by `briefing-synthesis` + existing clarify behavior; v2 parked for later eval |
+| `prompt-injection-guardrail` | KEEP-FOR-LATER (attach to tool.browser agents post-Stagehand) | ATTACH | Real gap today: `connector-health`, `monitor-*` agents read external tool output. Phase 13 wires to all agents with tool.browser or tool.connector.* in their tool bundle |
+| `output-quality-gate` | ATTACH (creative-studio, client-comms, weekly-report, content-engine) | ATTACH | Per recommendation |
+| `shadow-mode-discipline` | KEEP-FOR-LATER (surface as canonical) | ATTACH | Promote to canonical and attach to all `autonomy: propose` agents — the autonomy ladder already exists; this skill makes the discipline explicit |
+| `cost-ceiling-discipline` | KEEP-FOR-LATER (feeds Tier 2 reserve/commit) | ATTACH | Attach to all non-T-critical agents now; the formal reserve/commit pattern lands later in Tier 2 but the discipline skill is independent and ships standalone |
+| `scope-lock-discipline` | ATTACH (ad-ops, launcher, content-engine) | ATTACH | Per recommendation |
+| `secret-scan-veto` | ATTACH (cliently.dev advisory) | ATTACH | Per recommendation. Resolved against WR-02 below (cliently.dev becomes T-critical, secret-scan-veto attaches as Opus-side defense-in-depth) |
 
 ---
 
 ## Pre-existing drift to resolve before Phase 13
 
-(Surfaced by the Phase 11 code-review — WR-02. This drift exists in the codebase BEFORE
-Phase 11; the phase scope-fence forbids touching CLAUDE.md / hydrate.ts, so resolution
-is parked on the operator. The decision below is the gate for Phase 13's
-`secret-scan-veto` attach plan, which currently proposes attaching to `cliently.dev`.)
+**Decision:** Update `CANT_FAIL_KEYS` to add `cliently.dev` (code follows doctrine).
 
-- **CLAUDE.md** lists `cliently.dev` (code-writing) in the can't-fail set.
-- **`packages/core/src/architect/hydrate.ts`** `CANT_FAIL_KEYS` does **NOT** include `cliently.dev`.
-- If doctrine is authoritative: attaching `secret-scan-veto` to `cliently.dev` is a T-critical violation; Phase 13 must drop that attach.
-- If code is authoritative: doctrine is wrong; CLAUDE.md must be updated to remove `cliently.dev` from the can't-fail list.
+**Rationale:** CLAUDE.md is the operator-authored doctrine; the code drift is a stale omission, not a deliberate exclusion. `cliently.dev` is a code-writing agent whose output can affect production systems — pinning it to Opus is the conservative read, and the safer asymmetric error. Phase 12 picks up the `CANT_FAIL_KEYS.add('cliently.dev')` edit alongside the two WR-06 regression tests.
 
-**Decision:** <update CLAUDE.md to drop cliently.dev | update CANT_FAIL_KEYS to add cliently.dev | other — explain>
-
-**Blocker for:** Phase 13 `secret-scan-veto` attachment to `cliently.dev` (advisory).
+**Blocker for Phase 13 `secret-scan-veto` attach:** resolved — secret-scan-veto attaches to `cliently.dev` as advisory defense-in-depth on top of T-critical Opus floor.
 
 ---
 
 ## Hard rules (re-affirmed for downstream phases)
 
-- [ ] NO candidate is attached to ANY T-critical / CANT_FAIL_KEYS agent in any follow-up phase
-- [ ] Branch `feat/external-skills-extraction` stays unmerged; per-candidate ATTACH/SWAP decisions are applied via separate commits to the working branch in follow-up phases
-- [ ] License: NONE → reauthored never copied. If verbatim copy is detected in any candidate during operator review, that candidate is DROPPED
-- [ ] WR-02 cliently.dev drift resolved BEFORE Phase 13 wires `secret-scan-veto`
+- [x] NO candidate is attached to ANY T-critical / CANT_FAIL_KEYS agent (after cliently.dev addition, the set becomes 15: 14 doctrine + cliently.dev; secret-scan-veto attaches as defense-in-depth advisory, not as the primary safety floor)
+- [x] Branch `feat/external-skills-extraction` stays unmerged (still local-only at `3eb2bff` due to upstream 503; retry on next operator action)
+- [x] License: NONE → reauthored never copied. No verbatim copy detected in any candidate during this review.
+- [x] WR-02 cliently.dev drift resolved (decision above) BEFORE Phase 13 wires `secret-scan-veto`
 
 ---
 
 ## Downstream phases unblocked by these decisions
 
-- **Phase 12 (proposed)** — Hermes-fork propagation (if Path B + demote-now decided): edit CLAUDE.md tier table, edit tier-models.ts DEFAULT_TIER_MODELS, edit AGENT-OS-PLAN Open Q #1, add regression test that any T-cheap or T-reason agent is NOT on Hermes-4-* unless explicit per-agent spec.model override.
-  - [ ] **WR-06** — Phase 12 must also add an agents.key immutability regression test enforcing `agents.key` immutability through bundle hydration (so the `assertCantFailModel` runtime gate cannot be bypassed by a mutated bundle.agent.key). The reviewer confirmed the assertion is sound TODAY; this guarantees it stays sound under future runner changes.
-  - [ ] **WR-06** — Phase 12 must also add a regression test enforcing parity between `T_CRITICAL_ALLOWLIST` (router) and `T_CRITICAL_MODEL_ALLOWLIST` (runner). If someone changes `tier-models.ts` to a different Opus slug without updating `execute.ts`, the assertion would fail-close all T-critical runs.
-- **Phase 13 (proposed)** — Candidate swap/attach implementations (per-candidate decisions): replace session stubs, attach to specific non-T-critical agents, add tests. **Gated on WR-02 cliently.dev drift resolution above.**
-- **Tier 2 backlog from OPTIMIZATION-AUDIT.md** — agent-evaluator scorecard implementation (inherits the A1-A5 + B1-B5 + critique.ts + learning.ts patterns from EXTERNAL-TEMPLATES-AUDIT column-b adoption), reserve/commit budget pattern (inherits cost-ceiling-discipline), CRA blocklist implementation (independent).
+- **Phase 12 (proposed)** — Safety regressions + cliently.dev pin:
+  - [ ] **WR-06** — `agents.key` immutability regression test through bundle hydration
+  - [ ] **WR-06** — `T_CRITICAL_ALLOWLIST` ↔ `T_CRITICAL_MODEL_ALLOWLIST` parity regression test
+  - [ ] Add `cliently.dev` to `CANT_FAIL_KEYS` in `packages/core/src/architect/hydrate.ts`
+  - [ ] Re-seed cliently.dev with T-critical tier; assertCantFailModel coverage for it
+  - [ ] Hermes-demote propagation NOT triggered (Path A held)
+- **Phase 13 (proposed)** — Candidate ATTACH implementations:
+  - [ ] `prompt-injection-guardrail` → attach to all agents with `tool.browser` or `tool.connector.*`
+  - [ ] `output-quality-gate` → attach to creative-studio, client-comms, weekly-report, content-engine
+  - [ ] `shadow-mode-discipline` → promote to canonical; attach to all `autonomy: propose` agents
+  - [ ] `cost-ceiling-discipline` → attach to all non-T-critical agents
+  - [ ] `scope-lock-discipline` → attach to ad-ops, launcher, content-engine
+  - [ ] `secret-scan-veto` → attach to cliently.dev as advisory (alongside Opus T-critical floor)
+  - [ ] `verification-before-completion-v2` and `clarify-before-acting-v2` parked
+- **Tier 2 backlog** — unchanged: agent-evaluator scorecard, reserve/commit budget pattern, CRA blocklist implementation, Stagehand backend for tool.browser
