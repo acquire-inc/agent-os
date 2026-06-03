@@ -43,6 +43,9 @@ wired into CI.
 - P11: eval cases 13→29 / 11→27 agents — completed can't-fail coverage (all 14 now have a critical
   case), added high-volume monitors + chain participants. _evals 15 tests (incl. the can't-fail
   critical-coverage invariant).
+- P12: 12 thin primary skills brought to canonical anatomy (## Steps + a doctrine-grounded
+  ## Guardrails section each — the missing safety rails). author-skill-anatomy.ts (idempotent +
+  --check gate); _skill-anatomy 64 tests.
 NOTE on the external-restructure instructions (OUTPUT 2): its inputs (AgentOS audit docs +
 feat/external-skills-extraction branch + /agents/_candidates + zip) do NOT exist in this repo, and
 several premises mismatch (the two "missing" skills already exist; CANT_FAIL_AGENTS not
