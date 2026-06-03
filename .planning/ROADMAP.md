@@ -31,6 +31,13 @@ A multi-tenant Agent OS — the control plane that runs Acquire Inc (Acqu) on ag
 - [x] **Phase 20: Scorecard controller + `agent_scorecards` migration** — `computeNextAutonomy` controller (5 verdicts → autonomy moves) + migration 0014 + Drizzle table. 25 new assertions. Cant-fail agents capped at `execute_safe`. **(closed 2026-06-03)**
 - [x] **Phase 21: `setAutonomy` lifecycle + scorecard job** — `setAutonomy(db, args)` atomic update + `lifecycle.changed` Relay event. `runScorecardJob(inputs, sink)` pure orchestrator with 4-callback sink interface for testability. 25 assertions. **(closed 2026-06-03)**
 - [x] **Phase 22: Per-run autonomy ratchet on injection match** — Closes Phase 13 SKILL workflow step 5. `apps/runner/src/run-state.ts` singleton + PreToolUse hook integration; `tool.browser` triggers ratchet to `propose`. 19 assertions. **(closed 2026-06-03)**
+- [x] **Phases 11-25 aggregate code review + fixes** — 9 Critical + 14 Warning + 6 Info findings. All 9 Criticals + 9 Warnings patched in one pass; full report in `.planning/phases/00-aggregate-review-phases-11-25/00-REVIEW.md`. **(closed 2026-06-03)**
+- [x] **Phase 26: Per-tool reserve/commit + tool cost estimates** — Migration 0016 adds `tools.cost_estimate_usd`; `dispatchCustomTool` reserves-before / commits-after via BudgetTracker; `CapBreachError` refuses on breach. 8 new test assertions. **(closed 2026-06-03)**
+- [x] **Phase 27: Per-tenant scorecard threshold overrides** — Migration 0017 + `tenants.scorecard_thresholds` JSONB; scheduled job merges per-tenant overrides on `DEFAULT_THRESHOLDS`. **(closed 2026-06-03)**
+- [x] **Phase 28: Per-tool cap-breach Approval surfacing** — `dispatchCustomTool` raises `raiseCapBreachApproval` before throwing `CapBreachError`. Closes Phase 13 cost-ceiling-discipline workflow step 5 at the per-tool layer. **(closed 2026-06-03)**
+- [x] **Phase 29: Cross-tenant scorecard aggregate endpoint** — `GET /api/admin/scorecards/xtenant-agg` reads from the consent-filtered view; the moat lens. **(closed 2026-06-03)**
+- [x] **Phase 30: Connector tool dispatch-layer ratchet** — `dispatchCustomTool` adds post-handler injection scrub + autonomy ratchet for any `tool.connector.*` (future connector tools inherit defense-in-depth automatically). **(closed 2026-06-03)**
+- [x] **Phase 31: DB-backed budget reservations** — Migration 0018 + `budget_reservations` table + `makeReservationPersister`; `BudgetTracker` accepts a persister and re-hydrates on runner restart. 6 new test assertions. **(closed 2026-06-03)**
 
 ## Backlog (Tier 2 — recorded for future planning)
 

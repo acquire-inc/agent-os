@@ -32,6 +32,7 @@ export {
   type CommitResult,
   type ReleaseResult,
   type ReserveResult,
+  type ReservationPersister,
 } from "./budget/tracker.js";
 export {
   DEFAULT_THRESHOLDS,

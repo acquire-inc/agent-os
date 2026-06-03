@@ -1,7 +1,7 @@
 // BudgetTracker tests.
 // Run: pnpm --filter @agent-os/core test:budget
 
-import { BudgetTracker, type BudgetEvent } from "./tracker.js";
+import { BudgetTracker, type BudgetEvent, type ReservationPersister } from "./tracker.js";
 
 let passed = 0;
 let failed = 0;
@@ -23,7 +23,7 @@ function newTracker() {
   return { tracker, sunk };
 }
 
-function main() {
+async function main() {
   console.log("• Group 1 — happy path: open / reserve / commit / close");
   {
     const { tracker, sunk } = newTracker();
@@ -186,8 +186,66 @@ function main() {
     assert(tracker.hasRun(RUN) === false, "hasRun after close is false");
   }
 
+  console.log("\n• Group 8 (Phase 31) — persister write-through on reserve/commit/release");
+  {
+    const inserted: { id: string; amount: number }[] = [];
+    const removed: string[] = [];
+    const persister: ReservationPersister = {
+      insert: async (args) => {
+        inserted.push({ id: args.id, amount: args.amountUsd });
+      },
+      remove: async (id) => {
+        removed.push(id);
+      },
+      listForRun: async () => [],
+    };
+    const tracker = new BudgetTracker(() => {}, persister);
+    tracker.openRun(RUN, 5.0);
+    tracker.setRunTenant(RUN, "tenant-1");
+
+    const a = tracker.reserveSpend(RUN, 1.0);
+    const b = tracker.reserveSpend(RUN, 0.5);
+    tracker.commitSpend(RUN, a.reservationId!, 0.9);
+    tracker.releaseSpend(RUN, b.reservationId!);
+
+    // The async persister calls are fire-and-forget. Give them a tick.
+    await new Promise((r) => setImmediate(r));
+
+    assert(inserted.length === 2, `inserted 2 reservations (got ${inserted.length})`);
+    assert(removed.length === 2, `removed 2 reservations (got ${removed.length})`);
+    assert(
+      inserted[0]!.amount === 1.0 && inserted[1]!.amount === 0.5,
+      "insert amounts match",
+    );
+  }
+
+  console.log("\n• Group 8b (Phase 31) — hydrateRun rebuilds reserved totals from the persister");
+  {
+    const persister: ReservationPersister = {
+      insert: async () => {},
+      remove: async () => {},
+      listForRun: async () => [
+        { id: `${RUN}:r1`, amountUsd: 0.6 },
+        { id: `${RUN}:r2`, amountUsd: 0.3 },
+      ],
+    };
+    const tracker = new BudgetTracker(() => {}, persister);
+    tracker.openRun(RUN, 2.0);
+    tracker.setRunTenant(RUN, "tenant-1");
+    const hydration = await tracker.hydrateRun(RUN);
+    assert(hydration?.rehydratedCount === 2, "hydration recovered 2 reservations");
+    const snap = tracker.snapshot(RUN);
+    assert(
+      Math.abs((snap?.reservedTotal ?? 0) - 0.9) < 1e-9,
+      `reservedTotal=0.9 after hydration (got ${snap?.reservedTotal})`,
+    );
+    // Next reserve should get seq=3 (after the hydrated :r1 and :r2)
+    const next = tracker.reserveSpend(RUN, 0.1);
+    assert(next.reservationId === `${RUN}:r3`, `next reservation id is r3 (got ${next.reservationId})`);
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);
 }
 
-main();
+main().catch((e) => { console.error(e); process.exit(1); });

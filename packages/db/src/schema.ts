@@ -517,6 +517,20 @@ export const runSummaries = pgTable("run_summaries", {
 });
 
 /**
+ * Phase 31: budget_reservations — transient per-run reservation ledger.
+ * Survives runner restart so in-flight reservations can be re-hydrated.
+ * Mirrors supabase/migrations/0018_budget_reservations.sql.
+ */
+export const budgetReservations = pgTable("budget_reservations", {
+  id: text("id").primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  runId: uuid("run_id").notNull().references(() => runs.id, { onDelete: "cascade" }),
+  amountUsd: numeric("amount_usd", { precision: 12, scale: 4 }).notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
  * Phase 20: agent_scorecards — persisted output of the eval scorecard job.
  * Mirrors supabase/migrations/0014_agent_scorecards.sql.
  */

@@ -67,12 +67,40 @@ export interface ReleaseResult {
   state: BudgetEvent;
 }
 
+/** Phase 31: optional db-backed persistence for the in-flight reservations.
+ *  When supplied, the tracker writes through to the backing store on
+ *  reserve/commit/release, and the singleton's openRun re-hydrates from
+ *  the store on startup so reservations survive runner restart. */
+export interface ReservationPersister {
+  insert: (args: {
+    id: string;
+    tenantId: string;
+    runId: string;
+    amountUsd: number;
+    metadata?: Record<string, unknown>;
+  }) => Promise<void>;
+  remove: (id: string) => Promise<void>;
+  /** Read all reservations for a run — used to re-hydrate on tracker boot. */
+  listForRun: (runId: string) => Promise<{ id: string; amountUsd: number }[]>;
+}
+
 export class BudgetTracker {
   private runs = new Map<string, RunBudgetState>();
   private sink: BudgetEventSink;
+  private persister: ReservationPersister | null;
+  /** Per-run tenant id captured at openRun for persister calls. */
+  private runTenantIds = new Map<string, string>();
 
-  constructor(sink?: BudgetEventSink) {
+  constructor(sink?: BudgetEventSink, persister?: ReservationPersister) {
     this.sink = sink ?? (() => {});
+    this.persister = persister ?? null;
+  }
+
+  /** Phase 31: provide tenant context for persister calls when openRun is
+   *  used in places that have a tenantId at the call site. The singleton
+   *  pattern in apps/runner/src/budget.ts sets this from the bundle. */
+  setRunTenant(runId: string, tenantId: string): void {
+    this.runTenantIds.set(runId, tenantId);
   }
 
   /** Start tracking a run. Called once at run start. Returns the state.
@@ -137,6 +165,20 @@ export class BudgetTracker {
     state.reservedTotal += amountUsd;
     const evt = this.toEvent("budget.reserved", state, amountUsd, { ...metadata, reservationId });
     this.sink(evt);
+    // Phase 31: write-through to the persister so the reservation survives
+    // runner restart. Best-effort — log on failure but don't roll back the
+    // in-memory reserve (the audit trail is still in the Relay budget.reserved
+    // event above; the table is just a transient ledger for re-hydration).
+    if (this.persister) {
+      const tenantId = this.runTenantIds.get(runId);
+      if (tenantId) {
+        this.persister
+          .insert({ id: reservationId, tenantId, runId, amountUsd, metadata })
+          .catch((e) => {
+            console.error(`[BudgetTracker] persister.insert failed for ${reservationId}: ${(e as Error).message}`);
+          });
+      }
+    }
     return { ok: true, reservationId, reason: "ok", state: evt };
   }
 
@@ -175,6 +217,12 @@ export class BudgetTracker {
       delta,
     });
     this.sink(evt);
+    // Phase 31: remove the persisted reservation. Best-effort.
+    if (this.persister) {
+      this.persister.remove(reservationId).catch((e) => {
+        console.error(`[BudgetTracker] persister.remove failed for ${reservationId}: ${(e as Error).message}`);
+      });
+    }
     return { ok: true, reason: "ok", delta, state: evt };
   }
 
@@ -207,7 +255,38 @@ export class BudgetTracker {
       reservationId,
     });
     this.sink(evt);
+    // Phase 31: remove the persisted reservation. Best-effort.
+    if (this.persister) {
+      this.persister.remove(reservationId).catch((e) => {
+        console.error(`[BudgetTracker] persister.remove failed for ${reservationId}: ${(e as Error).message}`);
+      });
+    }
     return { ok: true, reason: "ok", state: evt };
+  }
+
+  /** Phase 31: re-hydrate in-flight reservations from the persister.
+   *  Called after openRun on a runner restart so the tracker can resume
+   *  enforcement from where the prior process left off. The
+   *  reservedTotal is reconstructed; committedTotal stays 0 (the
+   *  committed totals are sourced from runs.cost_usd by the caller). */
+  async hydrateRun(runId: string): Promise<{ rehydratedCount: number } | null> {
+    if (!this.persister) return null;
+    const state = this.runs.get(runId);
+    if (!state) return null;
+    const rows = await this.persister.listForRun(runId);
+    for (const row of rows) {
+      state.reservations.set(row.id, row.amountUsd);
+      state.reservedTotal += row.amountUsd;
+      // Update nextReservationSeq to be > the max seq in the rehydrated set.
+      const m = row.id.match(/:r(\d+)$/);
+      if (m) {
+        const seq = Number(m[1]);
+        if (seq >= state.nextReservationSeq) {
+          state.nextReservationSeq = seq + 1;
+        }
+      }
+    }
+    return { rehydratedCount: rows.length };
   }
 
   /** Emit a summary event for the run and remove it from the tracker. */
@@ -221,6 +300,7 @@ export class BudgetTracker {
     });
     this.sink(evt);
     this.runs.delete(runId);
+    this.runTenantIds.delete(runId);
     return evt;
   }
 

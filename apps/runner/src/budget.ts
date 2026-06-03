@@ -7,16 +7,20 @@
 // even though we don't pre-reserve before each LLM call (that's the
 // SDK's domain and not a place we can mechanically inject).
 //
-// Per-tool reserve/commit (for paid deterministic tools like
-// tool.browser) is a follow-up phase — needs a per-tool cost estimate
-// table that doesn't exist today.
+// Phase 26: per-tool reserve/commit landed via dispatchCustomTool —
+// tools with a per-invocation cost estimate go through reserve-before /
+// commit-after at the dispatch boundary.
 //
-// BudgetEventSink emits to console for now; Relay emit lands when the
-// runner-tenant-context wiring is solid.
+// Phase 31: optional db-backed persister survives runner restart. When
+// DATABASE_URL is set, the singleton wires a Drizzle-backed persister
+// over `budget_reservations` (migration 0018). Without the env var
+// the tracker is in-memory only (acceptable for tests / dry-run).
 
-import { BudgetTracker, type BudgetEvent } from "@agent-os/core";
+import { BudgetTracker, type BudgetEvent, type ReservationPersister } from "@agent-os/core";
+import { createDb, makeReservationPersister, type Db } from "@agent-os/db";
 
 let trackerSingleton: BudgetTracker | null = null;
+let cachedDb: Db | null = null;
 
 function defaultSink(evt: BudgetEvent): void {
   // Compact one-line log so production tail | grep budget. works.
@@ -25,9 +29,16 @@ function defaultSink(evt: BudgetEvent): void {
   );
 }
 
+function getPersister(): ReservationPersister | undefined {
+  const url = process.env.DATABASE_URL;
+  if (!url) return undefined;
+  if (!cachedDb) cachedDb = createDb(url);
+  return makeReservationPersister(cachedDb);
+}
+
 export function getBudgetTracker(): BudgetTracker {
   if (!trackerSingleton) {
-    trackerSingleton = new BudgetTracker(defaultSink);
+    trackerSingleton = new BudgetTracker(defaultSink, getPersister());
   }
   return trackerSingleton;
 }
@@ -35,4 +46,5 @@ export function getBudgetTracker(): BudgetTracker {
 /** Test-only: reset the singleton between tests. */
 export function resetBudgetTrackerForTests(): void {
   trackerSingleton = null;
+  cachedDb = null;
 }

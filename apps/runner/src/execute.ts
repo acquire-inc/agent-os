@@ -314,7 +314,18 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<Ru
 export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConfig): Promise<RunResult> {
   const tracker = getBudgetTracker();
   const capUsd = bundle.agent.budgetCapUsd ?? 0;
-  tracker.openRun(bundle.run.id, capUsd);
+  // WR-06 fix: openRun throws on collision. Guard against unexpected re-entry
+  // by checking hasRun first — the legitimate path is one-open-per-run, but
+  // a misbehaving caller would otherwise crash the run.
+  if (!tracker.hasRun(bundle.run.id)) {
+    tracker.openRun(bundle.run.id, capUsd);
+    // Phase 31: provide tenant context for the db-backed persister and
+    // re-hydrate any in-flight reservations from a prior runner process.
+    tracker.setRunTenant(bundle.run.id, bundle.agent.tenantId);
+    await tracker.hydrateRun(bundle.run.id).catch((e) => {
+      console.error(`[runner] hydrateRun failed for ${bundle.run.id}: ${(e as Error).message}`);
+    });
+  }
 
   // Phase 19: emit budget.* Relay events from BudgetTracker outputs when a db
   // handle is available. Best-effort; never throws into the run.
