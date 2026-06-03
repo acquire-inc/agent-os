@@ -22,6 +22,7 @@
     "test:waved": "tsx src/relay/waved.test.ts",
     "test:router": "tsx src/router/router.test.ts",
     "test:parity": "tsx src/router/allowlist-parity.test.ts",
+    "test:scorecard": "tsx src/eval/scorecard.test.ts",
     "test:cantfail": "tsx src/seed/seedAgent.cantfail.test.ts"
   },
   "dependencies": {

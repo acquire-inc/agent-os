@@ -33,5 +33,13 @@ export {
   type ReleaseResult,
   type ReserveResult,
 } from "./budget/tracker.js";
+export {
+  DEFAULT_THRESHOLDS,
+  scoreAgent,
+  type RunSample,
+  type Scorecard,
+  type ScorecardThresholds,
+  type Verdict,
+} from "./eval/scorecard.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";
