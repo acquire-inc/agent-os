@@ -20,17 +20,35 @@
 
 import { createDb, schema, type Db } from "@agent-os/db";
 import {
+  DEFAULT_THRESHOLDS,
   isCantFail,
   runScorecardJob,
   setAutonomy,
   type Autonomy,
   type RunSample,
   type ScorecardJobSink,
+  type ScorecardThresholds,
 } from "@agent-os/core";
 import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { inngest } from "../client.js";
 
-const { agents, runSummaries, agentScorecards, relayEvents } = schema;
+const { agents, runSummaries, agentScorecards, relayEvents, tenants } = schema;
+
+/** Phase 27: merge a per-tenant partial override (from
+ *  tenants.scorecard_thresholds) with the canonical DEFAULT_THRESHOLDS.
+ *  Missing keys fall back; nonsense values fall back (NaN guard). */
+function mergeThresholds(
+  override: Partial<ScorecardThresholds> | null | undefined,
+): ScorecardThresholds {
+  if (!override) return DEFAULT_THRESHOLDS;
+  const out = { ...DEFAULT_THRESHOLDS } as unknown as Record<string, number>;
+  for (const [k, v] of Object.entries(override)) {
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
+      out[k] = v;
+    }
+  }
+  return out as unknown as ScorecardThresholds;
+}
 
 /**
  * Build the sink that runScorecardJob() depends on. The sink wraps Drizzle
@@ -264,6 +282,24 @@ export const scoreAgentsScheduled = inngest.createFunction(
     const windowEnd = new Date();
     const windowStart = new Date(windowEnd.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days
 
+    // Phase 27: fetch per-tenant scorecard threshold overrides once per
+    // sweep (the cron walks one tenant's worth of agents but the
+    // ad-hoc event path may span multiple). Cache by tenantId.
+    const thresholdsByTenant = new Map<string, ScorecardThresholds>();
+    const tenantIds = [...new Set(targets.map((t) => t.tenantId))];
+    if (tenantIds.length > 0) {
+      const trows = await db
+        .select({
+          id: tenants.id,
+          scorecardThresholds: tenants.scorecardThresholds,
+        })
+        .from(tenants)
+        .where(inArray(tenants.id, tenantIds));
+      for (const row of trows) {
+        thresholdsByTenant.set(row.id, mergeThresholds(row.scorecardThresholds));
+      }
+    }
+
     let scored = 0;
     const results: { agentKey: string; verdict: string; appliedAutonomy: string }[] = [];
     const failed: { agentKey: string; error: string }[] = [];
@@ -274,6 +310,7 @@ export const scoreAgentsScheduled = inngest.createFunction(
     // silently exhausting retries and stopping scoring for everyone.
     for (const t of targets) {
       try {
+        const thresholds = thresholdsByTenant.get(t.tenantId) ?? DEFAULT_THRESHOLDS;
         const res = await step.run(`score-${t.id}`, async () => {
           return await runScorecardJob(
             {
@@ -284,6 +321,7 @@ export const scoreAgentsScheduled = inngest.createFunction(
               isCantFail: isCantFail(t.key),
               windowStart,
               windowEnd,
+              thresholds,
             },
             sink,
           );

@@ -40,6 +40,24 @@ export const tenants = pgTable("tenants", {
     .$type<Partial<Record<"T-trivial" | "T-cheap" | "T-reason" | "T-work" | "T-critical", string>>>()
     .notNull()
     .default({}),
+  /** Phase 27: per-tenant scorecard threshold overrides. Shape mirrors
+   *  ScorecardThresholds; partial — only the keys the tenant tunes. The
+   *  scheduled scorecard job merges DEFAULT_THRESHOLDS with this jsonb
+   *  before calling scoreAgent. Empty/null = use defaults verbatim. */
+  scorecardThresholds: jsonb("scorecard_thresholds")
+    .$type<Partial<{
+      minSampleSize: number;
+      minApprovalRateForPromote: number;
+      minVerificationRate: number;
+      minVerificationRateForPromote: number;
+      maxCostUtilization: number;
+      maxCostUtilizationForPromote: number;
+      maxFindingsRatePerRun: number;
+      maxScopeLockRefusalsPerRun: number;
+      maxOutputQualityFailureRate: number;
+    }>>()
+    .notNull()
+    .default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

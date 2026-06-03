@@ -13,7 +13,7 @@
 // tool.access-log-analyzer. Each lazy-creates its db connection + (for
 // vault-rotate) the vault key from env vars on first call so handlers stay
 // process-isolated from runner module load — env may not be wired at import.
-import { recordFinding, scrubToolResult } from "@agent-os/core";
+import { raiseCapBreachApproval, recordFinding, scrubToolResult } from "@agent-os/core";
 import { getBudgetTracker } from "./budget.js";
 import { ratchetAutonomy } from "./run-state.js";
 import { runBrowserTool, type BrowserToolInput, type BrowserToolResult } from "@agent-os/tool-browser";
@@ -264,6 +264,26 @@ export async function dispatchCustomTool(
       phase: "dispatch",
     });
     if (!r.ok && r.reason === "would_breach_cap") {
+      // Phase 28: surface the per-tool cap breach as an operator Approval
+      // before throwing — same lever set as the end-of-run path
+      // (raise / truncated / abort). Best-effort: if no db handle is
+      // available (test / dry-run), still throw the sentinel so the
+      // caller can react.
+      try {
+        const dbHandle = getDb();
+        await raiseCapBreachApproval(dbHandle, {
+          runId: bundle.run.id,
+          tenantId: bundle.agent.tenantId,
+          agentId: bundle.agent.id,
+          requestedUsd: estimateUsd,
+          committedUsd: r.state.committedTotal,
+          capUsd: r.state.capUsd,
+        });
+      } catch (e) {
+        console.error(
+          `[runner] dispatch cap-breach approval emit skipped for ${toolKey}: ${(e as Error).message}`,
+        );
+      }
       throw new CapBreachError(
         toolKey,
         estimateUsd,
@@ -282,8 +302,74 @@ export async function dispatchCustomTool(
       runId: bundle.run.id,
       agentId: bundle.agent.id,
     });
+
+    // Phase 30: post-handler injection scrub for ANY tool that crosses
+    // the AgentOS trust boundary. tool.browser already scrubs at the
+    // handler level (Phase 15/19/22); this defense-in-depth wrap covers
+    // future connector-shaped tools (tool.connector.*) that aren't yet
+    // implemented but should inherit the same scrub + ratchet.
+    let finalResult: unknown = result;
+    const isExternalTrustTool =
+      toolKey === "tool.browser" || toolKey.startsWith("tool.connector.");
+    if (isExternalTrustTool && toolKey !== "tool.browser") {
+      // tool.browser already scrubs inside its handler (with the richer
+      // finding-emit and base64 logic). For other external-trust tools
+      // we just do the redaction here at dispatch-exit so the result is
+      // never piped back un-scrubbed.
+      const { result: scrubbed, detections } = scrubToolResult(result);
+      finalResult = scrubbed;
+      if (detections.length > 0) {
+        const categoriesSeen = [...new Set(detections.map((d) => d.category))];
+        console.warn(
+          `[runner] ${toolKey}: ${detections.length} prompt-injection pattern(s) redacted (categories: ${categoriesSeen.join(", ")})`,
+        );
+        const nonSteg = categoriesSeen.filter((c) => c !== "steganographic");
+        if (nonSteg.length > 0) {
+          ratchetAutonomy(
+            bundle.run.id,
+            "propose",
+            `prompt-injection detected in ${toolKey} result (categories: ${nonSteg.join(", ")})`,
+          );
+        }
+        // Emit a single finding per category at the dispatch layer
+        // (mirrors the tool.browser handler emit but consolidated).
+        try {
+          const dbHandle = getDb();
+          for (const cat of categoriesSeen) {
+            const catDetections = detections.filter((d) => d.category === cat);
+            const severity = cat === "steganographic" ? "medium" : "high";
+            await recordFinding(dbHandle, {
+              tenantId: bundle.agent.tenantId,
+              category: "anomaly",
+              severity,
+              title: "prompt-injection attempt redacted",
+              agentId: bundle.agent.id,
+              payload: {
+                source: toolKey,
+                run_id: bundle.run.id,
+                category: cat,
+                detail: `${catDetections.length} ${cat} injection pattern(s) detected in ${toolKey} result; redacted before planner read`,
+                count: catDetections.length,
+                first_span_preview_b64: Buffer.from(
+                  catDetections[0]!.matchedSpan.slice(0, 100),
+                ).toString("base64"),
+              },
+            }).catch((e) => {
+              console.error(
+                `[runner] ${toolKey} finding emit failed for cat=${cat}: ${(e as Error).message}`,
+              );
+            });
+          }
+        } catch (e) {
+          console.error(
+            `[runner] ${toolKey} dispatch-layer injection-emit skipped: ${(e as Error).message}`,
+          );
+        }
+      }
+    }
+
     const resultPath = join(outputDir, `${toolKey.replace(/[^a-zA-Z0-9._-]/g, "_")}-result.json`);
-    await writeFile(resultPath, JSON.stringify(result, null, 2), "utf8");
+    await writeFile(resultPath, JSON.stringify(finalResult, null, 2), "utf8");
 
     // Commit the estimate as the actual on success. Future enhancement:
     // a handler that returns a true cost can supersede the estimate.

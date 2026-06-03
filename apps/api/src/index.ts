@@ -487,6 +487,43 @@ app.get("/api/admin/scorecards", requireAdmin, async (c) => {
   return c.json({ scorecards: rows });
 });
 
+// Phase 29: cross-tenant aggregate (moat lens) — reads from the
+// agent_scorecards_xtenant_agg view created by migration 0014. NOT
+// scoped to the caller's tenant; surfaces the AVERAGE behavior of an
+// agent class across every tenant on the platform. Operators use this
+// to spot agent classes that promote fast (good archetypes to clone) vs.
+// agent classes that demote often (archetypes to deprecate).
+app.get("/api/admin/scorecards/xtenant-agg", requireAdmin, async (c) => {
+  const verdict = c.req.query("verdict"); // optional filter
+  const minScorecardCount = Math.max(1, Number(c.req.query("min_scorecard_count") ?? 1));
+
+  const verdictFilter = verdict
+    ? sql`AND verdict = ${verdict}`
+    : sql``;
+  const rows = await db.execute<{
+    agent_key: string;
+    verdict: string;
+    scorecard_count: number;
+    avg_verification_rate: number | null;
+    avg_approval_rate: number | null;
+    avg_cost_utilization: number | null;
+    avg_findings_rate: number | null;
+    total_cantfail_events: number | null;
+    window_earliest: Date | null;
+    window_latest: Date | null;
+  }>(sql`
+    SELECT agent_key, verdict, scorecard_count, avg_verification_rate,
+           avg_approval_rate, avg_cost_utilization, avg_findings_rate,
+           total_cantfail_events, window_earliest, window_latest
+    FROM agent_scorecards_xtenant_agg
+    WHERE scorecard_count >= ${minScorecardCount}
+    ${verdictFilter}
+    ORDER BY scorecard_count DESC
+    LIMIT 200
+  `);
+  return c.json({ rows });
+});
+
 app.get("/api/admin/scorecards/latest", requireAdmin, async (c) => {
   const { tenantId } = c.get("auth");
   // Most recent scorecard per agent. Drizzle doesn't have DISTINCT ON natively,
