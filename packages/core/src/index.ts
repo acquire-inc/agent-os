@@ -12,6 +12,7 @@ export * from "./provision.js";
 export * from "./metrics.js";
 export * from "./voice-lint.js";
 export * from "./compliance-ruleset.js";
+export * from "./isolation-tester.js";
 export * from "./workforce.js";
 export * from "./metering.js";
 export * from "./model-fallback.js";
