@@ -4,8 +4,10 @@ import {
   checkCraProhibition,
   emit,
   isCantFail,
+  pickModelForTask,
   raiseCapBreachApproval,
   T_CRITICAL_ALLOWLIST,
+  type ModelTier,
 } from "@agent-os/core";
 import { getBudgetTracker } from "./budget.js";
 import { clearRunState } from "./run-state.js";
@@ -322,6 +324,56 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
     // Phase 31: provide tenant context for the db-backed persister and
     // re-hydrate any in-flight reservations from a prior runner process.
     tracker.setRunTenant(bundle.run.id, bundle.agent.tenantId);
+
+    // Phase 33: emit a model.routed audit event for every skill bound to
+    // the agent that would fork the model. Best-effort; never throws into
+    // the run. T-critical agents are exempt (their baseline IS the fork).
+    if (!isCantFail(bundle.agent.key)) {
+      const db = relayDb();
+      if (db) {
+        const baselineTier = ((bundle.agent as { modelTier?: ModelTier }).modelTier ??
+          "T-work") as ModelTier;
+        for (const skill of bundle.skills ?? []) {
+          const skillTier = skill.preferredModelTier as ModelTier | null | undefined;
+          if (!skillTier || skillTier === baselineTier) continue;
+          try {
+            const fork = pickModelForTask({
+              agentKey: bundle.agent.key,
+              isCantFail: false,
+              modelTier: baselineTier,
+              specModel: null,
+              taskPreferredTier: skillTier,
+              taskLabel: `skill:${skill.key}`,
+            });
+            if (fork.model !== bundle.agent.model) {
+              await emit(db, {
+                tenantId: bundle.agent.tenantId,
+                eventName: "model.routed",
+                actor: "system",
+                agentId: bundle.agent.id,
+                runId: bundle.run.id,
+                payload: {
+                  agent_model: bundle.agent.model,
+                  forked_to: fork.model,
+                  forked_tier: fork.tier,
+                  task_label: `skill:${skill.key}`,
+                  reason: fork.reason,
+                },
+                piiClass: "none",
+              }).catch((e) => {
+                console.error(
+                  `[runner] model.routed emit failed for skill ${skill.key}: ${(e as Error).message}`,
+                );
+              });
+            }
+          } catch (e) {
+            console.error(
+              `[runner] pickModelForTask refused for skill ${skill.key}: ${(e as Error).message}`,
+            );
+          }
+        }
+      }
+    }
     await tracker.hydrateRun(bundle.run.id).catch((e) => {
       console.error(`[runner] hydrateRun failed for ${bundle.run.id}: ${(e as Error).message}`);
     });

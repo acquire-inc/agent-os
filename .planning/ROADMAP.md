@@ -38,6 +38,9 @@ A multi-tenant Agent OS — the control plane that runs Acquire Inc (Acqu) on ag
 - [x] **Phase 29: Cross-tenant scorecard aggregate endpoint** — `GET /api/admin/scorecards/xtenant-agg` reads from the consent-filtered view; the moat lens. **(closed 2026-06-03)**
 - [x] **Phase 30: Connector tool dispatch-layer ratchet** — `dispatchCustomTool` adds post-handler injection scrub + autonomy ratchet for any `tool.connector.*` (future connector tools inherit defense-in-depth automatically). **(closed 2026-06-03)**
 - [x] **Phase 31: DB-backed budget reservations** — Migration 0018 + `budget_reservations` table + `makeReservationPersister`; `BudgetTracker` accepts a persister and re-hydrates on runner restart. 6 new test assertions. **(closed 2026-06-03)**
+- [x] **Phase 32: Per-task model affinity (no model dependency)** — Migration 0019 adds `skills.preferred_model_tier` + `tools.preferred_model_tier`. New `pickModelForTask()` API in the router; T-critical safety floor + non-T-critical→T-critical perimeter protection. Runner emits `model.routed` Relay events on fork. 11 new test assertions. **(closed 2026-06-03)**
+- [x] **Phase 33: Per-skill model.routed emission at run start** — `executeRun` scans `bundle.skills[].preferredModelTier` and emits a `model.routed` event for every fork-eligible skill before dispatch, so the audit trail captures the full fork space. **(closed 2026-06-03)**
+- [x] **Phase 34: execute-flow integration test** — 16 assertions exercising the cross-phase contract (cantfail → CRA → BudgetTracker → run-state cleanup); proves CR-08 try/finally + WR-11 cap=0 summary fix at the integration level. **(closed 2026-06-03)**
 
 ## Backlog (Tier 2 — recorded for future planning)
 
