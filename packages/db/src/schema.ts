@@ -619,3 +619,55 @@ export const models = pgTable("models", {
   lastObservedAt: timestamp("last_observed_at", { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Phase 45: model_feedback_proposals — pending and historical proposed
+ * updates to models.capability_scores produced by aggregateModelObservations.
+ * Mirrors supabase/migrations/0022_model_feedback_proposals.sql.
+ */
+export const modelFeedbackProposals = pgTable("model_feedback_proposals", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  modelSlug: text("model_slug").notNull().references(() => models.slug, { onDelete: "cascade" }),
+  capability: text("capability").notNull(),
+  currentScore: numeric("current_score", { precision: 4, scale: 2 }).notNull(),
+  observedScore: numeric("observed_score", { precision: 4, scale: 2 }).notNull(),
+  proposedScore: numeric("proposed_score", { precision: 4, scale: 2 }).notNull(),
+  sampleSize: integer("sample_size").notNull(),
+  rationale: text("rationale").notNull(),
+  status: text("status")
+    .$type<"pending" | "applied" | "rejected" | "superseded">()
+    .notNull()
+    .default("pending"),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  appliedBy: text("applied_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Phase 47: artifacts — output files / structured payloads / external
+ * links produced by an agent run. The runner / executor writes one row
+ * per artifact at run close so the front-end's "output type of interface"
+ * can render everything an agent produced.
+ *
+ * Mirrors supabase/migrations/0023_artifacts.sql.
+ */
+export const artifacts = pgTable("artifacts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  runId: uuid("run_id").notNull().references(() => runs.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  /** Canonical kind hint: file | doc | spreadsheet | image | link |
+   *  json | markdown | code. The front-end picks a renderer from this. */
+  kind: text("kind").notNull(),
+  /** Display name (e.g. "Q3 revenue.xlsx"). */
+  name: text("name").notNull(),
+  /** Storage URI or absolute path (s3://, file://, https://). NULL when
+   *  the payload is inline. */
+  uri: text("uri"),
+  /** Inline payload — small artifacts (under a few KB) ride here so the
+   *  front-end can render without a second fetch. NULL when uri is set. */
+  inlinePayload: jsonb("inline_payload").$type<Record<string, unknown>>(),
+  /** Free-form metadata: { byteSize, contentType, generatedBy, ... } */
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

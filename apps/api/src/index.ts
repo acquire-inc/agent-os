@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { serve as inngestServe } from "inngest/hono";
-import { inngest, runScheduledAgent, scoreAgentsScheduled } from "@agent-os/inngest";
+import { applyModelFeedback, inngest, runScheduledAgent, scoreAgentsScheduled } from "@agent-os/inngest";
 import { createDb, schema } from "@agent-os/db";
 import {
   ArchitectError,
@@ -118,7 +118,7 @@ app.get("/api/admin-guide", (c) => c.json(adminGuide));
 app.on(
   ["GET", "POST", "PUT"],
   "/api/inngest",
-  inngestServe({ client: inngest, functions: [runScheduledAgent, scoreAgentsScheduled] }),
+  inngestServe({ client: inngest, functions: [runScheduledAgent, scoreAgentsScheduled, applyModelFeedback] }),
 );
 
 // --- API key auth for everything else under /api ---
@@ -701,6 +701,163 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
     dispatchedRunId: run?.id ?? null,
     agentKey: body.agentKey,
   });
+});
+
+// ============================ Cost forecasting (Phase 46) ============
+// POST /api/admin/models/forecast — body { tokens, profile?, budgetCapUsd? }
+// Returns per-candidate forecasts with the recommended pick.
+app.post("/api/admin/models/forecast", requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as {
+    tokens?: { inputTokens: number; outputTokens: number };
+    profile?: import("@agent-os/core").TaskProfile;
+    budgetCapUsd?: number;
+  };
+  if (!body.tokens || typeof body.tokens.inputTokens !== "number" || typeof body.tokens.outputTokens !== "number") {
+    return c.json({ error: "body.tokens.inputTokens and body.tokens.outputTokens are required" }, 400);
+  }
+  const { compareForecasts } = await import("@agent-os/core");
+  const catalog = (await loadModelCatalog(db)) as import("@agent-os/core").ModelCatalogEntry[];
+  const result = compareForecasts({
+    catalog,
+    tokens: body.tokens,
+    profile: body.profile,
+    budgetCapUsd: body.budgetCapUsd,
+  });
+  return c.json(result);
+});
+
+// ============================ Artifacts (Phase 47) ====================
+// GET /api/admin/runs/:runId/artifacts — list artifacts for a run
+app.get("/api/admin/runs/:runId/artifacts", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const runId = c.req.param("runId");
+  const rows = await db
+    .select()
+    .from(schema.artifacts)
+    .where(and(eq(schema.artifacts.tenantId, tenantId), eq(schema.artifacts.runId, runId)))
+    .orderBy(desc(schema.artifacts.createdAt));
+  return c.json({ artifacts: rows });
+});
+
+// POST /api/admin/runs/:runId/artifacts — register an artifact
+// Body: { kind, name, uri?, inlinePayload?, metadata? }
+app.post("/api/admin/runs/:runId/artifacts", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const runId = c.req.param("runId");
+  const body = await c.req.json().catch(() => ({})) as {
+    kind?: string;
+    name?: string;
+    uri?: string;
+    inlinePayload?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  };
+  const ALLOWED_KINDS = ["file", "doc", "spreadsheet", "image", "link", "json", "markdown", "code"];
+  if (!body.kind || !ALLOWED_KINDS.includes(body.kind)) {
+    return c.json({ error: `kind must be one of ${ALLOWED_KINDS.join(", ")}` }, 400);
+  }
+  if (!body.name) return c.json({ error: "name is required" }, 400);
+  if (!body.uri && !body.inlinePayload) {
+    return c.json({ error: "either uri or inlinePayload is required" }, 400);
+  }
+
+  const [run] = await db
+    .select({ id: schema.runs.id, agentId: schema.runs.agentId })
+    .from(schema.runs)
+    .where(and(eq(schema.runs.id, runId), eq(schema.runs.tenantId, tenantId)));
+  if (!run) return c.json({ error: "run not found" }, 404);
+
+  const [row] = await db
+    .insert(schema.artifacts)
+    .values({
+      tenantId,
+      runId,
+      agentId: run.agentId,
+      kind: body.kind,
+      name: body.name,
+      uri: body.uri ?? null,
+      inlinePayload: body.inlinePayload ?? null,
+      metadata: body.metadata ?? {},
+    })
+    .returning();
+  return c.json({ artifact: row });
+});
+
+// GET /api/admin/artifacts/recent — list recent artifacts across the tenant
+// For the "output type of interface" the operator described — a feed of
+// everything produced.
+app.get("/api/admin/artifacts/recent", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const kind = c.req.query("kind");
+  const where = kind
+    ? and(eq(schema.artifacts.tenantId, tenantId), eq(schema.artifacts.kind, kind))
+    : eq(schema.artifacts.tenantId, tenantId);
+  const rows = await db
+    .select()
+    .from(schema.artifacts)
+    .where(where)
+    .orderBy(desc(schema.artifacts.createdAt))
+    .limit(Number.isFinite(limit) ? limit : 50);
+  return c.json({ artifacts: rows });
+});
+
+// ============================ Model feedback proposals (Phase 45) ====
+// GET /api/admin/models/proposals — list pending + recently-applied
+app.get("/api/admin/models/proposals", requireAdmin, async (c) => {
+  const status = c.req.query("status") ?? "pending";
+  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const rows = await db
+    .select()
+    .from(schema.modelFeedbackProposals)
+    .where(eq(schema.modelFeedbackProposals.status, status as "pending" | "applied" | "rejected" | "superseded"))
+    .orderBy(desc(schema.modelFeedbackProposals.createdAt))
+    .limit(Number.isFinite(limit) ? limit : 50);
+  return c.json({ proposals: rows });
+});
+
+// POST /api/admin/models/proposals/:id/decide — body { decision: "apply"|"reject" }
+app.post("/api/admin/models/proposals/:id/decide", requireAdmin, async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json().catch(() => ({})) as { decision?: "apply" | "reject" };
+  if (body.decision !== "apply" && body.decision !== "reject") {
+    return c.json({ error: "decision must be 'apply' or 'reject'" }, 400);
+  }
+  const [proposal] = await db
+    .select()
+    .from(schema.modelFeedbackProposals)
+    .where(eq(schema.modelFeedbackProposals.id, id));
+  if (!proposal) return c.json({ error: "proposal not found" }, 404);
+  if (proposal.status !== "pending") return c.json({ error: `proposal already ${proposal.status}` }, 409);
+
+  if (body.decision === "reject") {
+    await db
+      .update(schema.modelFeedbackProposals)
+      .set({ status: "rejected", appliedAt: new Date(), appliedBy: "operator" })
+      .where(eq(schema.modelFeedbackProposals.id, id));
+    return c.json({ ok: true, status: "rejected" });
+  }
+
+  // Apply: update the model's capability_scores atomically.
+  await db.transaction(async (tx) => {
+    const [m] = await tx
+      .select({ scores: schema.models.capabilityScores })
+      .from(schema.models)
+      .where(eq(schema.models.slug, proposal.modelSlug));
+    if (!m) return;
+    const updated = {
+      ...(m.scores ?? {}),
+      [proposal.capability]: Number(proposal.proposedScore),
+    };
+    await tx
+      .update(schema.models)
+      .set({ capabilityScores: updated, lastObservedAt: new Date() })
+      .where(eq(schema.models.slug, proposal.modelSlug));
+    await tx
+      .update(schema.modelFeedbackProposals)
+      .set({ status: "applied", appliedAt: new Date(), appliedBy: "operator" })
+      .where(eq(schema.modelFeedbackProposals.id, id));
+  });
+  return c.json({ ok: true, status: "applied" });
 });
 
 app.get("/api/admin/architect/blueprints", requireAdmin, async (c) => {

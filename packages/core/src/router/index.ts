@@ -44,3 +44,13 @@ export {
   type ModelRunObservation,
   type ProposedScoreUpdate,
 } from "./model-feedback.js";
+
+export {
+  forecastRunCost,
+  compareForecasts,
+  type TokenEstimate,
+  type CostForecast,
+  type CandidateForecast,
+  type CompareForecastsArgs,
+  type CompareForecastsResult,
+} from "./cost-forecast.js";
