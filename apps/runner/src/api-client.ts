@@ -14,11 +14,11 @@ export interface Bundle {
     key: string; name: string; persona: string | null; backend: string; model: string;
     thinkingLevel: string; autonomy: string; escalationPolicy: string | null; budgetCapUsd: number | null; runnerKind: string;
   };
-  skills: { key: string; name: string; description: string }[];
+  skills: { key: string; name: string; description: string; preferredModelTier?: string | null }[];
   mcpServers: { name: string; transport: string; endpoint: string | null; authType: string; credentials: { vaultRef?: string; token?: string; ttlSeconds: number } | null }[];
   // Custom registry tools bound to the agent (Phase 7). Optional for wire
   // back-compat with API responses that predate the tools registry.
-  tools?: { key: string; name: string; kind: string; inputSchema: unknown; requiresApproval: boolean; reversible: boolean; costEstimateUsd?: string | number }[];
+  tools?: { key: string; name: string; kind: string; inputSchema: unknown; requiresApproval: boolean; reversible: boolean; costEstimateUsd?: string | number; preferredModelTier?: string | null }[];
   knowledge: { chunk: string; source: string }[];
   envVars: Record<string, string>;
   autonomy: string;

@@ -124,3 +124,92 @@ export function resolveModel(args: ResolveModelArgs): ResolveModelResult {
     reason: `DEFAULT_TIER_MODELS[${tier}].primary`,
   };
 }
+
+/**
+ * Phase 32: per-task model affinity. When an agent invokes a specific
+ * skill or tool that has a preferred_model_tier set, the router can fork
+ * the dispatch to a different (better-suited) model for that sub-task.
+ *
+ * The same safety floors apply:
+ *   1. T-critical agents are EXEMPT — they always run on the T-critical
+ *      pin regardless of any per-task preference. This is the same
+ *      "Tier wins, override loses" non-negotiable that protects can't-fail
+ *      agents from tenant-level overrides.
+ *   2. The original resolution still happens via resolveModel; this
+ *      function is a layered re-resolve on top.
+ *
+ * If `taskPreferredTier` is null/undefined, the function returns the
+ * baseline resolution unchanged (no fork). Otherwise it re-runs the
+ * tier-resolution path against the new tier — including tenant
+ * tier_overrides and DEFAULT_TIER_MODELS — and returns the resulting model.
+ *
+ * Callers (the runner at skill/tool dispatch time) emit a model.routed
+ * Relay event with the fork reason so the audit trail captures every
+ * model swap mid-run.
+ */
+export interface PickModelForTaskArgs extends ResolveModelArgs {
+  /** The preferred tier for this sub-task (from skills.preferred_model_tier
+   *  or tools.preferred_model_tier). NULL = no preference; baseline wins. */
+  taskPreferredTier?: ModelTier | null;
+  /** Descriptive label for the sub-task (skill key, tool key, or free-form).
+   *  Used in the reason string for the audit trail. */
+  taskLabel?: string;
+}
+
+export function pickModelForTask(args: PickModelForTaskArgs): ResolveModelResult {
+  // Baseline resolution (the agent's normal model).
+  const baseline = resolveModel(args);
+
+  // Safety floor: T-critical agents do NOT fork. Even if a skill or tool
+  // requests a preference, the can't-fail floor stays at Opus.
+  if (args.isCantFail) {
+    return baseline;
+  }
+
+  // No preference declared: baseline wins.
+  if (!args.taskPreferredTier) {
+    return baseline;
+  }
+
+  // Same tier already: no fork needed.
+  if (args.taskPreferredTier === baseline.tier) {
+    return baseline;
+  }
+
+  // Re-resolve at the new tier. Reuse the same precedence (tenant
+  // overrides, then DEFAULT_TIER_MODELS) but skip the spec.model branch —
+  // a per-task preference should override the eval-promotion pin only when
+  // the operator explicitly opted in via the skill/tool registry.
+  const tier = args.taskPreferredTier;
+  if (!isModelTier(tier)) {
+    throw new TierResolutionError(
+      `pickModelForTask: invalid taskPreferredTier="${tier}" — must be one of T-trivial|T-cheap|T-reason|T-work|T-critical`,
+    );
+  }
+  // Refuse a fork TO T-critical from a non-T-critical agent — that would
+  // bypass the safety perimeter (non-can't-fail agent running on the
+  // can't-fail pin is suspicious and the assertCantFailModel runtime guard
+  // would fail-close the run anyway).
+  if (tier === "T-critical") {
+    throw new TierResolutionError(
+      `pickModelForTask: non-T-critical agent ${args.agentKey} cannot fork to T-critical for task ${args.taskLabel ?? "<unlabeled>"} — Opus pin is reserved for can't-fail agents`,
+    );
+  }
+
+  const overrides = args.tenantOverrides ?? {};
+  const tenantPick = overrides[tier];
+  const taskLabel = args.taskLabel ?? "task";
+  if (tenantPick) {
+    return {
+      model: tenantPick,
+      tier,
+      reason: `task-fork: ${baseline.tier} → ${tier} for ${taskLabel} (tenant tier_overrides[${tier}] = ${tenantPick})`,
+    };
+  }
+  const def = DEFAULT_TIER_MODELS[tier];
+  return {
+    model: def.primary,
+    tier,
+    reason: `task-fork: ${baseline.tier} → ${tier} for ${taskLabel} (DEFAULT_TIER_MODELS[${tier}].primary)`,
+  };
+}

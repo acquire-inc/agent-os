@@ -236,6 +236,13 @@ export const skills = pgTable("skills", {
   repoPath: text("repo_path"),
   scope: text("scope").notNull().default("global"),
   enabled: boolean("enabled").notNull().default(true),
+  /** Phase 32: per-skill preferred model tier. When the agent invokes
+   *  this skill, the router can fork to this tier for the sub-task.
+   *  NULL = no preference; the agent's resolved model is used. T-critical
+   *  agents ignore the preference (safety floor). Mirrors migration 0019. */
+  preferredModelTier: text("preferred_model_tier").$type<
+    "T-trivial" | "T-cheap" | "T-reason" | "T-work" | "T-critical" | null
+  >(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -270,6 +277,13 @@ export const tools = pgTable("tools", {
    *  reserve-before / commit-after wrapping in dispatchCustomTool. 0 means
    *  free / no estimate. Mirrors migration 0016. */
   costEstimateUsd: numeric("cost_estimate_usd", { precision: 12, scale: 4 }).notNull().default("0"),
+  /** Phase 32: per-tool preferred model tier. When the agent invokes
+   *  this tool, the router can fork to this tier. NULL = no preference;
+   *  the agent's resolved model is used. T-critical agents ignore the
+   *  preference (safety floor). Mirrors migration 0019. */
+  preferredModelTier: text("preferred_model_tier").$type<
+    "T-trivial" | "T-cheap" | "T-reason" | "T-work" | "T-critical" | null
+  >(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

@@ -13,7 +13,15 @@
 // tool.access-log-analyzer. Each lazy-creates its db connection + (for
 // vault-rotate) the vault key from env vars on first call so handlers stay
 // process-isolated from runner module load — env may not be wired at import.
-import { raiseCapBreachApproval, recordFinding, scrubToolResult } from "@agent-os/core";
+import {
+  emit,
+  isCantFail,
+  pickModelForTask,
+  raiseCapBreachApproval,
+  recordFinding,
+  scrubToolResult,
+  type ModelTier,
+} from "@agent-os/core";
 import { getBudgetTracker } from "./budget.js";
 import { ratchetAutonomy } from "./run-state.js";
 import { runBrowserTool, type BrowserToolInput, type BrowserToolResult } from "@agent-os/tool-browser";
@@ -292,6 +300,50 @@ export async function dispatchCustomTool(
       );
     }
     if (r.ok) reservationId = r.reservationId;
+  }
+
+  // Phase 32: per-tool model affinity. If the tool has a preferred_model_tier
+  // and the agent is NOT can't-fail (safety floor), compute the forked model
+  // and emit a model.routed Relay event so the audit trail captures the swap.
+  // We don't actually re-target the SDK session here (that's the runner's
+  // dryRun / liveRun responsibility); this emit is the audit + signal so a
+  // future orchestrator that supports sub-agents can act on it.
+  const toolPreferredTier = (bound.preferredModelTier ?? null) as ModelTier | null;
+  if (toolPreferredTier && !isCantFail(bundle.agent.key)) {
+    try {
+      const baselineTier = (bundle.agent as { modelTier?: ModelTier }).modelTier ?? "T-work";
+      const fork = pickModelForTask({
+        agentKey: bundle.agent.key,
+        isCantFail: false,
+        modelTier: baselineTier,
+        specModel: null,
+        taskPreferredTier: toolPreferredTier,
+        taskLabel: toolKey,
+      });
+      if (fork.model !== bundle.agent.model) {
+        const dbHandle = getDb();
+        await emit(dbHandle, {
+          tenantId: bundle.agent.tenantId,
+          eventName: "model.routed",
+          actor: "system",
+          agentId: bundle.agent.id,
+          runId: bundle.run.id,
+          payload: {
+            agent_model: bundle.agent.model,
+            forked_to: fork.model,
+            forked_tier: fork.tier,
+            task_label: toolKey,
+            reason: fork.reason,
+          },
+          piiClass: "none",
+        }).catch((e) => {
+          console.error(`[runner] model.routed emit failed for ${toolKey}: ${(e as Error).message}`);
+        });
+      }
+    } catch (e) {
+      // Fork resolution failed (e.g. invalid tier) — log but don't block.
+      console.error(`[runner] pickModelForTask refused for ${toolKey}: ${(e as Error).message}`);
+    }
   }
 
   const outputDir = await mkdtemp(join(tmpdir(), `runner-${bundle.agent.key}-`));

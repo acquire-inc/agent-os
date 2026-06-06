@@ -12,7 +12,9 @@ export {
 
 export {
   resolveModel,
+  pickModelForTask,
   TierResolutionError,
   type ResolveModelArgs,
   type ResolveModelResult,
+  type PickModelForTaskArgs,
 } from "./resolve.js";

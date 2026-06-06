@@ -28,7 +28,16 @@ export interface Bundle {
     runnerKind: string;
   };
   docs: { id: string; name: string; type: string }[];
-  skills: { key: string; name: string; description: string; version: string; source: string; repoPath: string | null }[];
+  skills: {
+    key: string;
+    name: string;
+    description: string;
+    version: string;
+    source: string;
+    repoPath: string | null;
+    /** Phase 32: per-skill preferred model tier. NULL = no preference. */
+    preferredModelTier: string | null;
+  }[];
   mcpServers: {
     name: string;
     transport: string;
@@ -47,6 +56,8 @@ export interface Bundle {
     /** Phase 26: per-invocation USD cost estimate from tools.cost_estimate_usd.
      *  Used by the runner's reserve-before / commit-after wrap. */
     costEstimateUsd: string;
+    /** Phase 32: per-tool preferred model tier. NULL = no preference. */
+    preferredModelTier: string | null;
   }[];
   knowledge: { chunk: string; source: string }[];
   envVars: Record<string, string>;
@@ -149,6 +160,8 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
       version: s.version,
       source: s.source,
       repoPath: s.repoPath,
+      // Phase 32: per-skill model tier preference for the runtime fork.
+      preferredModelTier: s.preferredModelTier ?? null,
     })),
     mcpServers: await Promise.all(
       mcpRows.map(async (m) => {
@@ -174,6 +187,8 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
       // Phase 26: cost estimate flows through to the runner so dispatch can
       // reserve before invoking the handler.
       costEstimateUsd: t.costEstimateUsd ?? "0",
+      // Phase 32: per-tool model tier preference for the runtime fork.
+      preferredModelTier: t.preferredModelTier ?? null,
     })),
     knowledge,
     // Decrypt env values via the vault; never emit ciphertext. Omit if no decryptor.

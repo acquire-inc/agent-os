@@ -53,7 +53,7 @@ function bundle(tools: Bundle["tools"], mcpServers: Bundle["mcpServers"] = []): 
 async function main() {
   console.log("• deriveAllowedTools (Pitfall 5 — explicit allowlist)");
   const b = bundle(
-    [{ key: "tool.browser", name: "Browser", kind: "custom", inputSchema: {}, requiresApproval: true, reversible: false, costEstimateUsd: "0" }],
+    [{ key: "tool.browser", name: "Browser", kind: "custom", inputSchema: {}, requiresApproval: true, reversible: false, costEstimateUsd: "0", preferredModelTier: null }],
     [{ name: "Slack", transport: "http", endpoint: null, authType: "oauth", credentials: null }],
   );
   const allowed = deriveAllowedTools(b);
@@ -69,7 +69,7 @@ async function main() {
   );
   await assertRejects(
     () => dispatchCustomTool(
-      bundle([{ key: "tool.unknown", name: "X", kind: "custom", inputSchema: {}, requiresApproval: true, reversible: false, costEstimateUsd: "0" }]),
+      bundle([{ key: "tool.unknown", name: "X", kind: "custom", inputSchema: {}, requiresApproval: true, reversible: false, costEstimateUsd: "0", preferredModelTier: null }]),
       "tool.unknown",
       {},
     ),
@@ -99,7 +99,7 @@ async function main() {
       const tracker = getBudgetTracker();
       tracker.openRun("phase26-run-A", 1.0);
       const bundleA = bundle(
-        [{ key: "tool.test-reserve", name: "Test", kind: "custom", inputSchema: {}, requiresApproval: false, reversible: true, costEstimateUsd: "0.30" }],
+        [{ key: "tool.test-reserve", name: "Test", kind: "custom", inputSchema: {}, requiresApproval: false, reversible: true, costEstimateUsd: "0.30", preferredModelTier: null }],
       );
       bundleA.run.id = "phase26-run-A";
       await dispatchCustomTool(bundleA, "tool.test-reserve", {});
@@ -113,7 +113,7 @@ async function main() {
       trackerB.openRun("phase26-run-B", 0.1);
       handlerRan.count = 0;
       const bundleB = bundle(
-        [{ key: "tool.test-reserve", name: "Test", kind: "custom", inputSchema: {}, requiresApproval: false, reversible: true, costEstimateUsd: "0.30" }],
+        [{ key: "tool.test-reserve", name: "Test", kind: "custom", inputSchema: {}, requiresApproval: false, reversible: true, costEstimateUsd: "0.30", preferredModelTier: null }],
       );
       bundleB.run.id = "phase26-run-B";
       let threw = false;
@@ -129,7 +129,7 @@ async function main() {
       resetBudgetTrackerForTests();
       handlerRan.count = 0;
       const bundleC = bundle(
-        [{ key: "tool.test-reserve", name: "Test", kind: "custom", inputSchema: {}, requiresApproval: false, reversible: true, costEstimateUsd: "0.30" }],
+        [{ key: "tool.test-reserve", name: "Test", kind: "custom", inputSchema: {}, requiresApproval: false, reversible: true, costEstimateUsd: "0.30", preferredModelTier: null }],
       );
       bundleC.run.id = "phase26-run-C-no-tracker";
       await dispatchCustomTool(bundleC, "tool.test-reserve", {});
@@ -143,7 +143,7 @@ async function main() {
         throw new Error("handler failed");
       };
       const bundleD = bundle(
-        [{ key: "tool.test-reserve-throw", name: "Test", kind: "custom", inputSchema: {}, requiresApproval: false, reversible: true, costEstimateUsd: "0.40" }],
+        [{ key: "tool.test-reserve-throw", name: "Test", kind: "custom", inputSchema: {}, requiresApproval: false, reversible: true, costEstimateUsd: "0.40", preferredModelTier: null }],
       );
       bundleD.run.id = "phase26-run-D";
       let handlerThrew = false;

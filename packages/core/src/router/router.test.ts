@@ -161,6 +161,87 @@ async function main() {
     "throws on invalid tier",
   );
 
+  // Phase 32: pickModelForTask
+  console.log("• Phase 32 — pickModelForTask per-task model affinity");
+  {
+    const { pickModelForTask } = await import("./resolve.js");
+
+    // No preference -> baseline wins
+    const a = pickModelForTask({
+      agentKey: "weekly-report",
+      isCantFail: false,
+      modelTier: "T-cheap",
+      specModel: null,
+      taskPreferredTier: null,
+    });
+    assert(a.model === DEFAULT_TIER_MODELS["T-cheap"].primary, "no preference -> baseline T-cheap");
+
+    // Preference matches baseline tier -> no fork
+    const b = pickModelForTask({
+      agentKey: "weekly-report",
+      isCantFail: false,
+      modelTier: "T-cheap",
+      specModel: null,
+      taskPreferredTier: "T-cheap",
+    });
+    assert(b.reason.includes("DEFAULT_TIER_MODELS[T-cheap]"), "same-tier preference returns baseline");
+
+    // Preference forks to T-reason
+    const c = pickModelForTask({
+      agentKey: "weekly-report",
+      isCantFail: false,
+      modelTier: "T-cheap",
+      specModel: null,
+      taskPreferredTier: "T-reason",
+      taskLabel: "briefing-synthesis",
+    });
+    assert(c.model === DEFAULT_TIER_MODELS["T-reason"].primary, "preference forks T-cheap -> T-reason");
+    assert(c.tier === "T-reason", "result.tier reflects the forked tier");
+    assert(c.reason.includes("task-fork"), "reason names the fork");
+    assert(c.reason.includes("briefing-synthesis"), "reason names the task label");
+
+    // T-critical agent IGNORES preference (safety floor)
+    const d = pickModelForTask({
+      agentKey: "tenant-isolation-tester",
+      isCantFail: true,
+      modelTier: "T-critical",
+      specModel: null,
+      taskPreferredTier: "T-cheap",
+      taskLabel: "fast-scan",
+    });
+    assert(d.model === DEFAULT_TIER_MODELS["T-critical"].primary, "T-critical ignores fork preference");
+    assert(d.tier === "T-critical", "T-critical tier preserved");
+
+    // Non-T-critical agent CANNOT fork TO T-critical (perimeter protection)
+    let threw = false;
+    try {
+      pickModelForTask({
+        agentKey: "weekly-report",
+        isCantFail: false,
+        modelTier: "T-cheap",
+        specModel: null,
+        taskPreferredTier: "T-critical",
+        taskLabel: "evil-attempt",
+      });
+    } catch (e) {
+      threw = (e as Error).message.includes("cannot fork to T-critical");
+    }
+    assert(threw, "non-T-critical fork to T-critical throws (perimeter protection)");
+
+    // Tenant tier_overrides apply on the forked tier
+    const e = pickModelForTask({
+      agentKey: "weekly-report",
+      isCantFail: false,
+      modelTier: "T-cheap",
+      specModel: null,
+      taskPreferredTier: "T-reason",
+      tenantOverrides: { "T-reason": "openai/gpt-4o" },
+      taskLabel: "synth",
+    });
+    assert(e.model === "openai/gpt-4o", "tenant override applies on forked tier");
+    assert(e.reason.includes("tenant tier_overrides"), "reason names the tenant override");
+  }
+
   console.log("");
   console.log(`Results: ${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
