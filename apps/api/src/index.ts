@@ -35,7 +35,7 @@ import {
   type ApiKeyContext,
   type LlmClient,
 } from "@agent-os/core";
-import { compareForecasts, pickBestModel, type ModelCatalogEntry, type TaskProfile, type TokenEstimate } from "@agent-os/core";
+import { compareForecasts, inferTaskProfile, pickBestModel, type ModelCatalogEntry, type TaskProfile, type TokenEstimate } from "@agent-os/core";
 import { loadModelCatalog } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
@@ -669,23 +669,44 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
      *  recommendation that respects budgetCapUsd. */
     tokens?: TokenEstimate;
     budgetCapUsd?: number;
+    /** Phase 51: optional inference hints. When profile is absent but
+     *  intent is present, the endpoint runs inferTaskProfile to derive
+     *  a TaskProfile from the intent. */
+    hints?: {
+      hasImage?: boolean;
+      requiresLongDoc?: boolean;
+      expectsCode?: boolean;
+      requiresTools?: boolean;
+    };
   };
 
-  if (!body.profile || !body.profile.capabilities) {
-    return c.json(
-      { error: "body.profile.capabilities is required (see TaskProfile in @agent-os/core)" },
-      400,
-    );
+  // Phase 51 fix: when profile is absent but intent is present, infer
+  // a profile from the intent. Front-end no longer needs to author one.
+  let inferredProfile: ReturnType<typeof inferTaskProfile> | null = null;
+  let effectiveProfile = body.profile;
+  if (!effectiveProfile || !effectiveProfile.capabilities) {
+    if (!body.intent || typeof body.intent !== "string" || body.intent.length === 0) {
+      return c.json(
+        {
+          error:
+            "either body.profile (with capabilities) OR body.intent is required (see TaskProfile in @agent-os/core)",
+        },
+        400,
+      );
+    }
+    inferredProfile = inferTaskProfile({ intent: body.intent, hints: body.hints });
+    effectiveProfile = inferredProfile.profile;
   }
 
   // 1. Run the intelligent picker.
   const catalog = (await loadModelCatalog(db)) as ModelCatalogEntry[];
-  const recommendation = pickBestModel(catalog, body.profile);
+  const recommendation = pickBestModel(catalog, effectiveProfile);
   if (!recommendation.pick) {
     return c.json(
       {
         error: "no model in the catalog satisfies the requested profile",
         filtered: recommendation.filtered,
+      inferredProfile,
       },
       422,
     );
@@ -696,7 +717,7 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
     ? compareForecasts({
         catalog,
         tokens: body.tokens,
-        profile: body.profile,
+        profile: effectiveProfile,
         budgetCapUsd: body.budgetCapUsd,
       })
     : null;
@@ -708,6 +729,7 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
       pick: recommendation.pick,
       candidates: recommendation.candidates,
       filtered: recommendation.filtered,
+      inferredProfile,
       forecast,
       dispatchedRunId: null,
     });
@@ -720,6 +742,7 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
       pick: recommendation.pick,
       candidates: recommendation.candidates,
       filtered: recommendation.filtered,
+      inferredProfile,
       forecast,
       dispatchedRunId: null,
       dryRun: true,
@@ -752,6 +775,7 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
     pick: recommendation.pick,
     candidates: recommendation.candidates,
     filtered: recommendation.filtered,
+      inferredProfile,
     forecast,
     dispatchedRunId: run?.id ?? null,
     agentKey: body.agentKey,

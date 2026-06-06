@@ -54,3 +54,13 @@ export {
   type CompareForecastsArgs,
   type CompareForecastsResult,
 } from "./cost-forecast.js";
+
+export {
+  CATEGORY_DEFAULTS,
+  categoryToProfile,
+  inferCategoryFromIntent,
+  inferTaskProfile,
+  type TaskCategory,
+  type InferenceInputs,
+  type InferenceResult,
+} from "./task-profile-inference.js";
