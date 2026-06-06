@@ -25,6 +25,7 @@
     "test:parity": "tsx src/router/allowlist-parity.test.ts",
     "test:intelligence": "tsx src/router/intelligence.test.ts",
     "test:intelligent-pick": "tsx src/router/intelligent-pick.test.ts",
+    "test:model-feedback": "tsx src/router/model-feedback.test.ts",
     "test:scorecard": "tsx src/eval/scorecard.test.ts",
     "test:scorecard-flow": "tsx src/eval/scorecard-flow.test.ts",
     "test:controller": "tsx src/eval/controller.test.ts",

@@ -37,3 +37,10 @@ export {
   type IntelligentPickArgs,
   type IntelligentPickResult,
 } from "./intelligent-pick.js";
+
+export {
+  aggregateModelObservations,
+  deriveOutcomeScore,
+  type ModelRunObservation,
+  type ProposedScoreUpdate,
+} from "./model-feedback.js";
