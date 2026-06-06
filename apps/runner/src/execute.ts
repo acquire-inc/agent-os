@@ -4,11 +4,12 @@ import {
   checkCraProhibition,
   emit,
   isCantFail,
-  pickModelForTask,
+  pickModelIntelligently,
   raiseCapBreachApproval,
   T_CRITICAL_ALLOWLIST,
   type ModelTier,
 } from "@agent-os/core";
+import { getModelCatalog } from "./catalog.js";
 import { getBudgetTracker } from "./budget.js";
 import { clearRunState } from "./run-state.js";
 import { createDb, type Db } from "@agent-os/db";
@@ -325,27 +326,41 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
     // re-hydrate any in-flight reservations from a prior runner process.
     tracker.setRunTenant(bundle.run.id, bundle.agent.tenantId);
 
-    // Phase 33: emit a model.routed audit event for every skill bound to
-    // the agent that would fork the model. Best-effort; never throws into
-    // the run. T-critical agents are exempt (their baseline IS the fork).
+    // Phase 33 + Phase 41: emit a model.routed audit event for every skill
+    // bound to the agent that would fork the model. Phase 41 upgrades this
+    // to use pickModelIntelligently with the live catalog — so a skill
+    // with a task_profile gets routed through the value-per-dollar scorer
+    // instead of the tier-only fork. Best-effort; never throws into the run.
+    // T-critical agents are exempt (their baseline IS the fork).
     if (!isCantFail(bundle.agent.key)) {
       const db = relayDb();
       if (db) {
         const baselineTier = ((bundle.agent as { modelTier?: ModelTier }).modelTier ??
           "T-work") as ModelTier;
+        const catalog = await getModelCatalog();
         for (const skill of bundle.skills ?? []) {
           const skillTier = skill.preferredModelTier as ModelTier | null | undefined;
-          if (!skillTier || skillTier === baselineTier) continue;
+          const profile = skill.taskProfile as Record<string, unknown> | undefined;
+          // Skip if neither the profile nor the tier hint is set.
+          const hasProfile = profile && Object.keys(profile).length > 0;
+          if (!hasProfile && !skillTier) continue;
           try {
-            const fork = pickModelForTask({
+            const pick = pickModelIntelligently({
               agentKey: bundle.agent.key,
-              isCantFail: false,
-              modelTier: baselineTier,
-              specModel: null,
-              taskPreferredTier: skillTier,
+              agentModel: bundle.agent.model,
+              agentTier: baselineTier,
               taskLabel: `skill:${skill.key}`,
+              taskProfile: profile ?? null,
+              taskPreferredTier: skillTier ?? null,
+              catalog,
             });
-            if (fork.model !== bundle.agent.model) {
+            if (pick.model !== bundle.agent.model) {
+              const top3 = pick.alternatives.slice(0, 3).map((a) => ({
+                slug: a.slug,
+                value_score: Number(a.valueScore.toFixed(2)),
+                capability: Number(a.capabilityMatchScore.toFixed(2)),
+                cost_index: Number(a.costIndex.toFixed(2)),
+              }));
               await emit(db, {
                 tenantId: bundle.agent.tenantId,
                 eventName: "model.routed",
@@ -354,10 +369,12 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
                 runId: bundle.run.id,
                 payload: {
                   agent_model: bundle.agent.model,
-                  forked_to: fork.model,
-                  forked_tier: fork.tier,
+                  forked_to: pick.model,
+                  forked_tier: pick.tier,
                   task_label: `skill:${skill.key}`,
-                  reason: fork.reason,
+                  source: pick.source,
+                  reason: pick.reason,
+                  top_alternatives: top3,
                 },
                 piiClass: "none",
               }).catch((e) => {
@@ -368,7 +385,7 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
             }
           } catch (e) {
             console.error(
-              `[runner] pickModelForTask refused for skill ${skill.key}: ${(e as Error).message}`,
+              `[runner] pickModelIntelligently refused for skill ${skill.key}: ${(e as Error).message}`,
             );
           }
         }

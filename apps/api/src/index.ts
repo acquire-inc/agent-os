@@ -35,6 +35,8 @@ import {
   type ApiKeyContext,
   type LlmClient,
 } from "@agent-os/core";
+import { pickBestModel, type ModelCatalogEntry, type TaskProfile } from "@agent-os/core";
+import { loadModelCatalog } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
@@ -546,6 +548,159 @@ app.get("/api/admin/scorecards/latest", requireAdmin, async (c) => {
     ORDER BY agent_id, created_at DESC
   `);
   return c.json({ scorecards: rows });
+});
+
+// ============================ Model Intelligence (Phase 42) ============
+//
+// Front-end / operator surface for the catalog (Phase 38) + intelligent
+// picker (Phase 39). These endpoints let the chat workspace ("describe
+// what you want; spin up an agent") consult the picker live and show
+// ranked candidates with rationale.
+
+// GET /api/admin/models — list the full catalog.
+app.get("/api/admin/models", requireAdmin, async (c) => {
+  const status = c.req.query("status"); // optional filter: preferred|secondary|...
+  const provider = c.req.query("provider"); // optional filter
+  const catalog = await loadModelCatalog(db);
+  let rows: ModelCatalogEntry[] = catalog as ModelCatalogEntry[];
+  if (status) rows = rows.filter((r) => r.status === status);
+  if (provider) rows = rows.filter((r) => r.provider === provider);
+  return c.json({ models: rows });
+});
+
+// POST /api/admin/models/recommend — body { profile: TaskProfile, options? }
+// Returns ranked candidates with rationale. The chat workspace posts a
+// TaskProfile derived from natural-language intent and shows the user the
+// top picks before spinning up the agent.
+app.post("/api/admin/models/recommend", requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const profile = (body as { profile?: TaskProfile }).profile;
+  if (!profile || typeof profile !== "object" || !profile.capabilities) {
+    return c.json(
+      {
+        error:
+          "body.profile must include a capabilities object — see TaskProfile in @agent-os/core",
+      },
+      400,
+    );
+  }
+  const options = (body as { options?: { topN?: number; baselineCostIndex?: number; excludeTCritical?: boolean } }).options ?? {};
+  const catalog = (await loadModelCatalog(db)) as ModelCatalogEntry[];
+  const result = pickBestModel(catalog, profile, options);
+  return c.json({
+    pick: result.pick,
+    candidates: result.candidates,
+    filtered: result.filtered,
+    profile,
+  });
+});
+
+// POST /api/admin/chat/dispatch — Phase 43 chat-workspace dispatch surface.
+//
+// Body shape:
+//   {
+//     intent: string,                          // natural-language task description
+//     profile: TaskProfile,                    // derived by the front-end (or
+//                                              //   inferred via the architect's
+//                                              //   LLM in a future iteration)
+//     agentKey?: string,                       // existing agent to dispatch (else
+//                                              //   the chat returns a recommendation
+//                                              //   without actually running anything)
+//     dryRun?: boolean
+//   }
+//
+// Returns:
+//   {
+//     pick: ScoredCandidate,                   // recommended model
+//     candidates: ScoredCandidate[],           // ranked alternatives
+//     filtered: { slug, reason }[],            // why we dropped candidates
+//     dispatchedRunId?: string,                // present when agentKey provided
+//                                              //   and dryRun !== true
+//   }
+//
+// This is the load-bearing surface for the chat workspace the operator
+// described — type intent, see ranked model picks, confirm dispatch.
+app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const body = await c.req.json().catch(() => ({})) as {
+    intent?: string;
+    profile?: TaskProfile;
+    agentKey?: string;
+    dryRun?: boolean;
+  };
+
+  if (!body.profile || !body.profile.capabilities) {
+    return c.json(
+      { error: "body.profile.capabilities is required (see TaskProfile in @agent-os/core)" },
+      400,
+    );
+  }
+
+  // 1. Run the intelligent picker.
+  const catalog = (await loadModelCatalog(db)) as ModelCatalogEntry[];
+  const recommendation = pickBestModel(catalog, body.profile);
+  if (!recommendation.pick) {
+    return c.json(
+      {
+        error: "no model in the catalog satisfies the requested profile",
+        filtered: recommendation.filtered,
+      },
+      422,
+    );
+  }
+
+  // 2. If no agentKey, return the recommendation only.
+  if (!body.agentKey) {
+    return c.json({
+      intent: body.intent ?? null,
+      pick: recommendation.pick,
+      candidates: recommendation.candidates,
+      filtered: recommendation.filtered,
+      dispatchedRunId: null,
+    });
+  }
+
+  // 3. agentKey provided + dryRun !== true: schedule a one-shot run.
+  if (body.dryRun) {
+    return c.json({
+      intent: body.intent ?? null,
+      pick: recommendation.pick,
+      candidates: recommendation.candidates,
+      filtered: recommendation.filtered,
+      dispatchedRunId: null,
+      dryRun: true,
+    });
+  }
+
+  const [agent] = await db
+    .select({ id: schema.agents.id, key: schema.agents.key })
+    .from(schema.agents)
+    .where(and(eq(schema.agents.tenantId, tenantId), eq(schema.agents.key, body.agentKey)));
+  if (!agent) {
+    return c.json({ error: `agent ${body.agentKey} not found in tenant` }, 404);
+  }
+
+  // Insert a one-shot run; the runner picks it up via /api/agents/:id/next.
+  const [run] = await db
+    .insert(schema.runs)
+    .values({
+      tenantId,
+      agentId: agent.id,
+      status: "scheduled",
+      triggerSource: "chat",
+      scheduledFor: new Date(),
+      summary: body.intent ?? "Chat-dispatched run",
+    })
+    .returning({ id: schema.runs.id });
+
+  return c.json({
+    intent: body.intent ?? null,
+    pick: recommendation.pick,
+    candidates: recommendation.candidates,
+    filtered: recommendation.filtered,
+    dispatchedRunId: run?.id ?? null,
+    agentKey: body.agentKey,
+  });
 });
 
 app.get("/api/admin/architect/blueprints", requireAdmin, async (c) => {

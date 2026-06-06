@@ -16,13 +16,14 @@
 import {
   emit,
   isCantFail,
-  pickModelForTask,
+  pickModelIntelligently,
   raiseCapBreachApproval,
   recordFinding,
   scrubToolResult,
   type ModelTier,
 } from "@agent-os/core";
 import { getBudgetTracker } from "./budget.js";
+import { getModelCatalog } from "./catalog.js";
 import { ratchetAutonomy } from "./run-state.js";
 import { runBrowserTool, type BrowserToolInput, type BrowserToolResult } from "@agent-os/tool-browser";
 import {
@@ -309,19 +310,29 @@ export async function dispatchCustomTool(
   // dryRun / liveRun responsibility); this emit is the audit + signal so a
   // future orchestrator that supports sub-agents can act on it.
   const toolPreferredTier = (bound.preferredModelTier ?? null) as ModelTier | null;
-  if (toolPreferredTier && !isCantFail(bundle.agent.key)) {
+  const toolProfile = bound.taskProfile as Record<string, unknown> | undefined;
+  const hasToolProfile = toolProfile && Object.keys(toolProfile).length > 0;
+  if ((toolPreferredTier || hasToolProfile) && !isCantFail(bundle.agent.key)) {
     try {
-      const baselineTier = (bundle.agent as { modelTier?: ModelTier }).modelTier ?? "T-work";
-      const fork = pickModelForTask({
+      const baselineTier = ((bundle.agent as { modelTier?: ModelTier }).modelTier ?? "T-work") as ModelTier;
+      const catalog = await getModelCatalog();
+      const pick = pickModelIntelligently({
         agentKey: bundle.agent.key,
-        isCantFail: false,
-        modelTier: baselineTier,
-        specModel: null,
-        taskPreferredTier: toolPreferredTier,
+        agentModel: bundle.agent.model,
+        agentTier: baselineTier,
         taskLabel: toolKey,
+        taskProfile: toolProfile ?? null,
+        taskPreferredTier: toolPreferredTier,
+        catalog,
       });
-      if (fork.model !== bundle.agent.model) {
+      if (pick.model !== bundle.agent.model) {
         const dbHandle = getDb();
+        const top3 = pick.alternatives.slice(0, 3).map((a) => ({
+          slug: a.slug,
+          value_score: Number(a.valueScore.toFixed(2)),
+          capability: Number(a.capabilityMatchScore.toFixed(2)),
+          cost_index: Number(a.costIndex.toFixed(2)),
+        }));
         await emit(dbHandle, {
           tenantId: bundle.agent.tenantId,
           eventName: "model.routed",
@@ -330,10 +341,12 @@ export async function dispatchCustomTool(
           runId: bundle.run.id,
           payload: {
             agent_model: bundle.agent.model,
-            forked_to: fork.model,
-            forked_tier: fork.tier,
+            forked_to: pick.model,
+            forked_tier: pick.tier,
             task_label: toolKey,
-            reason: fork.reason,
+            source: pick.source,
+            reason: pick.reason,
+            top_alternatives: top3,
           },
           piiClass: "none",
         }).catch((e) => {
@@ -341,8 +354,7 @@ export async function dispatchCustomTool(
         });
       }
     } catch (e) {
-      // Fork resolution failed (e.g. invalid tier) — log but don't block.
-      console.error(`[runner] pickModelForTask refused for ${toolKey}: ${(e as Error).message}`);
+      console.error(`[runner] pickModelIntelligently refused for ${toolKey}: ${(e as Error).message}`);
     }
   }
 
