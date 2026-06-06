@@ -533,7 +533,7 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
     } finally {
       // Phase 22: free per-run autonomy override state. Innermost finally so
       // we always free state even if closeRun or its emit throws.
-      clearRunState(bundle.run.id);
+      await clearRunState(bundle.run.id);
     }
   }
 

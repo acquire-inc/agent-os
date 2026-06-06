@@ -24,7 +24,7 @@ import {
 } from "@agent-os/core";
 import { getBudgetTracker } from "./budget.js";
 import { getModelCatalog } from "./catalog.js";
-import { ratchetAutonomy } from "./run-state.js";
+import { ratchetAutonomy, registerOutputDir } from "./run-state.js";
 import { runBrowserTool, type BrowserToolInput, type BrowserToolResult } from "@agent-os/tool-browser";
 import {
   runIsolationSuite,
@@ -364,6 +364,8 @@ export async function dispatchCustomTool(
   }
 
   const outputDir = await mkdtemp(join(tmpdir(), `runner-${bundle.agent.key}-`));
+  // WR-08 fix: register for cleanup at run close (clearRunState).
+  registerOutputDir(bundle.run.id, outputDir);
   try {
     const { result } = await handler(input, {
       outputDir,

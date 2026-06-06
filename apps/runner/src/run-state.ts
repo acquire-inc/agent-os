@@ -26,6 +26,9 @@ interface RunState {
   ratchetReasons: string[];
   /** Number of ratchet calls dropped after the reasons[] hit MAX. */
   ratchetOverflowCount: number;
+  /** WR-08 fix: per-run tmp dirs created by dispatchCustomTool. Cleared
+   *  on clearRunState so they don't accumulate in /tmp. */
+  outputDirs: string[];
 }
 
 const runs = new Map<string, RunState>();
@@ -33,10 +36,25 @@ const runs = new Map<string, RunState>();
 function ensure(runId: string): RunState {
   let state = runs.get(runId);
   if (!state) {
-    state = { autonomyOverride: null, ratchetReasons: [], ratchetOverflowCount: 0 };
+    state = {
+      autonomyOverride: null,
+      ratchetReasons: [],
+      ratchetOverflowCount: 0,
+      outputDirs: [],
+    };
     runs.set(runId, state);
   }
   return state;
+}
+
+/** WR-08 fix: register a tmp dir for cleanup at run close. */
+export function registerOutputDir(runId: string, dir: string): void {
+  ensure(runId).outputDirs.push(dir);
+}
+
+/** WR-08 fix: list registered tmp dirs for a run (test/debug). */
+export function getOutputDirs(runId: string): readonly string[] {
+  return runs.get(runId)?.outputDirs ?? [];
 }
 
 /**
@@ -84,8 +102,19 @@ export function effectiveAutonomy(runId: string, fallback: string): string {
   return override ?? fallback;
 }
 
-/** Called at run close to free state. */
-export function clearRunState(runId: string): void {
+/** Called at run close to free state. WR-08 fix: best-effort sweeps
+ *  any registered tmp dirs created by dispatchCustomTool so they don't
+ *  accumulate in /tmp on long-running runners. */
+export async function clearRunState(runId: string): Promise<void> {
+  const state = runs.get(runId);
+  if (state?.outputDirs.length) {
+    const { rm } = await import("node:fs/promises");
+    for (const dir of state.outputDirs) {
+      await rm(dir, { recursive: true, force: true }).catch((e) => {
+        console.error(`[runner] outputDir cleanup failed for ${dir}: ${(e as Error).message}`);
+      });
+    }
+  }
   runs.delete(runId);
 }
 

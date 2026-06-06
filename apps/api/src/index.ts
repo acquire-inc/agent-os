@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { serve as inngestServe } from "inngest/hono";
-import { applyModelFeedback, inngest, runScheduledAgent, scoreAgentsScheduled } from "@agent-os/inngest";
+import { applyModelFeedback, applyMonthlyCostRollup, inngest, runScheduledAgent, scoreAgentsScheduled } from "@agent-os/inngest";
 import { createDb, schema } from "@agent-os/db";
 import {
   ArchitectError,
@@ -35,7 +35,7 @@ import {
   type ApiKeyContext,
   type LlmClient,
 } from "@agent-os/core";
-import { checkTenantBudget, compareForecasts, inferTaskProfile, pickBestModel, type ModelCatalogEntry, type TaskProfile, type TokenEstimate } from "@agent-os/core";
+import { checkTenantBudget, compareForecasts, inferTaskProfile, pickBestModel, suggestModelForBlueprint, type ModelCatalogEntry, type ModelSuggestion, type TaskProfile, type TokenEstimate } from "@agent-os/core";
 import { loadModelCatalog, readTenantMonthToDateUsd } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
@@ -118,7 +118,7 @@ app.get("/api/admin-guide", (c) => c.json(adminGuide));
 app.on(
   ["GET", "POST", "PUT"],
   "/api/inngest",
-  inngestServe({ client: inngest, functions: [runScheduledAgent, scoreAgentsScheduled, applyModelFeedback] }),
+  inngestServe({ client: inngest, functions: [runScheduledAgent, scoreAgentsScheduled, applyModelFeedback, applyMonthlyCostRollup] }),
 );
 
 // --- API key auth for everything else under /api ---
@@ -493,7 +493,61 @@ app.post("/api/admin/architect/propose", requireAdmin, async (c) => {
         llmBudgetUsd: typeof b.llmBudgetUsd === "number" ? b.llmBudgetUsd : undefined,
       },
     );
-    return c.json({ blueprint }, 201);
+
+    // Phase 56: run pickBestModel against each blueprint agent's composed
+    // skill profile. Surface suggestions inline so the operator dashboard
+    // can show LLM-emitted model vs. recommended model side-by-side; the
+    // operator accepts or overrides before seedFromBlueprint.
+    const catalog = (await loadModelCatalog(db)) as ModelCatalogEntry[];
+
+    // Build an in-memory skill registry keyed by skill.key -> task_profile.
+    // We pull all skills referenced by any blueprint agent in one shot.
+    // The hydrated blueprint returns AgentSpec[] (post-hydrate shape) with
+    // skills as { key, name }[]; we extract the keys for the suggestion call.
+    const allSkillKeys = Array.from(
+      new Set(
+        (blueprint.agents ?? []).flatMap((a) =>
+          (a.skills ?? []).map((s) => s.key),
+        ),
+      ),
+    );
+    const skillProfiles = new Map<string, TaskProfile>();
+    if (allSkillKeys.length > 0) {
+      const skillRows = await db
+        .select({ key: schema.skills.key, taskProfile: schema.skills.taskProfile })
+        .from(schema.skills)
+        .where(and(eq(schema.skills.tenantId, tenantId), inArray(schema.skills.key, allSkillKeys)));
+      for (const r of skillRows) {
+        const p = r.taskProfile as Record<string, unknown> | undefined;
+        if (p && typeof p === "object" && p.capabilities) {
+          skillProfiles.set(r.key, p as unknown as TaskProfile);
+        }
+      }
+    }
+    const registry = {
+      getTaskProfile: (skillKey: string) => skillProfiles.get(skillKey) ?? null,
+    };
+
+    const suggestions: Record<string, ModelSuggestion | null> = {};
+    for (const a of blueprint.agents ?? []) {
+      // Adapt AgentSpec -> AgentBlueprint shape for the suggestion call.
+      const blueprintShape = {
+        key: a.key,
+        name: a.name,
+        role: "", // not used by suggestModelForBlueprint
+        systemPrompt: a.systemPrompt,
+        model: a.model ?? "",
+        autonomy: a.autonomy as "propose" | "execute_safe",
+        knowledgeScope: a.knowledgeScope,
+        budgetCapUsd: a.budgetCapUsd,
+        cron: a.cron ?? null,
+        skillKeys: (a.skills ?? []).map((s) => s.key),
+        mcpNames: a.mcpNames ?? [],
+      };
+      suggestions[a.key] = suggestModelForBlueprint(blueprintShape, catalog, registry);
+    }
+
+    return c.json({ blueprint, modelSuggestions: suggestions }, 201);
   } catch (e) {
     if (e instanceof ArchitectError) return c.json({ error: e.message, code: e.code }, 400);
     throw e;

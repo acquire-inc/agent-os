@@ -19,7 +19,7 @@ function assert(cond: unknown, msg: string) {
 
 const RUN = "run-state-1";
 
-function main() {
+async function main() {
   console.log("• Group 1 — no override -> effectiveAutonomy returns fallback");
   resetAllRunStateForTests();
   assert(getAutonomyOverride(RUN) === null, "no override yet");
@@ -52,7 +52,7 @@ function main() {
   assert(getRatchetReasons(RUN).length === 2, "two reasons recorded");
 
   console.log("\n• Group 5 — clearRunState frees state");
-  clearRunState(RUN);
+  await clearRunState(RUN);
   assert(getAutonomyOverride(RUN) === null, "override cleared");
   assert(getRatchetReasons(RUN).length === 0, "reasons cleared");
   assert(effectiveAutonomy(RUN, "execute_safe") === "execute_safe", "fallback returned after clear");
@@ -63,7 +63,7 @@ function main() {
   ratchetAutonomy("run-B", "execute_safe", "B reason");
   assert(getAutonomyOverride("run-A") === "propose", "run A at propose");
   assert(getAutonomyOverride("run-B") === "execute_safe", "run B at execute_safe");
-  clearRunState("run-A");
+  await clearRunState("run-A");
   assert(getAutonomyOverride("run-A") === null, "run A cleared");
   assert(getAutonomyOverride("run-B") === "execute_safe", "run B unchanged");
 
@@ -71,4 +71,4 @@ function main() {
   process.exit(failed === 0 ? 0 : 1);
 }
 
-main();
+main().catch((e) => { console.error(e); process.exit(1); });

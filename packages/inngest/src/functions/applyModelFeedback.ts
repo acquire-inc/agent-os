@@ -74,6 +74,7 @@ async function loadObservations(db: Db, windowDays: number): Promise<ModelRunObs
   const rows = await db
     .select({
       runId: schema.runSummaries.runId,
+      tenantId: schema.runSummaries.tenantId,
       agentKey: schema.agents.key,
       model: schema.agents.model,
       status: schema.runSummaries.status,
@@ -85,6 +86,15 @@ async function loadObservations(db: Db, windowDays: number): Promise<ModelRunObs
     .orderBy(desc(schema.runSummaries.endedAt))
     .limit(5000);
 
+  // WR-03 fix: per-run tenant map for defense-in-depth filtering on
+  // the relay_events joins below. RLS protects via FK chain in
+  // production but the Inngest function runs as service-role which
+  // bypasses RLS. Use this map to scope each count to the run's
+  // owning tenant.
+  const runTenantMap = new Map<string, string>();
+  for (const r of rows) runTenantMap.set(r.runId, r.tenantId);
+  const tenantIds = Array.from(new Set(rows.map((r) => r.tenantId)));
+
   // Per-run cantfail event counts.
   const cantfailCounts = new Map<string, number>();
   const runIds = rows.map((r) => r.runId);
@@ -94,6 +104,9 @@ async function loadObservations(db: Db, windowDays: number): Promise<ModelRunObs
       .from(schema.relayEvents)
       .where(
         and(
+          // WR-03 fix: scope by tenant set to prevent any cross-tenant
+          // leak via service-role RLS bypass.
+          sql`${schema.relayEvents.tenantId} = ANY(${tenantIds})`,
           sql`${schema.relayEvents.eventName} LIKE 'cantfail.%'`,
           sql`${schema.relayEvents.runId} = ANY(${runIds})`,
         ),
@@ -119,6 +132,8 @@ async function loadObservations(db: Db, windowDays: number): Promise<ModelRunObs
       .from(schema.relayEvents)
       .where(
         and(
+          // WR-03 fix: tenant scope.
+          sql`${schema.relayEvents.tenantId} = ANY(${tenantIds})`,
           eq(schema.relayEvents.eventName, "model.routed"),
           sql`${schema.relayEvents.runId} = ANY(${runIds})`,
         ),
@@ -139,6 +154,8 @@ async function loadObservations(db: Db, windowDays: number): Promise<ModelRunObs
       .from(schema.relayEvents)
       .where(
         and(
+          // WR-03 fix: tenant scope.
+          sql`${schema.relayEvents.tenantId} = ANY(${tenantIds})`,
           eq(schema.relayEvents.eventName, "finding.recorded"),
           sql`(${schema.relayEvents.payload}->>'severity') IN ('medium','high','critical')`,
           sql`${schema.relayEvents.runId} = ANY(${runIds})`,
@@ -192,19 +209,34 @@ async function loadObservations(db: Db, windowDays: number): Promise<ModelRunObs
   return observations;
 }
 
+// WR-02 fix: previously substring match — "pricing-decision-monitor" hit
+// "monitor" first and got classified as classification; "cliently-dev"
+// matched "dev" and got tagged code_generation (but cliently.dev is
+// excluded from AgentOS scope anyway). Now uses whole-token matching
+// on hyphen/underscore-split components with last-token-wins precedence
+// to capture the agent's primary purpose (the suffix in AgentOS naming
+// convention).
 function inferPrimaryCapability(agentKey: string): CapabilityKey {
-  // Heuristic mapping — overridden by skill task_profile in a follow-up phase.
-  if (agentKey.includes("monitor") || agentKey.includes("triage") || agentKey.includes("classifier")) {
-    return "classification";
-  }
-  if (agentKey.includes("architect") || agentKey.includes("critic") || agentKey.includes("decision")) {
-    return "reasoning";
-  }
-  if (agentKey.includes("report") || agentKey.includes("brief") || agentKey.includes("summar")) {
-    return "summarization";
-  }
-  if (agentKey.includes("code") || agentKey.includes("dev")) {
-    return "code_generation";
+  const tokens = agentKey.toLowerCase().split(/[-_]/);
+
+  // Last token first — naming convention puts the verb/purpose last
+  // (e.g. "pricing-architect", "credit-decision-engine", "weekly-report").
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const t = tokens[i]!;
+    if (["monitor", "triage", "classifier", "classify", "categorize"].includes(t)) {
+      return "classification";
+    }
+    if (["architect", "critic", "decision", "decide", "engine", "analyzer"].includes(t)) {
+      return "reasoning";
+    }
+    if (["report", "brief", "briefing", "summarize", "summary", "recap"].includes(t)) {
+      return "summarization";
+    }
+    // Excluded from AgentOS: code-writing is the Cliently product track.
+    // We keep the mapping for completeness but it's vestigial here.
+    if (["code", "coder", "developer"].includes(t)) {
+      return "code_generation";
+    }
   }
   return "summarization";
 }
