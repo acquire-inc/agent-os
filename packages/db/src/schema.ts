@@ -243,6 +243,10 @@ export const skills = pgTable("skills", {
   preferredModelTier: text("preferred_model_tier").$type<
     "T-trivial" | "T-cheap" | "T-reason" | "T-work" | "T-critical" | null
   >(),
+  /** Phase 40: TaskProfile JSON for the intelligent model picker. Shape
+   *  matches packages/core/src/router/intelligence.ts TaskProfile. Empty
+   *  {} = no profile; the tier fork (preferredModelTier) applies instead. */
+  taskProfile: jsonb("task_profile").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -284,6 +288,9 @@ export const tools = pgTable("tools", {
   preferredModelTier: text("preferred_model_tier").$type<
     "T-trivial" | "T-cheap" | "T-reason" | "T-work" | "T-critical" | null
   >(),
+  /** Phase 40: TaskProfile JSON for the intelligent model picker. Same
+   *  shape as skills.taskProfile. */
+  taskProfile: jsonb("task_profile").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -570,5 +577,45 @@ export const agentScorecards = pgTable("agent_scorecards", {
   triggeredThresholds: jsonb("triggered_thresholds").$type<string[]>().notNull().default([]),
   appliedAt: timestamp("applied_at", { withTimezone: true }),
   appliedAutonomy: text("applied_autonomy"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Phase 38: model catalog. Cost-per-token + per-task capability scores for
+ * every model the platform can dispatch to. Mirrors supabase/migrations/
+ * 0020_model_catalog.sql. Powers the Phase 39 pickBestModel scoring.
+ */
+export const models = pgTable("models", {
+  slug: text("slug").primaryKey(),
+  provider: text("provider").notNull(),
+  family: text("family").notNull(),
+  generation: text("generation").notNull(),
+  status: text("status")
+    .$type<"preferred" | "secondary" | "deprecated" | "experimental">()
+    .notNull()
+    .default("preferred"),
+  costInputPerMillionUsd: numeric("cost_input_per_million_usd", { precision: 12, scale: 4 }).notNull(),
+  costOutputPerMillionUsd: numeric("cost_output_per_million_usd", { precision: 12, scale: 4 }).notNull(),
+  contextWindowTokens: integer("context_window_tokens").notNull(),
+  maxOutputTokens: integer("max_output_tokens").notNull(),
+  supportsTools: boolean("supports_tools").notNull().default(true),
+  supportsReasoning: boolean("supports_reasoning").notNull().default(false),
+  supportsVision: boolean("supports_vision").notNull().default(false),
+  supportsStreaming: boolean("supports_streaming").notNull().default(true),
+  /** Per-task scores 0..10. Canonical keys: reasoning, tool_use,
+   *  classification, summarization, code_generation, multilingual, vision,
+   *  long_context, factuality, latency_sensitivity. Absent keys default
+   *  to neutral 5 in the scorer. */
+  capabilityScores: jsonb("capability_scores")
+    .$type<Record<string, number>>()
+    .notNull()
+    .default({}),
+  /** Which tier this model is canonical for under the legacy tier router. */
+  tierAffinity: text("tier_affinity").$type<
+    "T-trivial" | "T-cheap" | "T-reason" | "T-work" | "T-critical" | null
+  >(),
+  latencyP50Ms: integer("latency_p50_ms"),
+  enabled: boolean("enabled").notNull().default(true),
+  lastObservedAt: timestamp("last_observed_at", { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

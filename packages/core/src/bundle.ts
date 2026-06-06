@@ -37,6 +37,8 @@ export interface Bundle {
     repoPath: string | null;
     /** Phase 32: per-skill preferred model tier. NULL = no preference. */
     preferredModelTier: string | null;
+    /** Phase 40: TaskProfile JSON for the intelligent model picker. */
+    taskProfile: Record<string, unknown>;
   }[];
   mcpServers: {
     name: string;
@@ -58,6 +60,8 @@ export interface Bundle {
     costEstimateUsd: string;
     /** Phase 32: per-tool preferred model tier. NULL = no preference. */
     preferredModelTier: string | null;
+    /** Phase 40: TaskProfile JSON for the intelligent model picker. */
+    taskProfile: Record<string, unknown>;
   }[];
   knowledge: { chunk: string; source: string }[];
   envVars: Record<string, string>;
@@ -162,6 +166,8 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
       repoPath: s.repoPath,
       // Phase 32: per-skill model tier preference for the runtime fork.
       preferredModelTier: s.preferredModelTier ?? null,
+      // Phase 40: TaskProfile for the intelligent picker.
+      taskProfile: (s.taskProfile ?? {}) as Record<string, unknown>,
     })),
     mcpServers: await Promise.all(
       mcpRows.map(async (m) => {
@@ -189,6 +195,8 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
       costEstimateUsd: t.costEstimateUsd ?? "0",
       // Phase 32: per-tool model tier preference for the runtime fork.
       preferredModelTier: t.preferredModelTier ?? null,
+      // Phase 40: TaskProfile for the intelligent picker.
+      taskProfile: (t.taskProfile ?? {}) as Record<string, unknown>,
     })),
     knowledge,
     // Decrypt env values via the vault; never emit ciphertext. Omit if no decryptor.

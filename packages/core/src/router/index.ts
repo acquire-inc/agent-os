@@ -18,3 +18,22 @@ export {
   type ResolveModelResult,
   type PickModelForTaskArgs,
 } from "./resolve.js";
+
+export {
+  pickBestModel,
+  scoreCandidate,
+  filterCandidates,
+  type CapabilityKey,
+  type CostSensitivity,
+  type TaskProfile,
+  type ModelCatalogEntry,
+  type ScoredCandidate,
+  type PickBestModelOptions,
+  type PickResult,
+} from "./intelligence.js";
+
+export {
+  pickModelIntelligently,
+  type IntelligentPickArgs,
+  type IntelligentPickResult,
+} from "./intelligent-pick.js";

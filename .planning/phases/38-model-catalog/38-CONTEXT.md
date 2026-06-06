@@ -1,0 +1,3 @@
+# Phase 38 — Model catalog (cost + capabilities)
+
+Migration 0020 + Drizzle table. Seeded with 11 canonical models (Anthropic Claude family, Nous Hermes, OpenAI GPT-4o variants, DeepSeek v3, Google Gemini 2). Each row has cost per million tokens (input + output), context window, hard capability flags (supports_tools / supports_reasoning / supports_vision), and a per-task capability scores JSONB with canonical keys (reasoning, tool_use, classification, summarization, code_generation, multilingual, vision, long_context, factuality, latency_sensitivity). Tier affinity column maps to the legacy tier router. Operators tune capability scores as the picker accumulates real eval data.

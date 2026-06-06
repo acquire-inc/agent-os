@@ -1,0 +1,3 @@
+# Phase 39 — pickBestModel scoring algorithm
+
+Pure module `packages/core/src/router/intelligence.ts`. Reads catalog rows + a TaskProfile and returns ranked candidates with value-per-dollar scoring. The operator's stated rule ("if GPT-5.5 scores 9 and the 10-scoring model is more expensive, pick the 9") emerges naturally: value = capability / cost_penalty^cost_sensitivity. costSensitivity has 3 levels (low=0.25, medium=1.0, high=2.0). Hard requirements filter (tools/vision/reasoning/context-window/provider-allow-block); soft floors (qualityFloor, maxCostIndex) further constrain. Safety floors: T-critical excluded by default; non-T-critical cannot fork TO T-critical. 32 assertions.
