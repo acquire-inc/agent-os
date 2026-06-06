@@ -40,7 +40,7 @@ import {
   stripeRefresher,
   type RotateResult,
 } from "@agent-os/core";
-import { createDb, type Db } from "@agent-os/db";
+import { createDb, registerArtifact, type Db } from "@agent-os/db";
 import type { Refresher } from "@agent-os/vault";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -434,6 +434,31 @@ export async function dispatchCustomTool(
 
     const resultPath = join(outputDir, `${toolKey.replace(/[^a-zA-Z0-9._-]/g, "_")}-result.json`);
     await writeFile(resultPath, JSON.stringify(finalResult, null, 2), "utf8");
+
+    // Phase 48: register the tool result as an artifact so the operator's
+    // dashboard sees what each tool produced. Best-effort; never throws
+    // into the run. Tools with sensitive outputs can opt out by future
+    // metadata flag (not implemented here).
+    try {
+      const dbHandle = getDb();
+      await registerArtifact(dbHandle, {
+        tenantId: bundle.agent.tenantId,
+        runId: bundle.run.id,
+        agentId: bundle.agent.id,
+        kind: "json",
+        name: `${toolKey} result`,
+        uri: `file://${resultPath}`,
+        metadata: {
+          tool_key: toolKey,
+          generated_by: "runner.dispatchCustomTool",
+          phase: 48,
+        },
+      });
+    } catch (e) {
+      console.error(
+        `[runner] artifact register skipped for ${toolKey}: ${(e as Error).message}`,
+      );
+    }
 
     // Commit the estimate as the actual on success. Future enhancement:
     // a handler that returns a true cost can supersede the estimate.

@@ -35,7 +35,7 @@ import {
   type ApiKeyContext,
   type LlmClient,
 } from "@agent-os/core";
-import { pickBestModel, type ModelCatalogEntry, type TaskProfile } from "@agent-os/core";
+import { compareForecasts, pickBestModel, type ModelCatalogEntry, type TaskProfile, type TokenEstimate } from "@agent-os/core";
 import { loadModelCatalog } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
@@ -627,6 +627,11 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
     profile?: TaskProfile;
     agentKey?: string;
     dryRun?: boolean;
+    /** Phase 50: optional cost-forecast inputs. When tokens supplied,
+     *  the response includes per-candidate USD forecasts and a
+     *  recommendation that respects budgetCapUsd. */
+    tokens?: TokenEstimate;
+    budgetCapUsd?: number;
   };
 
   if (!body.profile || !body.profile.capabilities) {
@@ -649,6 +654,16 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
     );
   }
 
+  // Phase 50: layer in the cost forecast when tokens supplied.
+  const forecast = body.tokens
+    ? compareForecasts({
+        catalog,
+        tokens: body.tokens,
+        profile: body.profile,
+        budgetCapUsd: body.budgetCapUsd,
+      })
+    : null;
+
   // 2. If no agentKey, return the recommendation only.
   if (!body.agentKey) {
     return c.json({
@@ -656,6 +671,7 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
       pick: recommendation.pick,
       candidates: recommendation.candidates,
       filtered: recommendation.filtered,
+      forecast,
       dispatchedRunId: null,
     });
   }
@@ -667,6 +683,7 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
       pick: recommendation.pick,
       candidates: recommendation.candidates,
       filtered: recommendation.filtered,
+      forecast,
       dispatchedRunId: null,
       dryRun: true,
     });
@@ -698,6 +715,7 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
     pick: recommendation.pick,
     candidates: recommendation.candidates,
     filtered: recommendation.filtered,
+    forecast,
     dispatchedRunId: run?.id ?? null,
     agentKey: body.agentKey,
   });
