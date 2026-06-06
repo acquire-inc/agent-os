@@ -39,6 +39,8 @@ export interface Bundle {
     preferredModelTier: string | null;
     /** Phase 40: TaskProfile JSON for the intelligent model picker. */
     taskProfile: Record<string, unknown>;
+    /** Phase 52: per-skill USD cost estimate for sub-agent dispatch. */
+    costEstimateUsd: string;
   }[];
   mcpServers: {
     name: string;
@@ -168,6 +170,8 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
       preferredModelTier: s.preferredModelTier ?? null,
       // Phase 40: TaskProfile for the intelligent picker.
       taskProfile: (s.taskProfile ?? {}) as Record<string, unknown>,
+      // Phase 52: per-skill cost estimate for sub-agent dispatch.
+      costEstimateUsd: s.costEstimateUsd ?? "0",
     })),
     mcpServers: await Promise.all(
       mcpRows.map(async (m) => {

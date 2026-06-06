@@ -247,6 +247,11 @@ export const skills = pgTable("skills", {
    *  matches packages/core/src/router/intelligence.ts TaskProfile. Empty
    *  {} = no profile; the tier fork (preferredModelTier) applies instead. */
   taskProfile: jsonb("task_profile").$type<Record<string, unknown>>().notNull().default({}),
+  /** Phase 52: estimated USD cost when this skill is dispatched as a
+   *  sub-agent on a forked model. Used by the runner's sub-agent
+   *  dispatcher (apps/runner/src/sub-agent.ts) to reserve before
+   *  invoking. 0 = free/no estimate. Mirrors migration 0024. */
+  costEstimateUsd: numeric("cost_estimate_usd", { precision: 12, scale: 4 }).notNull().default("0"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
