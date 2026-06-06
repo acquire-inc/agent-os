@@ -25,6 +25,7 @@ import {
 import { getBudgetTracker } from "./budget.js";
 import { getModelCatalog } from "./catalog.js";
 import { ratchetAutonomy, registerOutputDir } from "./run-state.js";
+import { dispatchSubAgent } from "./sub-agent.js";
 import { runBrowserTool, type BrowserToolInput, type BrowserToolResult } from "@agent-os/tool-browser";
 import {
   runIsolationSuite,
@@ -207,7 +208,12 @@ export const customToolDispatch: Record<string, CustomToolHandler> = {
 export function deriveAllowedTools(bundle: Bundle): string[] {
   const toolKeys = (bundle.tools ?? []).map((t) => t.key);
   const mcpNames = (bundle.mcpServers ?? []).map((m) => m.name);
-  return [...toolKeys, ...mcpNames];
+  // Phase 58: tool.delegate is built-in. Auto-enabled when the agent has
+  // skills bound — the agent can use it to delegate to sub-agents
+  // optimized per skill. Agents with no skills can't usefully delegate.
+  const builtins: string[] = [];
+  if ((bundle.skills ?? []).length > 0) builtins.push("tool.delegate");
+  return [...toolKeys, ...mcpNames, ...builtins];
 }
 
 /** Sentinel error thrown when a tool dispatch is refused because the
@@ -252,6 +258,63 @@ export async function dispatchCustomTool(
   toolKey: string,
   input: unknown,
 ): Promise<CustomToolDispatchResult> {
+  // Phase 58: built-in `tool.delegate` short-circuits the normal handler
+  // dispatch and invokes the sub-agent path. Input: { skill_key, prompt }.
+  // The agent's skill registry is queried for the target skill's
+  // task_profile + preferredModelTier; pickModelIntelligently selects the
+  // optimal model; dispatchSubAgent runs the prompt on it and returns the
+  // result. Closes the model-intelligence loop end-to-end: the agent
+  // delegates explicitly, and the runner picks the best model for the
+  // sub-task.
+  if (toolKey === "tool.delegate") {
+    const delegateInput = (input ?? {}) as { skill_key?: string; prompt?: string; system_prompt?: string };
+    if (!delegateInput.skill_key || !delegateInput.prompt) {
+      throw new Error("tool.delegate requires { skill_key, prompt }");
+    }
+    const skill = (bundle.skills ?? []).find((s) => s.key === delegateInput.skill_key);
+    if (!skill) {
+      throw new Error(`agent ${bundle.agent.key} is not bound to skill "${delegateInput.skill_key}" — refusing delegate`);
+    }
+    const catalog = await getModelCatalog();
+    const baselineTier = ((bundle.agent as { modelTier?: import("@agent-os/core").ModelTier }).modelTier ?? "T-work") as import("@agent-os/core").ModelTier;
+    const { pickModelIntelligently } = await import("@agent-os/core");
+    const pick = pickModelIntelligently({
+      agentKey: bundle.agent.key,
+      agentModel: bundle.agent.model,
+      agentTier: baselineTier,
+      taskLabel: `skill:${skill.key}`,
+      taskProfile: (skill.taskProfile ?? null) as Record<string, unknown> | null,
+      taskPreferredTier: (skill.preferredModelTier ?? null) as import("@agent-os/core").ModelTier | null,
+      catalog,
+    });
+    const dbHandle = (() => { try { return getDb(); } catch { return undefined; } })();
+    const subResult = await dispatchSubAgent({
+      bundle,
+      modelSlug: pick.model,
+      prompt: delegateInput.prompt,
+      systemPrompt: delegateInput.system_prompt,
+      taskLabel: `skill:${skill.key}`,
+      costEstimateUsd: Number(skill.costEstimateUsd ?? "0"),
+      db: dbHandle,
+    });
+    const outputDir = await mkdtemp(join(tmpdir(), `runner-${bundle.agent.key}-delegate-`));
+    registerOutputDir(bundle.run.id, outputDir);
+    const resultPath = join(outputDir, `delegate-${skill.key}-result.json`);
+    await writeFile(resultPath, JSON.stringify({
+      delegated_to_skill: skill.key,
+      model_ran: subResult.modelRan,
+      ok: subResult.ok,
+      result: subResult.result,
+      cost_usd: subResult.costUsd,
+      tokens_in: subResult.tokensIn,
+      tokens_out: subResult.tokensOut,
+      error: subResult.error ?? null,
+      pick_rationale: pick.reason,
+      pick_source: pick.source,
+    }, null, 2), "utf8");
+    return { toolKey, resultPath };
+  }
+
   const bound = (bundle.tools ?? []).find((t) => t.key === toolKey);
   if (!bound) {
     throw new Error(`agent ${bundle.agent.key} is not bound to ${toolKey} — refusing dispatch`);
