@@ -8,7 +8,7 @@
 import { createDb, schema } from "@agent-os/db";
 import { TENANT_IDS } from "@agent-os/shared";
 import { eq } from "drizzle-orm";
-import { ACQU_AGENT_MODEL } from "./_shared.js";
+import { isCantFailOnHermes } from "./_shared.js";
 import { listPromptAgents, getAgentBlock } from "./_doctrine.js";
 import { seedRoster, type AgentSpec, type Tier } from "./_generic.js";
 import { PHASE_2, PHASE_3, PHASE_4, PHASE_5 } from "./_roster.js";
@@ -74,21 +74,25 @@ async function main() {
   console.log(`  + connector enrichment: ${enriched.length} agent(s) gained role connectors.`);
   if (missingConn.length) console.log(`    ⚠ role connectors not seeded for Acqu (skipped): ${missingConn.join(", ")}`);
 
-  // Normalize the whole tenant to 405B (operator invariant) and report.
-  const norm = await db.update(schema.agents).set({ model: ACQU_AGENT_MODEL }).where(eq(schema.agents.tenantId, TENANT_ID)).returning({ key: schema.agents.key });
+  // Per-task model routing (2026-06): no fleet normalization. Report the distribution and enforce
+  // the safety invariant — no can't-fail agent on a Hermes slug.
   const all = await db.select().from(schema.agents).where(eq(schema.agents.tenantId, TENANT_ID));
-  const off = all.filter((a) => a.model !== ACQU_AGENT_MODEL).map((a) => a.key);
+  const modelCounts: Record<string, number> = {};
+  for (const a of all) modelCounts[a.model!] = (modelCounts[a.model!] ?? 0) + 1;
+  const cantFailOnHermes = all.filter((a) => isCantFailOnHermes(a.key, a.model!)).map((a) => `${a.key}=${a.model}`);
 
   console.log("\n══════════════════════════════════════════════════════════════════════════════");
   console.log(`FULL-DOCTRINE SUMMARY`);
   console.log("══════════════════════════════════════════════════════════════════════════════");
   console.log(`  Total Acqu agents now: ${all.length}`);
   console.log(`  Seeded this run: ${remainder.length}  |  primary skills authored: ${authored}`);
-  console.log(`  Normalized to ${ACQU_AGENT_MODEL}: ${norm.length} (off-model remaining: ${off.length ? off.join(", ") : "0 ✓"})`);
+  console.log(`  Model distribution:`);
+  for (const [m, n] of Object.entries(modelCounts).sort()) console.log(`    ${String(n).padStart(3)} × ${m}`);
+  console.log(`  Can't-fail NEVER on Hermes: ${cantFailOnHermes.length ? "✗ " + cantFailOnHermes.join(", ") : "✓"}`);
   if (defaulted.length) { console.log(`\n  ⚠ Trigger defaults (${defaulted.length}):`); defaulted.forEach((d) => console.log(`    - ${d}`)); }
   if (skipped.length) { console.log(`\n  ⚠ MCPs skipped (${skipped.length}):`); skipped.forEach((s) => console.log(`    - ${s}`)); }
 
-  if (off.length) { console.error("\n✗ off-model agents remain"); process.exit(1); }
+  if (cantFailOnHermes.length) { console.error("\n✗ a can't-fail agent is on Hermes"); process.exit(1); }
   console.log("\n✓ Full doctrine seeded and verified.");
   process.exit(0);
 }

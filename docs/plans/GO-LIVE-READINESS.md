@@ -24,7 +24,8 @@ enumerable, 103 skills, 44 eval cases across 42 agents.
 | **Skills — least privilege** | ✅ | `allowed-tools` on **103/103** skills; `bundle.skills[].allowedTools` populated. (`author-allowed-tools --check`, P9·09-03) |
 | **Skills — anatomy + guardrails** | ✅ | **103/103** skills carry `## Guardrails`: 12 bespoke (gate-respect / propose-not-execute) + the rest a universal baseline (propose-irreversible / verify / files-not-context) plus a keyword domain rail. Both universal safety skills canonical. (`_safety-skills.test`, `_skill-anatomy.test`, `readiness.test`, P10/P12/P16) |
 | **Evals (evidence-driven promotion)** | ✅ for the consequential set | 44 cases / 42 agents: **all 14 can't-fail** (critical), high-volume monitors, chain participants, reasoning workhorses, revenue/creative agents. (`_evals.test`, P11/P13) |
-| **Autonomy + safety gate** | ✅ | New agents `propose`; can't-fail agents `maxAutonomyForAgent === propose` (auto-promotion ceiling enforced in code + seed invariant). Safety via hooks, not the model. |
+| **Model routing (per-task)** | ✅ | Single-model override lifted (P17). `modelForAgent`: T-cheap→Hermes-70B, T-reason→Hermes-405B, T-work→Sonnet, can't-fail→**Opus (never Hermes)**. Enforced by `validateAgent` + both gates. (`_model-tiering.test`) |
+| **Autonomy + safety gate** | ✅ | New agents `propose`; can't-fail `maxAutonomyForAgent === propose` (ceiling in code + seed invariant) **AND** on Claude Opus — defense-in-depth. Safety via hooks, not only the model. |
 
 ## How to verify
 
@@ -44,9 +45,10 @@ DATABASE_URL=... pnpm --filter @agent-os/seed exec tsx verify-golive.ts
 These are **platform-owned (`AGENT-OS-PLAN.md`) or operator decisions** — the agents are ready, but
 the system cutover waits on:
 
-1. **Operator: the Hermes runtime-vs-model fork.** Agents-session lean = **keep the Anthropic Agent
-   SDK runner; port the gates/skills/KB** (don't adopt the Hermes runtime). Keep T-critical on a
-   strong model; "Hermes-405B as the non-critical default" stays PENDING. Operator's call.
+1. ~~**Operator: the Hermes runtime-vs-model fork.**~~ **RESOLVED (2026-06).** Keep the Anthropic
+   Agent SDK runner (no Hermes runtime); **lift the single-model override → per-task model tiering**:
+   T-cheap→Hermes-70B, T-reason→Hermes-405B, T-work→Claude Sonnet, can't-fail→Claude Opus (never
+   Hermes). Live in `_shared.ts` (`modelForAgent`), enforced by `validateAgent` + both gates.
 2. **Platform P0 — Relay event spine + emitter + `relay_event_types` registry.** Per-agent emission
    (`AGENTS-PLAN.md` §2) can't finalize until this schema lands. `run_summaries` + SessionEnd write
    and bundle continuity are already **built**.

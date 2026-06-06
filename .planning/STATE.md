@@ -48,10 +48,16 @@ wired into CI.
   --check gate); _skill-anatomy 64 tests.
 - P13: eval coverage 29→44 / 27→42 agents — reasoning workhorses (intel/forecast/expansion/…),
   creative/launch, revenue ops.
-- P14 (capstone): readiness.test.ts aggregate go-live gate (9/9, enumerates 93 agents, asserts the
-  can't-fail/eval/skill/tool invariants) + docs/plans/GO-LIVE-READINESS.md. **Agent DATA finalized
-  + go-live ready.** Actual cutover still gated on platform P0s (Relay/RLS/Inngest/tool-map) +
-  operator Hermes fork — NOT agent-scope.
+- P14 (capstone): readiness.test.ts aggregate go-live gate + docs/plans/GO-LIVE-READINESS.md.
+  **Agent DATA finalized + go-live ready.**
+- P15: verify-golive mirrors readiness invariants DB-side (can't-fail eval coverage + allowed-tools).
+- P16: fleet-wide skill guardrails 103/103 (bespoke 12 + universal baseline + domain rail).
+- P17 (operator decision): **single-model override LIFTED → per-task model tiering.** modelForAgent
+  in _shared.ts (T-cheap→Hermes-70B, T-reason→Hermes-405B, T-work→Sonnet, can't-fail→Opus, NEVER
+  Hermes). Lifted the 3 blanket-normalization orchestrators; validateAgent rejects can't-fail-on-
+  Hermes; both gates + seeders assert it. _model-tiering 12 tests. CLAUDE.md doctrine updated.
+  Autonomy ceiling retained → can't-fail now have BOTH Opus AND the propose gate (defense-in-depth).
+  Actual cutover still gated on platform P0s (Relay/RLS/Inngest/tool-map) — NOT agent-scope.
 NOTE on the external-restructure instructions (OUTPUT 2): its inputs (AgentOS audit docs +
 feat/external-skills-extraction branch + /agents/_candidates + zip) do NOT exist in this repo, and
 several premises mismatch (the two "missing" skills already exist; CANT_FAIL_AGENTS not

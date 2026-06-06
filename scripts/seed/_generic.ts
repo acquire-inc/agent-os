@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   type Db,
-  ACQU_AGENT_MODEL,
+  modelForAgent,
   ensureSkillFromDir,
   findMcpByName,
   upsertAgent,
@@ -36,9 +36,9 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SKILLS_DIR = join(HERE, "..", "..", "external", "acqu-skills");
 
-// Tier is retained as metadata (thinking effort + roster grouping), but per operator
-// override EVERY agent's MODEL is ACQU_AGENT_MODEL (Hermes 4 405B) regardless of tier.
-export type Tier = "T-cheap" | "T-reason" | "T-work" | "T-critical";
+// Tier drives thinking effort, roster grouping, AND (since 2026-06) the per-task model routing.
+export type { Tier } from "./_shared.js";
+import type { Tier } from "./_shared.js";
 
 const THINKING: Record<Tier, "low" | "medium" | "high"> = {
   "T-cheap": "low",
@@ -138,7 +138,7 @@ export async function seedAgentFromSpec(db: Db, spec: AgentSpec): Promise<SeedRe
   if (!block.systemPrompt) {
     throw new Error(`No verbatim System prompt for "${spec.key}" in ${spec.doc} — refusing to seed without a doctrine prompt.`);
   }
-  const model = ACQU_AGENT_MODEL; // operator override: all agents on Hermes 4 405B
+  const model = modelForAgent(spec.key, spec.tier); // per-task model routing (2026-06)
   const autonomy = parseAutonomy(block.fields["Autonomy"]);
   const budget = parseBudget(block.fields["Budget"]);
   const { triggers, defaulted } = parseTriggers(block.fields["Trigger"], spec.key);

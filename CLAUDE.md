@@ -30,7 +30,14 @@ TypeScript (strict) · TanStack Router SPA + Hono API · Postgres + pgvector (Su
 
 ## Model tiering — CANONICAL (model is CONFIG, not code; start at the cheapest safe tier, promote only on eval failure)
 
-> **⚠ OPERATOR OVERRIDE (2026-05, active):** Every Acqu agent currently runs on **`nousresearch/hermes-4-405b`** — a single model for the whole fleet, set as config in `scripts/seed/_shared.ts` (`ACQU_AGENT_MODEL`) and enforced fleet-wide by the seeders. This **intentionally supersedes the per-tier split and the can't-fail "never Hermes" rule below** for Acqu. The Claude **Agent SDK remains the runtime/backend** (`backend = claude-agent-sdk`); only the routed model changed. The tier table below is retained for rationale and as the fallback policy — do **not** re-tier agents back to Claude without an explicit operator instruction. (Tier still drives `thinking_level` + roster grouping.)
+> **✅ OPERATOR DECISION (2026-06, active) — single-model override LIFTED, per-task tiering ON.** The
+> 2025-05 "whole fleet on Hermes 4 405B" override is **rescinded**: each agent now runs the **optimal
+> model for its task** per the tier table below (model is config, not code). Routing is centralized in
+> `scripts/seed/_shared.ts` (`MODEL_FOR_TIER` + `modelForAgent`): **T-cheap → Hermes 70B, T-reason →
+> Hermes 405B, T-work → Claude Sonnet, T-critical → Claude Sonnet, can't-fail → Claude Opus (NEVER
+> Hermes)**. The Claude **Agent SDK remains the runtime/backend** (`backend = claude-agent-sdk`) — only
+> the *routed model* varies, and now it varies by tier. Seeders set each agent's model at insert; no
+> fleet normalization. (Tier still drives `thinking_level` + roster grouping.)
 
 | Tier | Model (OpenRouter slug) | Use for |
 |---|---|---|
@@ -50,7 +57,16 @@ TypeScript (strict) · TanStack Router SPA + Hono API · Postgres + pgvector (Su
 
 `ad-claim-compliance`, `tenant-isolation-tester`, `security-anomaly-watchdog`, `access-auditor`, `contract-drafter`, `contract-lifecycle-manager`, `pricing-architect`, `discount-governor`, `decision-memo-drafter`, `offer-architect`, `offer-validator`, `reinvestment-advisor`, `risk-register-keeper`, `cliently.dev` (code-writing).
 
-> **Model-policy resolution (2026-06, active).** The doctrine's original rule was "ALWAYS Claude, never Hermes" for this list. The operator override (above) runs the **whole fleet on Hermes 4 405B** and explicitly supersedes that rule — and re-tiering these back to Claude needs an *explicit operator instruction*, which is not given. **So the safety guarantee moves from the model to the runtime gate, enforced in code:** a can't-fail agent **may never be AUTO-promoted past `autonomy=propose`** — every irreversible action keeps hitting the human Approvals inbox no matter how strong its eval scorecard. This is the doctrine's own "safety via hooks, not the model" principle. Enforced by: `CANT_FAIL_AGENTS` + `maxAutonomyForAgent` (`packages/shared`), the auto-promotion ceiling in `proposeAutonomyChange` (`packages/core/metrics.ts`), and the seed-time invariant in `seed-remaining-phases.ts` (every can't-fail agent must sit at `propose`). To run any of these on Claude instead, set its `model` by hand — config, not code. The list above is the single source of truth, mirrored in `CANT_FAIL_AGENTS`.
+> **Model-policy resolution (2026-06, active) — DEFENSE IN DEPTH.** With per-task tiering restored
+> (above), can't-fail agents are back on **Claude Opus** (`CANT_FAIL_MODEL`, **never Hermes**) — the
+> doctrine's original rule — AND the runtime safety gate stays: a can't-fail agent **may never be
+> AUTO-promoted past `autonomy=propose`** (every irreversible action hits the human Approvals inbox
+> regardless of scorecard). So both controls hold at once. Enforced in code: `modelForAgent` routes
+> can't-fail → Opus; `validateAgent` (`scripts/seed/_schema.ts`) **rejects any can't-fail agent on a
+> Hermes slug** at seed time; the seeders + `verify-golive` + `readiness.test` assert "can't-fail
+> never on Hermes"; the autonomy ceiling (`CANT_FAIL_AGENTS` + `maxAutonomyForAgent` + the
+> `proposeAutonomyChange` cap + the seed-time `propose` invariant) is unchanged. The list above is the
+> single source of truth, mirrored in `CANT_FAIL_AGENTS`.
 
 ## Non-negotiables
 

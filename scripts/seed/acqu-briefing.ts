@@ -5,7 +5,7 @@
 
 import { createDb } from "@agent-os/db";
 import {
-  ACQU_AGENT_MODEL,
+  modelForAgent,
   type Db,
   ensureSkillFromDir,
   findMcpByName,
@@ -44,7 +44,7 @@ export async function seedBriefing(db: Db) {
     name: "Briefing",
     persona: BRIEFING_SYSTEM_PROMPT,
     backend: "claude-agent-sdk",
-    model: ACQU_AGENT_MODEL,
+    model: modelForAgent("briefing", "T-work"),
     thinkingLevel: "high",
     autonomy: "execute_safe",
     knowledgeScopeJson: { folders: ["run-logs"], tags: ["acqu"] },

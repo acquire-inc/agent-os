@@ -8,7 +8,7 @@
 import { createDb, schema } from "@agent-os/db";
 import { TENANT_IDS } from "@agent-os/shared";
 import { and, eq, inArray } from "drizzle-orm";
-import { ACQU_AGENT_MODEL } from "./_shared.js";
+import { modelForAgent, type Tier } from "./_shared.js";
 import { seedAdOps } from "./acqu-ad-ops.js";
 import { seedBriefing } from "./acqu-briefing.js";
 import { seedEa } from "./acqu-ea.js";
@@ -20,10 +20,14 @@ import { seedMemoryConsolidator } from "./acqu-memory-consolidator.js";
 
 const TENANT_ID = TENANT_IDS.acqu;
 
-// Phase-1 roster. Per operator override, EVERY agent runs on Hermes 4 405B (ACQU_AGENT_MODEL),
-// so the expected model is uniform across the roster.
+// Phase-1 roster. Per-task model routing (2026-06): each agent runs its tier's optimal model.
 const PHASE_1 = ["ad-ops", "briefing", "ea", "expense-tracker", "margin-monitor", "dunning-manager", "connector-health-monitor", "memory-consolidator"];
-const EXPECTED = ACQU_AGENT_MODEL;
+const PHASE_1_TIER: Record<string, Tier> = {
+  vitals: "T-cheap", "ad-ops": "T-work", briefing: "T-work", ea: "T-work",
+  "expense-tracker": "T-cheap", "margin-monitor": "T-cheap", "dunning-manager": "T-work",
+  "connector-health-monitor": "T-cheap", "memory-consolidator": "T-reason",
+};
+const expectedModel = (key: string) => modelForAgent(key, PHASE_1_TIER[key] ?? "T-reason");
 
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL required");
@@ -55,14 +59,14 @@ async function main() {
     if (!a) { console.log(`${key.padEnd(27)} MISSING`); continue; }
     const trg = await db.select().from(schema.agentTriggers).where(eq(schema.agentTriggers.agentId, a.id));
     const trgStr = trg.map((t) => (t.type === "cron" ? `cron(${t.schedule})` : t.eventKey ? `${t.type}(${t.eventKey})` : t.type)).join(", ");
-    const flag = a.model === EXPECTED ? "" : `  ⚠ expected ${EXPECTED}`;
+    const flag = a.model === expectedModel(key) ? "" : `  ⚠ expected ${expectedModel(key)}`;
     console.log(`${key.padEnd(27)} ${(a.model ?? "").padEnd(30)} ${(a.autonomy ?? "").padEnd(13)} $${String(a.budgetCapUsd).padEnd(5)} ${trgStr}${flag}`);
   }
   console.log("──────────────────────────────────────────────────────────────────────────────────────────");
 
   // Invariant: every agent on Hermes 4 405B (operator override).
-  const offModel = keys.filter((k) => byKey.get(k)?.model !== EXPECTED);
-  console.log(`\n✓ All on ${EXPECTED}: ${offModel.length === 0 ? "yes" : "NO → " + offModel.join(", ")}`);
+  const offModel = keys.filter((k) => byKey.get(k)?.model !== expectedModel(k));
+  console.log(`\n✓ All on their tier model: ${offModel.length === 0 ? "yes" : "NO → " + offModel.join(", ")}`);
 
   console.log(`\n✓ Phase-1 seed complete — ${rows.length}/9 agents present (vitals + 8 Phase-1).`);
   process.exit(offModel.length ? 1 : 0);

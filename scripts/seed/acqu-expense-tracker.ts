@@ -5,7 +5,7 @@
 
 import { createDb } from "@agent-os/db";
 import {
-  ACQU_AGENT_MODEL,
+  modelForAgent,
   type Db,
   ensureSkillFromDir,
   findMcpByName,
@@ -44,7 +44,7 @@ export async function seedExpenseTracker(db: Db) {
     name: "Expense Tracker",
     persona: EXPENSE_TRACKER_SYSTEM_PROMPT,
     backend: "claude-agent-sdk",
-    model: ACQU_AGENT_MODEL,
+    model: modelForAgent("expense-tracker", "T-cheap"),
     thinkingLevel: "low",
     autonomy: "execute_safe",
     knowledgeScopeJson: { folders: ["finance"], tags: ["acqu"] },

@@ -7,7 +7,7 @@
 
 import { createDb } from "@agent-os/db";
 import {
-  ACQU_AGENT_MODEL,
+  modelForAgent,
   type Db,
   ensureSkillFromDir,
   findMcpByName,
@@ -53,7 +53,7 @@ export async function seedMemoryConsolidator(db: Db) {
     name: "Memory Consolidator",
     persona: MEMORY_CONSOLIDATOR_SYSTEM_PROMPT,
     backend: "claude-agent-sdk",
-    model: ACQU_AGENT_MODEL,
+    model: modelForAgent("memory-consolidator", "T-reason"),
     thinkingLevel: "high",
     autonomy: "propose", // policy/SOP writes gated; append-only logs are execute_safe at tool layer
     knowledgeScopeJson: { folders: ["run-logs"], tags: ["acqu"], write: "all-kb-scoped" },

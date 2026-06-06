@@ -5,7 +5,7 @@
 
 import { createDb } from "@agent-os/db";
 import {
-  ACQU_AGENT_MODEL,
+  modelForAgent,
   type Db,
   ensureSkillFromDir,
   findMcpByName,
@@ -45,7 +45,7 @@ export async function seedConnectorHealthMonitor(db: Db) {
     name: "Connector Health Monitor",
     persona: CONNECTOR_HEALTH_SYSTEM_PROMPT,
     backend: "claude-agent-sdk",
-    model: ACQU_AGENT_MODEL,
+    model: modelForAgent("connector-health-monitor", "T-cheap"),
     thinkingLevel: "low",
     autonomy: "execute_safe",
     knowledgeScopeJson: { folders: ["infra"], tags: ["acqu"] },

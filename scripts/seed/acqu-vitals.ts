@@ -17,7 +17,7 @@
 //   6. PROJECT the cron trigger into a jobs row (backward compat)
 //   7. Upsert agent_skills + agent_mcps bindings (by id, resolved from key/name)
 
-import { ACQU_AGENT_MODEL } from "./_shared.js";
+import { modelForAgent } from "./_shared.js";
 import { createDb, schema } from "@agent-os/db";
 import { TENANT_IDS } from "@agent-os/shared";
 import { createHash } from "node:crypto";
@@ -246,7 +246,7 @@ async function main() {
     name: "Vitals",
     persona: VITALS_SYSTEM_PROMPT,
     backend: "claude-agent-sdk",
-    model: ACQU_AGENT_MODEL,
+    model: modelForAgent("vitals", "T-cheap"),
     thinkingLevel: "low",
     autonomy: "execute_safe",
     knowledgeScopeJson: { folders: ["metrics"], tags: [] },

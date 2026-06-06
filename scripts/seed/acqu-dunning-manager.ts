@@ -7,7 +7,7 @@
 
 import { createDb } from "@agent-os/db";
 import {
-  ACQU_AGENT_MODEL,
+  modelForAgent,
   type Db,
   ensureSkillFromDir,
   findMcpByName,
@@ -53,7 +53,7 @@ export async function seedDunningManager(db: Db) {
     name: "Dunning Manager",
     persona: DUNNING_MANAGER_SYSTEM_PROMPT,
     backend: "claude-agent-sdk",
-    model: ACQU_AGENT_MODEL,
+    model: modelForAgent("dunning-manager", "T-work"),
     thinkingLevel: "medium",
     autonomy: "propose", // comms gated; account-pause escalation always human
     knowledgeScopeJson: { folders: ["finance", "clients"], tags: ["acqu"] },

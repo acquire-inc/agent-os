@@ -8,7 +8,7 @@
 // Joins resolve key→id at seed time (schema note from A2).
 
 import { createDb, schema } from "@agent-os/db";
-import { TENANT_IDS } from "@agent-os/shared";
+import { TENANT_IDS, isCantFailAgent } from "@agent-os/shared";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -21,13 +21,40 @@ export const TENANT_ID = TENANT_IDS.acqu;
 
 export type Db = ReturnType<typeof createDb>;
 
-// ── Model policy (operator override) ──────────────────────────────────────────
-// Per operator decision (2026-05): EVERY Acqu agent runs on Hermes 4 405B. This
-// overrides the doctrine's per-tier split (and the can't-fail "never Hermes" rule)
-// — a deliberate, documented config choice; the doctrine states model is config,
-// overridable per agent. The Claude Agent SDK remains the RUNTIME (backend); only
-// the model routed through it changes. Single source of truth: change here once.
-export const ACQU_AGENT_MODEL = "nousresearch/hermes-4-405b";
+// ── Model policy — per-task tiering (operator decision 2026-06) ────────────────
+// The 2026-05 single-model override (whole fleet on Hermes 4 405B) is LIFTED. Model is config, not
+// code: each agent runs the OPTIMAL model for its task. The Claude Agent SDK remains the RUNTIME
+// (backend); only the routed model varies — and it now varies per tier. Single source of truth.
+//
+//   T-cheap    → Hermes 4 70B    (volume monitors/triage — cheap, always-on)
+//   T-reason   → Hermes 4 405B   (multi-step reasoning/synthesis workhorse)
+//   T-work     → Claude Sonnet   (reliable agentic tool orchestration / client-facing)
+//   T-critical → Claude Sonnet   (high-stakes, NEVER Hermes) — elevated to Opus for can't-fail
+//   can't-fail → Claude Opus     (the can't-fail list — never Hermes, judgment + safety)
+export type Tier = "T-cheap" | "T-reason" | "T-work" | "T-critical";
+
+export const CANT_FAIL_MODEL = "anthropic/claude-opus-4.8";
+export const MODEL_FOR_TIER: Record<Tier, string> = {
+  "T-cheap": "nousresearch/hermes-4-70b",
+  "T-reason": "nousresearch/hermes-4-405b",
+  "T-work": "anthropic/claude-sonnet-4.6",
+  "T-critical": "anthropic/claude-sonnet-4.6",
+};
+const HERMES_PREFIX = "nousresearch/";
+
+/** The optimal model for an agent: can't-fail → Opus (never Hermes); else its tier's model. */
+export function modelForAgent(key: string, tier: Tier): string {
+  return isCantFailAgent(key) ? CANT_FAIL_MODEL : MODEL_FOR_TIER[tier];
+}
+
+/** Safety invariant: a can't-fail agent may never run on a Hermes slug. */
+export function isCantFailOnHermes(key: string, model: string): boolean {
+  return isCantFailAgent(key) && model.startsWith(HERMES_PREFIX);
+}
+
+// Back-compat default (the reasoning-tier slug). NOT a fleet override anymore — only T-reason
+// agents land here; everything else is routed by `modelForAgent`.
+export const ACQU_AGENT_MODEL = MODEL_FOR_TIER["T-reason"];
 
 /** Ensure a skill row exists for tenant Acqu, sourced from external/acqu-skills/{key}/SKILL.md. */
 export async function ensureSkillFromDir(db: Db, args: { key: string; name: string }) {

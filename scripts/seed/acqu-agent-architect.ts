@@ -24,7 +24,7 @@
 
 import { createDb } from "@agent-os/db";
 import {
-  ACQU_AGENT_MODEL,
+  modelForAgent,
   type Db,
   ensureSkillFromDir,
   findMcpByName,
@@ -83,7 +83,7 @@ export async function seedAgentArchitect(db: Db) {
     name: "Agent Architect",
     persona: AGENT_ARCHITECT_SYSTEM_PROMPT,
     backend: "claude-agent-sdk",
-    model: ACQU_AGENT_MODEL, // Hermes 4 405B — operator override, whole fleet
+    model: modelForAgent("agent-architect", "T-reason"),
     thinkingLevel: "high", // deep reasoning is the entire point (405B carries thinking)
     autonomy: "propose", // every hire/fire is a proposal a human approves; promotion is earned
     knowledgeScopeJson: { folders: ["agents", "strategy"], tags: ["acqu"] },

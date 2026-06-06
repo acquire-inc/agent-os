@@ -17,7 +17,7 @@
 
 import { createDb } from "@agent-os/db";
 import {
-  ACQU_AGENT_MODEL,
+  modelForAgent,
   type Db,
   ensureSkillFromDir,
   findMcpByName,
@@ -67,7 +67,7 @@ export async function seedEa(db: Db) {
     name: "EA",
     persona: EA_SYSTEM_PROMPT,
     backend: "claude-agent-sdk",
-    model: ACQU_AGENT_MODEL,
+    model: modelForAgent("ea", "T-work"),
     thinkingLevel: "medium",
     autonomy: "propose", // outbound proposed; reads execute_safe at tool/hook layer
     knowledgeScopeJson: { folders: ["founder"], tags: ["acqu"] },

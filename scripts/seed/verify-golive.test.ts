@@ -25,6 +25,7 @@ function goodFacts(): GoLiveFacts {
     unsafeTools: [],
     cantFailWithoutEval: [],
     skillsMissingAllowedTools: 0,
+    cantFailOnHermes: [],
   };
 }
 
@@ -87,6 +88,11 @@ function main() {
   const noAllowed = goodFacts();
   noAllowed.skillsMissingAllowedTools = 3;
   assert(!evaluateGoLive(noAllowed).ok && !check(noAllowed, "skills carry allowed-tools").ok, "skills missing allowed-tools fail the gate");
+
+  // ── a can't-fail agent seeded on Hermes fails the gate (model-policy violation) ──
+  const onHermes = goodFacts();
+  onHermes.cantFailOnHermes = ["pricing-architect=nousresearch/hermes-4-405b"];
+  assert(!evaluateGoLive(onHermes).ok && !check(onHermes, "can't-fail never on Hermes").ok, "can't-fail agent on Hermes fails the gate");
 
   // ── floors don't trip when the fleet GROWS (adding agents is safe) ──
   const grown = goodFacts();

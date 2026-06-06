@@ -5,6 +5,8 @@
 // drift (bad model slug, missing prompt, unknown autonomy, stray tool kind) at seed time
 // instead of at runtime. Pure functions; no deps so the seeders stay fast.
 
+import { isCantFailAgent } from "@agent-os/shared";
+
 export type ValidationError = { path: string; message: string };
 
 const AUTONOMY = new Set(["propose", "execute_safe", "execute_full"]);
@@ -42,6 +44,9 @@ export function validateAgent(a: AgentRecord): ValidationError[] {
   req(a as never, "key", e, p); req(a as never, "name", e, p); req(a as never, "model", e, p);
   if (a.key && !KEY_RE.test(a.key)) e.push({ path: `${p}.key`, message: `must match ${KEY_RE}` });
   if (a.model && !MODELS.has(a.model)) e.push({ path: `${p}.model`, message: `unknown model slug '${a.model}'` });
+  // Safety: a can't-fail agent may NEVER run on a Hermes slug (judgment + safety → Claude only).
+  if (a.key && a.model && isCantFailAgent(a.key) && a.model.startsWith("nousresearch/"))
+    e.push({ path: `${p}.model`, message: `can't-fail agent must not run on Hermes ('${a.model}')` });
   if (a.backend && !BACKENDS.has(a.backend)) e.push({ path: `${p}.backend`, message: `unknown backend '${a.backend}'` });
   if (a.autonomy && !AUTONOMY.has(a.autonomy)) e.push({ path: `${p}.autonomy`, message: `unknown autonomy '${a.autonomy}'` });
   if (a.systemPrompt !== undefined && a.systemPrompt.trim().length < 20)

@@ -5,7 +5,7 @@
 
 import { createDb } from "@agent-os/db";
 import {
-  ACQU_AGENT_MODEL,
+  modelForAgent,
   type Db,
   ensureSkillFromDir,
   findMcpByName,
@@ -44,7 +44,7 @@ export async function seedMarginMonitor(db: Db) {
     name: "Margin Monitor",
     persona: MARGIN_MONITOR_SYSTEM_PROMPT,
     backend: "claude-agent-sdk",
-    model: ACQU_AGENT_MODEL,
+    model: modelForAgent("margin-monitor", "T-cheap"),
     thinkingLevel: "low",
     autonomy: "execute_safe",
     knowledgeScopeJson: { folders: ["finance"], tags: ["acqu"] },

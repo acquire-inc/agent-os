@@ -8,6 +8,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CANT_FAIL_AGENTS, maxAutonomyForAgent } from "@agent-os/shared";
+import { modelForAgent, type Tier } from "./_shared.js";
 import { PHASE_2, PHASE_3, PHASE_4, PHASE_5 } from "./_roster.js";
 import { listPromptAgents } from "./_doctrine.js";
 import { EVAL_CASES } from "./_evals.js";
@@ -90,14 +91,20 @@ function main() {
     assert(/^##\s+Steps/m.test(md) && /^##\s+Guardrails/m.test(md), `safety skill ${s} is canonical`);
   }
 
-  // 9. EVERY skill in the library states its guardrails (fleet-wide anatomy).
+  // 9. Per-task model routing: no can't-fail agent is ever routed to Hermes (Claude only).
+  const cantFailHermes = (CANT_FAIL_AGENTS as readonly string[]).filter((k) =>
+    (["T-cheap", "T-reason", "T-work", "T-critical"] as Tier[]).some((t) => modelForAgent(k, t).startsWith("nousresearch/")),
+  );
+  assert(cantFailHermes.length === 0, `no can't-fail agent routes to Hermes${cantFailHermes.length ? " — " + cantFailHermes.join(", ") : ""}`);
+
+  // 10. EVERY skill in the library states its guardrails (fleet-wide anatomy).
   const noGuardrails = [...skills].filter((s) => {
     try { return !/^##\s+Guardrails/m.test(readFileSync(join(skillsDir, s, "SKILL.md"), "utf8")); } catch { return true; }
   });
   assert(noGuardrails.length === 0, `every skill has a ## Guardrails section${noGuardrails.length ? " — missing: " + noGuardrails.slice(0, 5).join(", ") : ""}`);
 
   console.log(`\nResult: ${passed} passed, ${failed} failed`);
-  if (failed === 0) console.log("✓ AGENT-DATA GO-LIVE READY (platform P0s + Hermes decision tracked separately).");
+  if (failed === 0) console.log("✓ AGENT-DATA GO-LIVE READY (per-task model tiering live; platform P0s tracked separately).");
   process.exit(failed > 0 ? 1 : 0);
 }
 

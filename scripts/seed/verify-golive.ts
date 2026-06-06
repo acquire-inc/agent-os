@@ -35,6 +35,8 @@ export interface GoLiveFacts {
   cantFailWithoutEval: string[];
   /** count of seeded skill rows whose allowed_tools_json is empty (least-privilege not set). */
   skillsMissingAllowedTools: number;
+  /** can't-fail agents seeded on a Hermes model — a model-policy violation (should be empty). */
+  cantFailOnHermes: string[];
 }
 
 export interface GoLiveCheck { name: string; ok: boolean; detail: string }
@@ -91,6 +93,12 @@ export function evaluateGoLive(facts: GoLiveFacts): GoLiveResult {
     ok: facts.skillsMissingAllowedTools === 0,
     detail: facts.skillsMissingAllowedTools ? `${facts.skillsMissingAllowedTools} skill(s) missing allowed_tools_json` : "all skills carry allowed-tools",
   });
+  // Model policy: no can't-fail agent on Hermes (per-task routing puts them on Claude Opus).
+  checks.push({
+    name: "can't-fail never on Hermes",
+    ok: facts.cantFailOnHermes.length === 0,
+    detail: facts.cantFailOnHermes.length ? `ON HERMES: ${facts.cantFailOnHermes.join(", ")}` : "all can't-fail agents on Claude",
+  });
 
   return { ok: checks.every((c) => c.ok), checks };
 }
@@ -124,6 +132,11 @@ async function gatherFacts(db: ReturnType<typeof createDb>, tenantId: string): P
   const skillRows = await db.select({ allowed: schema.skills.allowedToolsJson }).from(schema.skills).where(eq(schema.skills.tenantId, tenantId));
   const skillsMissingAllowedTools = skillRows.filter((s) => !Array.isArray(s.allowed) || (s.allowed as unknown[]).length === 0).length;
 
+  const cantFail = new Set(CANT_FAIL_AGENTS as readonly string[]);
+  const cantFailOnHermes = agentRows
+    .filter((a) => cantFail.has(a.key) && (a.model ?? "").startsWith("nousresearch/"))
+    .map((a) => `${a.key}=${a.model}`);
+
   return {
     totalAgents: agentRows.length,
     enabledAgents: agentRows.filter((a) => a.enabled).length,
@@ -135,6 +148,7 @@ async function gatherFacts(db: ReturnType<typeof createDb>, tenantId: string): P
     unsafeTools,
     cantFailWithoutEval,
     skillsMissingAllowedTools,
+    cantFailOnHermes,
   };
 }
 
