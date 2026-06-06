@@ -64,7 +64,7 @@ async function main() {
   }
   console.log("──────────────────────────────────────────────────────────────────────────────────────────");
 
-  // Invariant: every agent on Hermes 4 405B (operator override).
+  // Invariant: each agent routes to its tier's optimal model (per-task tiering, 2026-06).
   const offModel = keys.filter((k) => byKey.get(k)?.model !== expectedModel(k));
   console.log(`\n✓ All on their tier model: ${offModel.length === 0 ? "yes" : "NO → " + offModel.join(", ")}`);
 

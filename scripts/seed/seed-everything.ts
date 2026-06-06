@@ -3,7 +3,7 @@
 // (v1 + v2), subtracts the agents already seeded (Phase 1 + Phases 2–5), and seeds
 // the remainder (partnerships, proof, governance, treasury, infra, meta-layer, dev/
 // support, etc.) through the same doctrine-driven engine. Stubs without a fenced
-// prompt are auto-excluded. Idempotent. All agents on Hermes 4 405B (operator rule).
+// prompt are auto-excluded. Idempotent. Each agent routes to its tier's optimal model (2026-06).
 
 import { createDb, schema } from "@agent-os/db";
 import { TENANT_IDS } from "@agent-os/shared";
