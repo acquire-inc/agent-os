@@ -9,6 +9,7 @@
 
 import { createDb, schema } from "@agent-os/db";
 import { TENANT_IDS, isCantFailAgent } from "@agent-os/shared";
+import { selectBestModel, type TaskProfile } from "@agent-os/core";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -21,31 +22,40 @@ export const TENANT_ID = TENANT_IDS.acqu;
 
 export type Db = ReturnType<typeof createDb>;
 
-// ── Model policy — per-task tiering (operator decision 2026-06) ────────────────
-// The 2026-05 single-model override (whole fleet on Hermes 4 405B) is LIFTED. Model is config, not
-// code: each agent runs the OPTIMAL model for its task. The Claude Agent SDK remains the RUNTIME
-// (backend); only the routed model varies — and it now varies per tier. Single source of truth.
-//
-//   T-cheap    → Hermes 4 70B    (volume monitors/triage — cheap, always-on)
-//   T-reason   → Hermes 4 405B   (multi-step reasoning/synthesis workhorse)
-//   T-work     → Claude Sonnet   (reliable agentic tool orchestration / client-facing)
-//   T-critical → Claude Sonnet   (high-stakes, NEVER Hermes) — elevated to Opus for can't-fail
-//   can't-fail → Claude Opus     (the can't-fail list — never Hermes, judgment + safety)
+// ── Model policy — capability-driven per-task selection (model intelligence) ────────────────
+// The single-model override is LIFTED. Each agent runs the model BEST SUITED to its task, decided
+// by the model-intelligence layer (`@agent-os/core` model-registry): each tier maps to a task
+// profile, and `selectBestModel` ranks the eligible models on the capability axes that matter and
+// picks the top fit. Can't-fail tasks use the critical-judgment profile, Claude-only (never Hermes).
+// The Claude Agent SDK stays the runtime; only the routed model varies. Selection is capability —
+// pricing is reference knowledge, refreshed from OpenRouter (see core model-registry).
 export type Tier = "T-cheap" | "T-reason" | "T-work" | "T-critical";
 
-export const CANT_FAIL_MODEL = "anthropic/claude-opus-4.8";
-export const MODEL_FOR_TIER: Record<Tier, string> = {
-  "T-cheap": "nousresearch/hermes-4-70b",
-  "T-reason": "nousresearch/hermes-4-405b",
-  "T-work": "anthropic/claude-sonnet-4.6",
-  "T-critical": "anthropic/claude-sonnet-4.6",
+const PROFILE_FOR_TIER: Record<Tier, TaskProfile> = {
+  "T-cheap": "speed",
+  "T-reason": "reasoning",
+  "T-work": "agentic",
+  "T-critical": "judgment",
 };
 const HERMES_PREFIX = "nousresearch/";
 
-/** The optimal model for an agent: can't-fail → Opus (never Hermes); else its tier's model. */
+/** The optimal model for an agent: can't-fail → best critical-judgment Claude model (never Hermes);
+ *  else the best-fit model for the agent's tier task profile. Decided by the intelligence layer. */
 export function modelForAgent(key: string, tier: Tier): string {
-  return isCantFailAgent(key) ? CANT_FAIL_MODEL : MODEL_FOR_TIER[tier];
+  return isCantFailAgent(key)
+    ? selectBestModel("critical-judgment", { requireClaude: true }).slug
+    : selectBestModel(PROFILE_FOR_TIER[tier]).slug;
 }
+
+/** The model a can't-fail agent routes to (Opus). Derived from the intelligence layer. */
+export const CANT_FAIL_MODEL = selectBestModel("critical-judgment", { requireClaude: true }).slug;
+/** The current best-fit model per tier (derived) — back-compat for callers that want the map. */
+export const MODEL_FOR_TIER: Record<Tier, string> = {
+  "T-cheap": selectBestModel("speed").slug,
+  "T-reason": selectBestModel("reasoning").slug,
+  "T-work": selectBestModel("agentic").slug,
+  "T-critical": selectBestModel("judgment").slug,
+};
 
 /** Safety invariant: a can't-fail agent may never run on a Hermes slug. */
 export function isCantFailOnHermes(key: string, model: string): boolean {

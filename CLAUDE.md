@@ -52,6 +52,13 @@ TypeScript (strict) · TanStack Router SPA + Hono API · Postgres + pgvector (Su
 > **Rerank 4 Pro** (not a chat model) goes into the pgvector retrieval path as a relevance lever — independent of the tier plan.
 >
 > See `/docs/main-acqu-agent-doctrine.md` §1.4 for the full rationale and §1.5 for the per-agent matrix.
+>
+> **Model intelligence (2026-06):** the tier→model choice above is now *decided*, not hardcoded, by
+> the model-intelligence layer (`@agent-os/core` `model-registry.ts`): each tier → a task profile,
+> `selectBestModel` ranks the eligible models on capability and picks the best fit (can't-fail =
+> Claude-only). Add/fork a model by adding a `ModelInfo` + its eligible profiles — selection adapts
+> with no seeder change. Pricing is reference knowledge refreshed from OpenRouter
+> (`refresh-model-pricing.ts`, needs `openrouter.ai` allowlisted). See `/docs/knowledge/model-intelligence.md`.
 
 ## Can't-fail agents — high-stakes judgment + safety (T-critical)
 
