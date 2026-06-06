@@ -41,6 +41,27 @@ A multi-tenant Agent OS — the control plane that runs Acquire Inc (Acqu) on ag
 - [x] **Phase 32: Per-task model affinity (no model dependency)** — Migration 0019 adds `skills.preferred_model_tier` + `tools.preferred_model_tier`. New `pickModelForTask()` API in the router; T-critical safety floor + non-T-critical→T-critical perimeter protection. Runner emits `model.routed` Relay events on fork. 11 new test assertions. **(closed 2026-06-03)**
 - [x] **Phase 33: Per-skill model.routed emission at run start** — `executeRun` scans `bundle.skills[].preferredModelTier` and emits a `model.routed` event for every fork-eligible skill before dispatch, so the audit trail captures the full fork space. **(closed 2026-06-03)**
 - [x] **Phase 34: execute-flow integration test** — 16 assertions exercising the cross-phase contract (cantfail → CRA → BudgetTracker → run-state cleanup); proves CR-08 try/finally + WR-11 cap=0 summary fix at the integration level. **(closed 2026-06-03)**
+- [x] **Phases 35-37: scorecard-flow, cap-breach-flow, hydrate-restart integration tests** — 23 + 15 + 14 = 52 assertions. **(closed 2026-06-03)**
+- [x] **Phase 38: Model catalog** — Migration 0020 + `models` table with cost-per-token + capability scores. Seeded 11 canonical models. **(closed 2026-06-03)**
+- [x] **Phase 39: pickBestModel scorer** — Value-per-dollar algorithm; 32 assertions; T-critical safety floor. **(closed 2026-06-03)**
+- [x] **Phase 40: Intelligent task routing** — Migration 0021 + `task_profile` JSONB on skills/tools + `pickModelIntelligently` 3-path resolver. 21 assertions. **(closed 2026-06-03)**
+- [x] **Phase 41: Runner uses pickModelIntelligently** — In-process catalog cache + per-skill emit at run start + per-tool emit at dispatch boundary. **(closed 2026-06-03)**
+- [x] **Phase 42: Model catalog endpoints** — `GET /api/admin/models` + `POST /api/admin/models/recommend`. **(closed 2026-06-03)**
+- [x] **Phase 43: Chat dispatch endpoint** — `POST /api/admin/chat/dispatch` 3-mode resolution + run scheduling. **(closed 2026-06-03)**
+- [x] **Phase 44: Model feedback loop (math)** — `aggregateModelObservations` + `deriveOutcomeScore` pure module. 26 assertions; T-critical never updated. **(closed 2026-06-03)**
+- [x] **Phase 45: Scheduled feedback apply** — Migration 0022 + `model_feedback_proposals` table + `applyModelFeedback` Inngest function with auto-apply guardrails + review endpoints. **(closed 2026-06-03)**
+- [x] **Phase 46: Cost forecasting** — `forecastRunCost` + `compareForecasts` pure module. 21 assertions. Endpoint: `POST /api/admin/models/forecast`. **(closed 2026-06-03)**
+- [x] **Phase 47: Artifacts table** — Migration 0023 + `artifacts` table + 3 endpoints (GET per-run, POST register, GET tenant-wide feed). **(closed 2026-06-03)**
+- [x] **Phase 48: Runner artifact emission** — `dispatchCustomTool` auto-registers tool results as artifacts (best-effort). **(closed 2026-06-03)**
+- [x] **Phase 49: Artifact-emit integration test** — 4 assertions. **(closed 2026-06-03)**
+- [x] **Phase 50: Chat dispatch + cost forecast integration** — `POST /api/admin/chat/dispatch` body accepts optional `tokens` + `budgetCapUsd`; response includes forecast block. **(closed 2026-06-03)**
+
+## Backlog (Phase 51+ planned, recorded with full context docs)
+
+- [ ] **Phase 51: Knowledge-driven TaskProfile generation** — Chat endpoint infers profile from intent + tenant knowledge; T-cheap classifier + canonical category→capability mapping. See `.planning/phases/51-knowledge-driven-task-profile/51-CONTEXT.md`
+- [ ] **Phase 52: Sub-agent SDK dispatch** — Actually swap the model mid-run via Claude Agent SDK sub-agent primitive. Per-skill reserve/commit. See `.planning/phases/52-sub-agent-sdk-dispatch/52-CONTEXT.md`
+- [ ] **Phase 53: Tenant monthly cost cap** — Materialized view + budget gate + tenant-level cap_breached event. See `.planning/phases/53-tenant-monthly-cost-cap/53-CONTEXT.md`
+- [ ] **Phase 54: Architect uses pickBestModel** — Blueprint synthesis consults the catalog; LLM intent overrides allowed. See `.planning/phases/54-architect-uses-picker/54-CONTEXT.md`
 
 ## Backlog (Tier 2 — recorded for future planning)
 
