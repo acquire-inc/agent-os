@@ -45,6 +45,10 @@ export const EVENT_NAMES = [
   "budget.released",
   "budget.cap_breached",
   "budget.summary",
+  // Phase 53: tenant-level monthly cap breach. Emitted by the chat
+  // dispatch endpoint and the runner SessionStart guard when a tenant's
+  // month-to-date spend + forecast would exceed tenants.monthly_budget_usd.
+  "budget.tenant_cap_breached",
 
   // Findings (carrier: D5.3 agents @ recordFinding)
   "finding.recorded",

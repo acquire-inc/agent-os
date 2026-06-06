@@ -8,3 +8,4 @@ export {
   type ArtifactInput,
   type ArtifactKind,
 } from "./artifacts.js";
+export { readTenantMonthToDateUsd } from "./tenant-spend.js";

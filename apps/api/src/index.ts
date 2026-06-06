@@ -35,8 +35,8 @@ import {
   type ApiKeyContext,
   type LlmClient,
 } from "@agent-os/core";
-import { compareForecasts, inferTaskProfile, pickBestModel, type ModelCatalogEntry, type TaskProfile, type TokenEstimate } from "@agent-os/core";
-import { loadModelCatalog } from "@agent-os/db";
+import { checkTenantBudget, compareForecasts, inferTaskProfile, pickBestModel, type ModelCatalogEntry, type TaskProfile, type TokenEstimate } from "@agent-os/core";
+import { loadModelCatalog, readTenantMonthToDateUsd } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
@@ -563,6 +563,38 @@ app.get("/api/admin/scorecards/xtenant-agg", requirePlatformOwner, async (c) => 
   return c.json({ rows });
 });
 
+// ============================ Tenant budget (Phase 53) ============
+// GET /api/admin/tenants/me/budget-status — month-to-date USD spend +
+// cap status + linear EOM projection.
+app.get("/api/admin/tenants/me/budget-status", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const [tenant] = await db
+    .select({ monthlyBudgetUsd: schema.tenants.monthlyBudgetUsd })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, tenantId))
+    .limit(1);
+  const cap = tenant?.monthlyBudgetUsd != null ? Number(tenant.monthlyBudgetUsd) : null;
+  const mtd = await readTenantMonthToDateUsd(db, tenantId);
+  const status = checkTenantBudget({
+    monthlyBudgetUsd: cap,
+    monthToDateUsd: mtd,
+  });
+  // Linear EOM projection: if today is day N of M total days in the
+  // month, project = mtd * M / N.
+  const now = new Date();
+  const totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const dayOfMonth = now.getDate();
+  const projectionEom = dayOfMonth > 0 ? (mtd * totalDays) / dayOfMonth : mtd;
+  return c.json({
+    cap_usd: cap,
+    month_to_date_usd: mtd,
+    remaining_usd: status.remainingUsd,
+    percent_used: status.percentUsed,
+    projection_eom_usd: projectionEom,
+    warning: status.reason ?? null,
+  });
+});
+
 app.get("/api/admin/scorecards/latest", requireAdmin, async (c) => {
   const { tenantId } = c.get("auth");
   // Most recent scorecard per agent. Drizzle doesn't have DISTINCT ON natively,
@@ -722,6 +754,59 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
       })
     : null;
 
+  // Phase 53: tenant-level monthly cap gate. When tokens were supplied
+  // AND the forecast yields a non-null pick, derive the run-level cost
+  // and check against tenants.monthly_budget_usd. Refuse with 422 +
+  // budget.tenant_cap_breached emit when the run would breach the
+  // monthly cap. dryRun runs are NOT gated (operator can preview).
+  let tenantBudget: import("@agent-os/core").TenantBudgetCheck | null = null;
+  if (forecast?.recommended && !body.dryRun) {
+    const [t] = await db
+      .select({ monthlyBudgetUsd: schema.tenants.monthlyBudgetUsd })
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, tenantId))
+      .limit(1);
+    const cap = t?.monthlyBudgetUsd != null ? Number(t.monthlyBudgetUsd) : null;
+    const mtd = await readTenantMonthToDateUsd(db, tenantId);
+    const forecastUsd = forecast.recommended.forecast.totalUsd;
+    tenantBudget = checkTenantBudget({
+      monthlyBudgetUsd: cap,
+      monthToDateUsd: mtd,
+      forecastUsd,
+    });
+    if (!tenantBudget.ok) {
+      // Best-effort emit of budget.tenant_cap_breached.
+      try {
+        await emit(db, {
+          tenantId,
+          eventName: "budget.tenant_cap_breached",
+          actor: "system",
+          agentId: null,
+          runId: null,
+          payload: {
+            cap_usd: cap,
+            month_to_date_usd: mtd,
+            forecast_usd: forecastUsd,
+            projected_after_run_usd: tenantBudget.projectedAfterRunUsd,
+            source: "chat.dispatch",
+            reason: tenantBudget.reason ?? "",
+          },
+          piiClass: "none",
+        });
+      } catch (e) {
+        console.error(`[api] budget.tenant_cap_breached emit failed: ${(e as Error).message}`);
+      }
+      return c.json(
+        {
+          error: "tenant monthly budget exceeded",
+          tenant_budget: tenantBudget,
+          inferredProfile,
+        },
+        422,
+      );
+    }
+  }
+
   // 2. If no agentKey, return the recommendation only.
   if (!body.agentKey) {
     return c.json({
@@ -730,6 +815,7 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
       candidates: recommendation.candidates,
       filtered: recommendation.filtered,
       inferredProfile,
+      tenantBudget,
       forecast,
       dispatchedRunId: null,
     });
@@ -743,6 +829,7 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
       candidates: recommendation.candidates,
       filtered: recommendation.filtered,
       inferredProfile,
+      tenantBudget,
       forecast,
       dispatchedRunId: null,
       dryRun: true,
@@ -776,6 +863,7 @@ app.post("/api/admin/chat/dispatch", requireAdmin, async (c) => {
     candidates: recommendation.candidates,
     filtered: recommendation.filtered,
       inferredProfile,
+      tenantBudget,
     forecast,
     dispatchedRunId: run?.id ?? null,
     agentKey: body.agentKey,

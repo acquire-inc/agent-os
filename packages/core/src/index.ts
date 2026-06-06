@@ -35,6 +35,11 @@ export {
   type ReservationPersister,
 } from "./budget/tracker.js";
 export {
+  checkTenantBudget,
+  type TenantBudgetCheck,
+  type TenantBudgetCheckArgs,
+} from "./budget/tenant-cap.js";
+export {
   DEFAULT_THRESHOLDS,
   scoreAgent,
   type RunSample,

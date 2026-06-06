@@ -30,6 +30,12 @@ export {
   type CraCategory,
   type CraCheckResult,
 } from "./cra-blocklist.js";
+export {
+  composeTaskProfileFromSkills,
+  suggestModelForBlueprint,
+  type SkillRegistry,
+  type ModelSuggestion,
+} from "./model-suggestion.js";
 export { loadBlueprint, listBlueprints } from "./persist.js";
 
 const DEFAULT_LLM_BUDGET_USD = 0.2;
