@@ -340,9 +340,14 @@ export async function dispatchCustomTool(
           agentId: bundle.agent.id,
           runId: bundle.run.id,
           payload: {
+            // CR-05 fix: audit-only — the SDK call did NOT re-target.
+            // applied: false signals downstream that agent_model is the
+            // slug that actually ran. Phase 52 will implement real SDK
+            // re-targeting and emit applied: true.
             agent_model: bundle.agent.model,
-            forked_to: pick.model,
-            forked_tier: pick.tier,
+            applied: false,
+            recommended_slug: pick.model,
+            recommended_tier: pick.tier,
             task_label: toolKey,
             source: pick.source,
             reason: pick.reason,

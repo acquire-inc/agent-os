@@ -123,7 +123,7 @@ async function main() {
     );
   }
 
-  console.log("\n• Group 6 — when nothing fits the budget, recommended falls back to top-value");
+  console.log("\n• Group 6 — when nothing fits the budget, recommended is null (WR-01 fix)");
   {
     const tokens = { inputTokens: 1_000_000, outputTokens: 100_000 };
     // Everything will exceed a $0.01 budget at these token volumes.
@@ -137,8 +137,12 @@ async function main() {
       result.candidates.every((c) => c.withinBudget === false),
       "no candidate fits the impossible budget",
     );
-    // Recommended is the top-value candidate as a "best we can do" answer.
-    assert(result.recommended !== null, "recommended falls back to top-value");
+    // WR-01 fix: recommended is null when cap supplied AND nothing fits.
+    // Don't surface a recommendation that violates withinBudget.
+    assert(
+      result.recommended === null,
+      `recommended is null when nothing fits the cap (got ${result.recommended?.candidate.slug ?? "null"})`,
+    );
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

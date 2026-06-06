@@ -137,6 +137,36 @@ const requireAdmin = async (c: { get: (k: "auth") => ApiKeyContext; json: (b: un
   return next();
 };
 
+/** Platform-owner gate. CR-01/02/03 fix: platform-global tables
+ *  (models, model_feedback_proposals, the cross-tenant scorecard
+ *  aggregate view) must NOT be exposed to per-tenant admin keys, or
+ *  any Cliently client could read/write platform-wide state.
+ *
+ *  The platform owner is Acqu (tenant slug "acqu"). The runtime check
+ *  is: caller's auth kind === "admin" AND their tenantId resolves to a
+ *  tenant with slug "acqu". Operators can override via the
+ *  PLATFORM_OWNER_TENANT_SLUG env var if the deployment uses a
+ *  different platform tenant name. */
+const PLATFORM_OWNER_SLUG = process.env.PLATFORM_OWNER_TENANT_SLUG ?? "acqu";
+const requirePlatformOwner = async (
+  c: { get: (k: "auth") => ApiKeyContext; json: (b: unknown, s?: number) => Response },
+  next: () => Promise<void>,
+) => {
+  const auth = c.get("auth");
+  if (auth.kind !== "admin") return c.json({ error: "admin key required" }, 403);
+  const [tenant] = await db
+    .select({ slug: schema.tenants.slug })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, auth.tenantId))
+    .limit(1);
+  if (!tenant || tenant.slug !== PLATFORM_OWNER_SLUG) {
+    return c.json({
+      error: "platform owner required — this endpoint accesses platform-global state",
+    }, 403);
+  }
+  return next();
+};
+
 /** Load a run and assert it belongs to the caller's tenant. */
 async function ownedRun(tenantId: string, runId: string) {
   const [run] = await db.select().from(schema.runs).where(and(eq(schema.runs.id, runId), eq(schema.runs.tenantId, tenantId))).limit(1);
@@ -495,9 +525,16 @@ app.get("/api/admin/scorecards", requireAdmin, async (c) => {
 // agent class across every tenant on the platform. Operators use this
 // to spot agent classes that promote fast (good archetypes to clone) vs.
 // agent classes that demote often (archetypes to deprecate).
-app.get("/api/admin/scorecards/xtenant-agg", requireAdmin, async (c) => {
+app.get("/api/admin/scorecards/xtenant-agg", requirePlatformOwner, async (c) => {
   const verdict = c.req.query("verdict"); // optional filter
   const minScorecardCount = Math.max(1, Number(c.req.query("min_scorecard_count") ?? 1));
+
+  // WR-11 fix: validate verdict against the canonical enum so we don't
+  // silently return zero rows on a typo or accept arbitrary strings.
+  const VERDICTS = ["promote", "hold", "demote", "force_demote_safety", "insufficient_data"];
+  if (verdict && !VERDICTS.includes(verdict)) {
+    return c.json({ error: `invalid verdict; must be one of: ${VERDICTS.join(", ")}` }, 400);
+  }
 
   const verdictFilter = verdict
     ? sql`AND verdict = ${verdict}`
@@ -558,7 +595,7 @@ app.get("/api/admin/scorecards/latest", requireAdmin, async (c) => {
 // ranked candidates with rationale.
 
 // GET /api/admin/models — list the full catalog.
-app.get("/api/admin/models", requireAdmin, async (c) => {
+app.get("/api/admin/models", requirePlatformOwner, async (c) => {
   const status = c.req.query("status"); // optional filter: preferred|secondary|...
   const provider = c.req.query("provider"); // optional filter
   const catalog = await loadModelCatalog(db);
@@ -778,6 +815,19 @@ app.post("/api/admin/runs/:runId/artifacts", requireAdmin, async (c) => {
     return c.json({ error: "either uri or inlinePayload is required" }, 400);
   }
 
+  // WR-07 fix: cap inline_payload at 16 KB. The column is for small
+  // artifacts that ride inline so the front-end renders without a
+  // second fetch. Large payloads belong in object storage with a uri.
+  if (body.inlinePayload) {
+    const serialized = JSON.stringify(body.inlinePayload);
+    const MAX_INLINE_BYTES = 16 * 1024;
+    if (serialized.length > MAX_INLINE_BYTES) {
+      return c.json({
+        error: `inlinePayload exceeds ${MAX_INLINE_BYTES} bytes (${serialized.length}). Use the uri field with object storage instead.`,
+      }, 413);
+    }
+  }
+
   const [run] = await db
     .select({ id: schema.runs.id, agentId: schema.runs.agentId })
     .from(schema.runs)
@@ -821,7 +871,7 @@ app.get("/api/admin/artifacts/recent", requireAdmin, async (c) => {
 
 // ============================ Model feedback proposals (Phase 45) ====
 // GET /api/admin/models/proposals — list pending + recently-applied
-app.get("/api/admin/models/proposals", requireAdmin, async (c) => {
+app.get("/api/admin/models/proposals", requirePlatformOwner, async (c) => {
   const status = c.req.query("status") ?? "pending";
   const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
   const rows = await db
@@ -834,7 +884,7 @@ app.get("/api/admin/models/proposals", requireAdmin, async (c) => {
 });
 
 // POST /api/admin/models/proposals/:id/decide — body { decision: "apply"|"reject" }
-app.post("/api/admin/models/proposals/:id/decide", requireAdmin, async (c) => {
+app.post("/api/admin/models/proposals/:id/decide", requirePlatformOwner, async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json().catch(() => ({})) as { decision?: "apply" | "reject" };
   if (body.decision !== "apply" && body.decision !== "reject") {
@@ -856,20 +906,18 @@ app.post("/api/admin/models/proposals/:id/decide", requireAdmin, async (c) => {
   }
 
   // Apply: update the model's capability_scores atomically.
+  // CR-06 fix: use Postgres jsonb concatenation (||) so concurrent
+  // operator decisions on different capabilities of the same model
+  // don't clobber each other via read-modify-write. The single-key
+  // jsonb patch is server-side atomic.
+  const patchJson = JSON.stringify({ [proposal.capability]: Number(proposal.proposedScore) });
   await db.transaction(async (tx) => {
-    const [m] = await tx
-      .select({ scores: schema.models.capabilityScores })
-      .from(schema.models)
-      .where(eq(schema.models.slug, proposal.modelSlug));
-    if (!m) return;
-    const updated = {
-      ...(m.scores ?? {}),
-      [proposal.capability]: Number(proposal.proposedScore),
-    };
-    await tx
-      .update(schema.models)
-      .set({ capabilityScores: updated, lastObservedAt: new Date() })
-      .where(eq(schema.models.slug, proposal.modelSlug));
+    await tx.execute(sql`
+      UPDATE models
+      SET capability_scores = capability_scores || ${patchJson}::jsonb,
+          last_observed_at = NOW()
+      WHERE slug = ${proposal.modelSlug}
+    `);
     await tx
       .update(schema.modelFeedbackProposals)
       .set({ status: "applied", appliedAt: new Date(), appliedBy: "operator" })
@@ -946,6 +994,29 @@ app.put("/api/admin/tenants/me/model-override", requireAdmin, async (c) => {
   const { tenantId } = c.get("auth");
   const b = await c.req.json().catch(() => ({}));
   const newOverride: string | null = typeof b.model === "string" && b.model.length ? b.model : null;
+
+  // CR-07 fix: validate the slug against the catalog and refuse any
+  // T-critical-pinned model. An operator who pins non-cantfail agents
+  // to Opus would exhaust their budget cap at 25x the price of Sonnet.
+  // T-critical slugs are reserved for the can't-fail agents and must
+  // never be honored as a tenant default override.
+  if (newOverride !== null) {
+    const catalog = await loadModelCatalog(db);
+    const candidate = catalog.find((m) => m.slug === newOverride);
+    if (!candidate) {
+      return c.json({
+        error: `model slug "${newOverride}" is not in the catalog`,
+        catalog_slugs: catalog.filter((m) => m.enabled && m.status !== "deprecated").map((m) => m.slug),
+      }, 400);
+    }
+    if (candidate.tierAffinity === "T-critical") {
+      return c.json({
+        error: `T-critical models cannot be set as a tenant default override (Tier wins, override loses — CLAUDE.md non-negotiable)`,
+        rejected_slug: newOverride,
+      }, 400);
+    }
+  }
+
   const [updated] = await db
     .update(schema.tenants)
     .set({ defaultModelOverride: newOverride })

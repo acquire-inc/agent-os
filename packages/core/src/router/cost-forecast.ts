@@ -90,11 +90,20 @@ export function compareForecasts(args: CompareForecastsArgs): CompareForecastsRe
         withinBudget: cap !== undefined ? forecast.totalUsd <= cap : null,
       };
     });
-    // Recommended = highest-value pick that fits the budget (if cap given).
-    const inBudget = cap !== undefined ? candidates.filter((c) => c.withinBudget === true) : candidates;
+    // Recommended = highest-value pick that fits the budget. WR-01 fix:
+    // when a cap was supplied and NOTHING fits, return null — don't
+    // recommend a candidate that violates withinBudget. The caller can
+    // present the cheapest in-budget option or explain the gap.
+    if (cap !== undefined) {
+      const inBudget = candidates.filter((c) => c.withinBudget === true);
+      return {
+        candidates,
+        recommended: inBudget[0] ?? null,
+      };
+    }
     return {
       candidates,
-      recommended: inBudget[0] ?? candidates[0] ?? null,
+      recommended: candidates[0] ?? null,
     };
   }
 

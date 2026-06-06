@@ -369,8 +369,15 @@ export async function executeRun(api: ApiClient, bundle: Bundle, cfg: RunnerConf
                 runId: bundle.run.id,
                 payload: {
                   agent_model: bundle.agent.model,
-                  forked_to: pick.model,
-                  forked_tier: pick.tier,
+                  // CR-05 fix: this is an audit-only event documenting the
+                  // *intended* model fork. The SDK call did NOT re-target
+                  // to forked_to — that's a Phase 52 deliverable. The
+                  // applied: false flag tells downstream consumers
+                  // (feedback aggregator, dashboards) the agent_model
+                  // is the slug that actually ran.
+                  applied: false,
+                  recommended_slug: pick.model,
+                  recommended_tier: pick.tier,
                   task_label: `skill:${skill.key}`,
                   source: pick.source,
                   reason: pick.reason,

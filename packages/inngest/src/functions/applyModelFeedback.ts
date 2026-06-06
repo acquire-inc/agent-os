@@ -104,6 +104,32 @@ async function loadObservations(db: Db, windowDays: number): Promise<ModelRunObs
     }
   }
 
+  // CR-04 fix: identify runs where a per-task model fork ACTUALLY
+  // ran. Today, no fork actually applies (audit-only; the SDK call
+  // stays on baseline), so we exclude any run where the audit shows
+  // an applied: true model.routed event. When Phase 52 lands real
+  // SDK re-targeting, those runs will be attributed via the routed
+  // event's recommended_slug — but until then, we err on the side of
+  // skipping the run from feedback rather than crediting the wrong
+  // model. v1 conservative path.
+  const forkedRunIds = new Set<string>();
+  if (runIds.length > 0) {
+    const forked = await db
+      .select({ runId: schema.relayEvents.runId, payload: schema.relayEvents.payload })
+      .from(schema.relayEvents)
+      .where(
+        and(
+          eq(schema.relayEvents.eventName, "model.routed"),
+          sql`${schema.relayEvents.runId} = ANY(${runIds})`,
+        ),
+      );
+    for (const f of forked) {
+      const payload = f.payload as Record<string, unknown> | null;
+      const applied = payload?.applied as boolean | undefined;
+      if (applied === true && f.runId) forkedRunIds.add(f.runId);
+    }
+  }
+
   // Per-run high-sev finding counts from relay_events finding.recorded
   // (the WR-01 fix path — severity is in payload).
   const findingCounts = new Map<string, number>();
@@ -126,6 +152,13 @@ async function loadObservations(db: Db, windowDays: number): Promise<ModelRunObs
 
   const observations: ModelRunObservation[] = [];
   for (const r of rows) {
+    // CR-04 fix: skip runs where the per-task fork actually applied.
+    // Attribution to agents.model (baseline) would credit/blame the
+    // wrong slug. When Phase 52 lands SDK re-targeting + writes the
+    // forked model into a per-run signal, this path will route by
+    // recommended_slug instead.
+    if (forkedRunIds.has(r.runId)) continue;
+
     const h = (r.highlights ?? {}) as Record<string, unknown>;
     const verification = (h.verification as { passed?: boolean } | undefined) ?? {};
     const oqRaw = h.output_quality;
@@ -197,21 +230,17 @@ async function autoApply(db: Db, proposal: ProposedScoreUpdate, proposalId: stri
   if (proposal.sampleSize < AUTO_APPLY_MIN_SAMPLES) return false;
   if (delta > AUTO_APPLY_MAX_DELTA) return false;
 
-  // Atomic: read current scores, write back with the one capability updated.
+  // CR-06 fix: use jsonb || concatenation. Postgres applies this
+  // server-side atomically, so concurrent decisions on different
+  // capabilities of the same model don't race.
+  const patchJson = JSON.stringify({ [proposal.capability]: proposal.proposedScore });
   await db.transaction(async (tx) => {
-    const [m] = await tx
-      .select({ scores: schema.models.capabilityScores })
-      .from(schema.models)
-      .where(eq(schema.models.slug, proposal.modelSlug));
-    if (!m) return;
-    const updated = {
-      ...(m.scores ?? {}),
-      [proposal.capability]: proposal.proposedScore,
-    };
-    await tx
-      .update(schema.models)
-      .set({ capabilityScores: updated, lastObservedAt: new Date() })
-      .where(eq(schema.models.slug, proposal.modelSlug));
+    await tx.execute(sql`
+      UPDATE models
+      SET capability_scores = capability_scores || ${patchJson}::jsonb,
+          last_observed_at = NOW()
+      WHERE slug = ${proposal.modelSlug}
+    `);
     await tx
       .update(schema.modelFeedbackProposals)
       .set({ status: "applied", appliedAt: new Date(), appliedBy: "applyModelFeedback" })

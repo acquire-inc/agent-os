@@ -114,10 +114,26 @@ export function pickModelIntelligently(args: IntelligentPickArgs): IntelligentPi
     if (totalWeight > 0) {
       const result = pickBestModel(args.catalog, profile);
       if (result.pick) {
+        // WR-13 fix: defense in depth — if a future caller opts to set
+        // excludeTCritical: false and the picker selects a T-critical
+        // model for a non-cantfail agent, refuse the fork and fall
+        // through to baseline. Mirrors the perimeter protection in
+        // pickModelForTask.
+        const pickedTier = pickTierFromCatalog(args.catalog, result.pick.slug);
+        if (pickedTier === "T-critical") {
+          return {
+            model: args.agentModel,
+            source: "agent_baseline",
+            tier: args.agentTier,
+            reason: `intelligent picker selected T-critical slug ${result.pick.slug} for non-cantfail agent ${args.agentKey} — refused (perimeter protection)`,
+            alternatives: [],
+            filtered: result.filtered,
+          };
+        }
         return {
           model: result.pick.slug,
           source: "catalog_picker",
-          tier: pickTierFromCatalog(args.catalog, result.pick.slug) ?? args.agentTier,
+          tier: pickedTier ?? args.agentTier,
           reason: `intelligent pick for ${args.taskLabel}: ${result.pick.rationale}`,
           alternatives: result.candidates,
           filtered: result.filtered,
