@@ -58,8 +58,13 @@ primary skill + extras. **103/103** skills carry `allowed-tools` (least-privileg
   entries are **registry metadata, not runtime implementations** (T3, tracked). At go-live an agent's
   **executable capability = its MCP connectors + SDK built-ins** (files/browser); a custom tool it
   references is described in the prompt but **not callable** until built.
-- The `tool_key → runtime SDK tool-name` map (P1 #7) is still absent, so registry-driven gating of
-  custom tools at the SDK boundary isn't enforced (the autonomy gate + prompt still apply).
+- **The `tool_key → runtime SDK tool-name` map is now in place** (`runtimeToolName` /
+  `buildToolApproval` / `buildAllowedTools`): the gate consults the registry's `requires_approval`
+  for custom tools by both name forms, the agent is restricted to its bound tools + MCP servers
+  (`allowedTools`), and the verb heuristic is now **MCP-aware** — `mcp__close__list_leads` parses to
+  `list` (reversible, auto-allow) instead of the old `mcp` (which would have proposed on EVERY read,
+  an approval storm for Wave-1 connector agents). Custom tools, once implemented, register under
+  `runtimeToolName(key)` and are gated automatically.
 
 ### Go-live waves (Acqu internal fleet)
 

@@ -6,7 +6,7 @@
 // Run: pnpm --filter @agent-os/runner test
 import { parseRunSummary } from "@agent-os/core";
 import type { ApiClient, Bundle } from "./api-client.js";
-import { buildSystemPrompt, buildMcpServers, executeRun } from "./execute.js";
+import { buildSystemPrompt, buildMcpServers, buildToolApproval, buildAllowedTools, runtimeToolName, executeRun } from "./execute.js";
 import type { RunnerConfig } from "./config.js";
 
 let passed = 0;
@@ -157,6 +157,20 @@ async function main() {
   assert(wired.mcpServers["slack"] === undefined && wired.mcpServers["pgvector-knowledge"] === undefined, "endpoint-less + stdio connectors are skipped");
   assert(wired.skipped.length === 2, "skipped connectors are reported");
   assert(buildMcpServers([]).mcpServers && Object.keys(buildMcpServers([]).mcpServers).length === 0, "no connectors → empty config (no SDK key set)");
+
+  console.log("\n[tool_key → runtime name: registry gating + least-privilege]");
+  assert(runtimeToolName("tool.dunning-engine") === "tool_dunning_engine", "tool_key sanitized to an SDK-safe runtime name");
+  const toolset: Bundle["tools"] = [
+    { key: "tool.22", name: "Run-Summary Writer", description: "", kind: "custom", requiresApproval: false, reversible: true },
+    { key: "tool.dunning-engine", name: "Dunning Engine", description: "", kind: "custom", requiresApproval: true, reversible: false },
+  ];
+  const approval = buildToolApproval(toolset);
+  assert(approval["tool.dunning-engine"] === true && approval["tool_dunning_engine"] === true, "requires_approval keyed by BOTH tool_key and runtime name");
+  assert(approval["tool_22"] === false, "reversible tool keyed by its runtime name too");
+  const allowed = buildAllowedTools(toolset, ["close", "slack"]);
+  assert(allowed.includes("tool_dunning_engine") && allowed.includes("tool_22"), "allowedTools includes the agent's bound custom tools");
+  assert(allowed.includes("mcp__close") && allowed.includes("mcp__slack"), "allowedTools includes the agent's bound MCP servers");
+  assert(!allowed.includes("mcp__stripe"), "allowedTools excludes connectors the agent isn't bound to (least privilege)");
 
   console.log(`\nResult: ${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);

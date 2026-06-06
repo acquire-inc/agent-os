@@ -46,6 +46,36 @@ function permissionMode(autonomy: string): "default" | "acceptEdits" | "bypassPe
   return "plan";
 }
 
+/** SDK runtime tool name for a custom deterministic `tool_key`. The SDK tool registry uses
+ *  alphanumeric/underscore names, so we sanitize: `tool.dunning-engine` → `tool_dunning_engine`.
+ *  Custom tools, when implemented, MUST register under this name — then the registry's
+ *  `requires_approval` is enforced at the PreToolUse gate (not just the verb heuristic). */
+export function runtimeToolName(toolKey: string): string {
+  return toolKey.replace(/[^a-zA-Z0-9]+/g, "_");
+}
+
+/** requires_approval keyed by EVERY name the SDK might report a bound tool under — its `tool_key`
+ *  AND its sanitized runtime name — so the gate consults the registry (authoritative) for custom
+ *  tools regardless of which form the SDK uses. MCP tools aren't here → they fall to the (now
+ *  MCP-aware) verb heuristic. */
+export function buildToolApproval(tools: Bundle["tools"]): Record<string, boolean> {
+  const m: Record<string, boolean> = {};
+  for (const t of tools) {
+    m[t.key] = t.requiresApproval;
+    m[runtimeToolName(t.key)] = t.requiresApproval;
+  }
+  return m;
+}
+
+/** Least-privilege `allowedTools`: the exact set the agent may call — its bound custom tools
+ *  (runtime names) + a per-bound-MCP-server allowance (`mcp__{server}`). An agent can't reach a
+ *  tool or connector it isn't bound to. Empty → don't restrict (no bindings to enforce). */
+export function buildAllowedTools(tools: Bundle["tools"], mcpServerKeys: string[]): string[] {
+  const custom = tools.map((t) => runtimeToolName(t.key));
+  const mcp = mcpServerKeys.map((k) => `mcp__${k}`);
+  return [...new Set([...custom, ...mcp])];
+}
+
 /** Translate the bundle's bound connectors into Claude Agent SDK `mcpServers` config so the agent
  *  can actually CALL them at runtime (not just see them named in the prompt). HTTP/SSE connectors
  *  with a resolved endpoint are wired with their short-TTL bearer token; stdio connectors (which
@@ -169,10 +199,10 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig, modelOverri
           escalationPolicy: b.agent.escalationPolicy,
           agentName: b.agent.name,
           sdkSessionId: b.run.sdkSessionId ?? undefined,
-          // Registry-driven gating: when a runtime tool name matches a bound catalog
-          // tool_key, its requires_approval is authoritative over the verb heuristic.
-          // (MCP tools have no key match yet → heuristic; see 07-PLAN out-of-scope.)
-          toolApproval: Object.fromEntries(b.tools.map((t) => [t.key, t.requiresApproval])),
+          // Registry-driven gating: the runtime tool name (tool_key or its sanitized form) resolves
+          // to the catalog row, so requires_approval is authoritative over the verb heuristic for
+          // custom tools. MCP tools → the (MCP-aware) verb heuristic.
+          toolApproval: buildToolApproval(b.tools),
         }),
       ],
       PostToolUse: [buildPostToolUseHook(api, runId)],
@@ -182,6 +212,9 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig, modelOverri
   const { mcpServers, skipped } = buildMcpServers(b.mcpServers);
   if (Object.keys(mcpServers).length) options.mcpServers = mcpServers;
   if (skipped.length) await api.postActivity(runId, "mcp", `Connectors not wired (need endpoint/local config): ${skipped.join(", ")}`).catch(() => {});
+  // Least-privilege: restrict the agent to its bound custom tools + bound MCP servers.
+  const allowedTools = buildAllowedTools(b.tools, Object.keys(mcpServers));
+  if (allowedTools.length) options.allowedTools = allowedTools;
   if (b.run.sdkSessionId) options.resume = b.run.sdkSessionId; // resume waiting→pending
 
   let summary = "";
@@ -236,7 +269,7 @@ async function managedAgentsRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): P
             escalationPolicy: b.agent.escalationPolicy,
             agentName: b.agent.name,
             sdkSessionId: b.run.sdkSessionId ?? undefined,
-            toolApproval: Object.fromEntries(b.tools.map((t) => [t.key, t.requiresApproval])),
+            toolApproval: buildToolApproval(b.tools),
           }),
         ],
         PostToolUse: [buildPostToolUseHook(api, runId)],
@@ -244,6 +277,8 @@ async function managedAgentsRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): P
     };
     const { mcpServers: maMcp } = buildMcpServers(b.mcpServers);
     if (Object.keys(maMcp).length) options.mcpServers = maMcp;
+    const maAllowed = buildAllowedTools(b.tools, Object.keys(maMcp));
+    if (maAllowed.length) options.allowedTools = maAllowed;
     if (b.run.sdkSessionId) options.resume = b.run.sdkSessionId;
 
     let summary = "", costUsd = 0, tokensIn = 0, tokensOut = 0, sessionId: string | undefined;

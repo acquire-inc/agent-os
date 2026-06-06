@@ -10,9 +10,12 @@ const READ_ONLY_VERBS = new Set([
   "stat", "lookup", "show", "select", "watch", "stream",
 ]);
 
-/** Extract the leading verb from a tool name like "close.update_lead". */
+/** Extract the leading verb from a tool name. Handles the shapes the SDK actually reports:
+ *  MCP tools `mcp__{server}__{op}` (e.g. mcp__close__create_lead → "create"), dotted connector
+ *  names ("close.update_lead" → "update"), and custom tool keys ("tool.dunning-engine" → "dunning").
+ *  Takes the FINAL `__`/`.`-delimited segment as the action, then its leading verb. */
 export function parseToolVerb(toolName: string): string {
-  const action = toolName.split(".").slice(-1)[0] ?? toolName;
+  const action = toolName.split(/__|\./).filter(Boolean).slice(-1)[0] ?? toolName;
   return (action.split(/[_:-]/)[0] ?? action).toLowerCase();
 }
 
