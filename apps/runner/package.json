@@ -11,6 +11,7 @@
     "test": "tsx src/custom-tools.test.ts",
     "test:budget": "tsx src/budget.test.ts",
     "test:cantfail": "tsx src/cantfail.test.ts",
+    "test:cap-breach-flow": "tsx src/cap-breach-flow.test.ts",
     "test:execute-flow": "tsx src/execute-flow.test.ts",
     "test:predispatch": "tsx src/predispatch.test.ts",
     "test:run-state": "tsx src/run-state.test.ts"
