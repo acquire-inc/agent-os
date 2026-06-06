@@ -6,7 +6,7 @@
 // Run: pnpm --filter @agent-os/runner test
 import { parseRunSummary } from "@agent-os/core";
 import type { ApiClient, Bundle } from "./api-client.js";
-import { buildSystemPrompt, executeRun } from "./execute.js";
+import { buildSystemPrompt, buildMcpServers, executeRun } from "./execute.js";
 import type { RunnerConfig } from "./config.js";
 
 let passed = 0;
@@ -142,6 +142,21 @@ async function main() {
   store.push({ runId: RUN2, status: "done", whatIDid: "should not appear", whatILearned: "", whatNext: "", createdAt: "2026-06-01T06:32:00Z" });
   assert(!buildSystemPrompt(vitalsBundle("execute_full", null, recentFor(RUN2), RUN2)).includes("should not appear"),
     "a run's own summary is excluded from its own prompt (excludeRunId contract)");
+
+  console.log("\n[buildMcpServers — connectors become callable SDK MCP config]");
+  const wired = buildMcpServers([
+    { name: "Close", transport: "http", endpoint: "https://mcp.close.example/v1", authType: "oauth", credentials: { token: "tok_abc", ttlSeconds: 300 } },
+    { name: "Pipeboard × Meta", transport: "sse", endpoint: "https://mcp.pipeboard.example/sse", authType: "oauth", credentials: { token: "tok_xyz", ttlSeconds: 300 } },
+    { name: "Slack", transport: "http", endpoint: null, authType: "oauth", credentials: null }, // no endpoint → skipped
+    { name: "pgvector Knowledge", transport: "stdio", endpoint: null, authType: "api_key", credentials: null }, // stdio → skipped
+  ]);
+  assert(wired.mcpServers["close"] !== undefined, "http connector with endpoint is wired");
+  assert((wired.mcpServers["close"] as { url: string }).url === "https://mcp.close.example/v1", "wired connector carries its endpoint url");
+  assert(((wired.mcpServers["close"] as { headers?: Record<string, string> }).headers?.Authorization) === "Bearer tok_abc", "resolved token becomes a bearer header");
+  assert((wired.mcpServers["pipeboard-meta"] as { type: string }).type === "sse", "name is slugified + transport preserved (sse)");
+  assert(wired.mcpServers["slack"] === undefined && wired.mcpServers["pgvector-knowledge"] === undefined, "endpoint-less + stdio connectors are skipped");
+  assert(wired.skipped.length === 2, "skipped connectors are reported");
+  assert(buildMcpServers([]).mcpServers && Object.keys(buildMcpServers([]).mcpServers).length === 0, "no connectors → empty config (no SDK key set)");
 
   console.log(`\nResult: ${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);

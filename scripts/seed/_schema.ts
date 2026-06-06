@@ -6,6 +6,7 @@
 // instead of at runtime. Pure functions; no deps so the seeders stay fast.
 
 import { isCantFailAgent } from "@agent-os/shared";
+import { MODEL_REGISTRY } from "@agent-os/core";
 
 export type ValidationError = { path: string; message: string };
 
@@ -15,15 +16,10 @@ const TOOL_KINDS = new Set(["custom", "mcp"]);
 const TOOL_STATUS = new Set(["planned", "active", "deprecated"]);
 const EVAL_KINDS = new Set(["output_contains", "tool_called", "no_tool", "refusal", "manual"]);
 const SEVERITIES = new Set(["normal", "critical"]);
-// Allowed model slugs (CLAUDE.md tier table + the live Hermes override). Keep in sync with doctrine.
-const MODELS = new Set([
-  "nousresearch/hermes-4-405b",
-  "nousresearch/hermes-4-70b",
-  "nousresearch/hermes-2-pro-llama-3-8b",
-  "anthropic/claude-opus-4.8",
-  "anthropic/claude-sonnet-4.6",
-  "anthropic/claude-haiku-4-5",
-]);
+// Allowed model slugs — DERIVED from the model-intelligence registry (single source of truth), so
+// the validator can never drift from what the fleet actually routes to. Plus the optional 5th-tier
+// trivial model, which the registry doesn't carry as a routed candidate.
+const MODELS = new Set<string>([...MODEL_REGISTRY.map((m) => m.slug), "nousresearch/hermes-2-pro-llama-3-8b"]);
 
 const KEY_RE = /^[a-z0-9][a-z0-9.-]*$/; // kebab/dotted lowercase keys
 

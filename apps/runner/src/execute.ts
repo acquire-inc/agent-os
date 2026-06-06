@@ -46,6 +46,34 @@ function permissionMode(autonomy: string): "default" | "acceptEdits" | "bypassPe
   return "plan";
 }
 
+/** Translate the bundle's bound connectors into Claude Agent SDK `mcpServers` config so the agent
+ *  can actually CALL them at runtime (not just see them named in the prompt). HTTP/SSE connectors
+ *  with a resolved endpoint are wired with their short-TTL bearer token; stdio connectors (which
+ *  need a local command not carried in the bundle) and endpoint-less connectors are skipped and
+ *  reported. Pure + exported so the mapping is unit-tested without the SDK. */
+export function buildMcpServers(servers: Bundle["mcpServers"]): {
+  mcpServers: Record<string, unknown>;
+  skipped: string[];
+} {
+  const mcpServers: Record<string, unknown> = {};
+  const skipped: string[] = [];
+  for (const m of servers) {
+    const key = m.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const isHttp = m.transport === "http" || m.transport === "sse";
+    if (!isHttp || !m.endpoint) {
+      skipped.push(`${m.name} (${m.transport}${m.endpoint ? "" : ", no endpoint"})`);
+      continue;
+    }
+    const token = m.credentials?.token;
+    mcpServers[key] = {
+      type: m.transport,
+      url: m.endpoint,
+      ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+    };
+  }
+  return { mcpServers, skipped };
+}
+
 /** Simulated run used when no Anthropic key is configured — exercises the full
  *  loop including 1c's PreToolUse approval bridge. */
 async function dryRun(api: ApiClient, b: Bundle): Promise<RunResult> {
@@ -150,6 +178,10 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig, modelOverri
       PostToolUse: [buildPostToolUseHook(api, runId)],
     },
   };
+  // Wire the agent's connectors so they're actually callable (not just named in the prompt).
+  const { mcpServers, skipped } = buildMcpServers(b.mcpServers);
+  if (Object.keys(mcpServers).length) options.mcpServers = mcpServers;
+  if (skipped.length) await api.postActivity(runId, "mcp", `Connectors not wired (need endpoint/local config): ${skipped.join(", ")}`).catch(() => {});
   if (b.run.sdkSessionId) options.resume = b.run.sdkSessionId; // resume waiting→pending
 
   let summary = "";
@@ -210,6 +242,8 @@ async function managedAgentsRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): P
         PostToolUse: [buildPostToolUseHook(api, runId)],
       },
     };
+    const { mcpServers: maMcp } = buildMcpServers(b.mcpServers);
+    if (Object.keys(maMcp).length) options.mcpServers = maMcp;
     if (b.run.sdkSessionId) options.resume = b.run.sdkSessionId;
 
     let summary = "", costUsd = 0, tokensIn = 0, tokensOut = 0, sessionId: string | undefined;
