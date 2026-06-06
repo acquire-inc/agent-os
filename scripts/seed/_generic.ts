@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import {
   type Db,
   modelForAgent,
+  floorBudget,
   ensureSkillFromDir,
   findMcpByName,
   upsertAgent,
@@ -140,7 +141,7 @@ export async function seedAgentFromSpec(db: Db, spec: AgentSpec): Promise<SeedRe
   }
   const model = modelForAgent(spec.key, spec.tier); // per-task model routing (2026-06)
   const autonomy = parseAutonomy(block.fields["Autonomy"]);
-  const budget = parseBudget(block.fields["Budget"]);
+  const budget = floorBudget(spec.key, parseBudget(block.fields["Budget"])); // can't-fail → Opus headroom
   const { triggers, defaulted } = parseTriggers(block.fields["Trigger"], spec.key);
   const knowledgeScope = parseKnowledgeScope(block.fields["Knowledge scope"]);
   const escalationPolicy = parseApprovalGate(block.fields["Approval gate"]);

@@ -52,6 +52,20 @@ export function isCantFailOnHermes(key: string, model: string): boolean {
   return isCantFailAgent(key) && model.startsWith(HERMES_PREFIX);
 }
 
+// Minimum per-run budget cap (USD). Can't-fail agents run on Opus (~$15/$75 per M tokens), so a
+// Hermes-era cap like $0.20 would KILL them mid-judgment (kill = cap×1.5). Floor them so a
+// high-stakes safety run always has headroom; everyone else keeps a sane non-zero minimum. The
+// floor only ever RAISES a too-tight budget — a generous doctrine budget is left untouched.
+const CANT_FAIL_BUDGET_FLOOR = 1.0;
+const BASE_BUDGET_FLOOR = 0.05;
+export function budgetFloorForAgent(key: string): number {
+  return isCantFailAgent(key) ? CANT_FAIL_BUDGET_FLOOR : BASE_BUDGET_FLOOR;
+}
+/** Apply the floor to a parsed/hand-set budget (string in, 2dp string out). Never lowers. */
+export function floorBudget(key: string, budget: string | number): string {
+  return Math.max(Number(budget) || 0, budgetFloorForAgent(key)).toFixed(2);
+}
+
 // Back-compat default (the reasoning-tier slug). NOT a fleet override anymore — only T-reason
 // agents land here; everything else is routed by `modelForAgent`.
 export const ACQU_AGENT_MODEL = MODEL_FOR_TIER["T-reason"];

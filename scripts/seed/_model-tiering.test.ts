@@ -1,6 +1,6 @@
 // Pure test for per-task model tiering (Phase 17). No DB.
 // Run: pnpm --filter @agent-os/seed exec tsx _model-tiering.test.ts
-import { modelForAgent, MODEL_FOR_TIER, CANT_FAIL_MODEL, isCantFailOnHermes, type Tier } from "./_shared.js";
+import { modelForAgent, MODEL_FOR_TIER, CANT_FAIL_MODEL, isCantFailOnHermes, floorBudget, budgetFloorForAgent, type Tier } from "./_shared.js";
 import { CANT_FAIL_AGENTS } from "@agent-os/shared";
 
 let passed = 0;
@@ -44,6 +44,15 @@ function main() {
 
   // ── the tier map only routes Hermes to the cheap/reason tiers (volume + thinking) ──
   assert(MODEL_FOR_TIER["T-work"].startsWith("anthropic/") && MODEL_FOR_TIER["T-critical"].startsWith("anthropic/"), "agentic + critical tiers are Claude");
+
+  // ── budget floors: can't-fail (now Opus) gets headroom; the floor never lowers a generous cap ──
+  assert(budgetFloorForAgent("security-anomaly-watchdog") === 1.0, "can't-fail budget floor is $1.00 (Opus headroom)");
+  assert(budgetFloorForAgent("vitals") < 1.0, "ordinary agent floor is small");
+  assert(floorBudget("security-anomaly-watchdog", "0.20") === "1.00", "a too-tight can't-fail budget is raised to the floor");
+  assert(floorBudget("pricing-architect", "8.00") === "8.00", "a generous can't-fail budget is left untouched");
+  assert(floorBudget("vitals", "0.40") === "0.40", "an ordinary budget above the base floor is untouched");
+  const starvedCantFail = (CANT_FAIL_AGENTS as readonly string[]).filter((k) => Number(floorBudget(k, "0.20")) < 1.0);
+  assert(starvedCantFail.length === 0, "no can't-fail agent can be floored below $1.00 (never killed on Opus mid-judgment)");
 
   console.log(`\nResult: ${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);
