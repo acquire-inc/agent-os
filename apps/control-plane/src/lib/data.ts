@@ -32,6 +32,7 @@ import {
   type Skill,
   type Tag,
   type Tenant,
+  type TenantBudgetStatus,
 } from "@agent-os/shared";
 import { isSupabaseConfigured, supabase } from "./supabase";
 
@@ -127,6 +128,48 @@ export const data = {
   async costDays(tenantId: string): Promise<CostDay[]> {
     if (isSupabaseConfigured) return [];
     return byTenant(demoCostDays, tenantId);
+  },
+
+  // Phase 62: live tenant budget posture for the cost dashboard. Uses the
+  // tenant_month_to_date_usd() SQL helper (migration 0025) via Supabase RPC
+  // for accuracy; falls back to computing from demoCostDays so the page is
+  // never blank in demo mode. Thresholds mirror checkTenantBudget in
+  // @agent-os/core (warn at >=80%, over at >=100%).
+  async tenantBudgetStatus(tenantId: string, monthlyBudgetUsd: number | null): Promise<TenantBudgetStatus> {
+    let mtd = 0;
+    if (isSupabaseConfigured && supabase) {
+      const { data: rpcRows, error } = await supabase.rpc("tenant_month_to_date_usd", { p_tenant_id: tenantId });
+      if (!error && rpcRows != null) mtd = Number(rpcRows) || 0;
+    } else {
+      // Demo path: sum costDays whose ISO day falls in the current month.
+      const now = new Date();
+      const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      mtd = byTenant(demoCostDays, tenantId)
+        .filter((cd) => cd.day.startsWith(monthPrefix))
+        .reduce((s, cd) => s + cd.costUsd, 0);
+    }
+
+    const cap = monthlyBudgetUsd ?? null;
+    const percentUsed = cap != null && cap > 0 ? (mtd / cap) * 100 : 0;
+    const remaining = cap != null ? Math.max(0, cap - mtd) : null;
+
+    // Linear EOM projection: mtd * (totalDaysInMonth / dayOfMonth).
+    const now = new Date();
+    const totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const dayOfMonth = now.getDate();
+    const projection = dayOfMonth > 0 ? (mtd * totalDays) / dayOfMonth : mtd;
+
+    const level: TenantBudgetStatus["level"] =
+      cap == null || cap === 0 ? "ok" : percentUsed >= 100 ? "over" : percentUsed >= 80 ? "warn" : "ok";
+
+    return {
+      capUsd: cap,
+      monthToDateUsd: mtd,
+      remainingUsd: remaining,
+      percentUsed,
+      projectionEomUsd: projection,
+      level,
+    };
   },
 
   // Phase 61: recent model.routed events for the operator dashboard. Supabase

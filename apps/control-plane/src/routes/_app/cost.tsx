@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import type { CostDay, Agent, Run } from "@agent-os/shared";
+import type { CostDay, Agent, Run, TenantBudgetStatus } from "@agent-os/shared";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Page, PageHeader, SectionLabel } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
@@ -45,6 +45,11 @@ function CostPage() {
     queryFn: () => data.runs(tenantId!),
     enabled: Boolean(tenantId),
   });
+  const { data: budgetStatus } = useQuery<TenantBudgetStatus>({
+    queryKey: ["tenantBudgetStatus", tenantId, activeTenant?.monthlyBudgetUsd],
+    queryFn: () => data.tenantBudgetStatus(tenantId!, activeTenant?.monthlyBudgetUsd ?? null),
+    enabled: Boolean(tenantId),
+  });
 
   // Slice to selected period
   const sliced = costDays.slice(-period);
@@ -57,13 +62,6 @@ function CostPage() {
   const periodTokens = sliced.reduce((s, cd) => s + cd.tokensIn + cd.tokensOut, 0);
   const avgPerDay = sliced.length > 0 ? periodSpend / period : 0;
   const monthlyBudget = activeTenant?.monthlyBudgetUsd ?? null;
-
-  // Budget cap
-  const monthSpend = costDays.reduce((s, cd) => s + cd.costUsd, 0);
-  const monthBudget = monthlyBudget ?? 0;
-  const pct = monthBudget > 0 ? Math.min(100, (monthSpend / monthBudget) * 100) : 0;
-  const budgetBarColor =
-    pct >= 100 ? "bg-danger" : pct >= 80 ? "bg-warning" : "bg-success";
 
   // Per-agent cost from runs, filtered by project
   const agentCostMap = new Map<string, number>();
@@ -108,25 +106,9 @@ function CostPage() {
         <Stat label="Budget" value={monthlyBudget != null ? formatUsd(monthlyBudget) : "—"} />
       </div>
 
-      {/* Budget cap */}
-      <Card className="mb-5 p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="text-sm font-medium">Monthly budget</span>
-          <div className="flex items-center gap-2">
-            {pct >= 100 && <Badge variant="danger">Over budget</Badge>}
-            {pct >= 80 && pct < 100 && <Badge variant="warning">80% reached</Badge>}
-            <span className="font-mono text-sm text-muted-foreground">
-              {formatUsd(monthSpend)} of {monthBudget > 0 ? formatUsd(monthBudget) : "—"}
-            </span>
-          </div>
-        </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className={`h-full rounded-full transition-all ${budgetBarColor}`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </Card>
+      {/* Budget cap (Phase 62: live month-to-date from tenant_month_to_date_usd) */}
+      <BudgetCard status={budgetStatus} />
+
 
       {/* Spend over time chart */}
       <Card className="mb-5 p-5">
@@ -206,6 +188,57 @@ function CostPage() {
         </p>
       </Card>
     </Page>
+  );
+}
+
+function BudgetCard({ status }: { status: TenantBudgetStatus | undefined }) {
+  if (!status) {
+    return (
+      <Card className="mb-5 p-5">
+        <span className="text-sm text-muted-foreground">Loading budget status…</span>
+      </Card>
+    );
+  }
+  const pct = Math.min(100, status.percentUsed);
+  const barColor =
+    status.level === "over" ? "bg-danger" : status.level === "warn" ? "bg-warning" : "bg-success";
+  return (
+    <Card className="mb-5 p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <span className="text-sm font-medium">Monthly budget</span>
+          <p className="mt-0.5 text-xs text-muted-foreground">Live month-to-date spend from the relay budget stream.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {status.level === "over" && <Badge variant="danger">Over cap</Badge>}
+          {status.level === "warn" && <Badge variant="warning">{Math.round(status.percentUsed)}% used</Badge>}
+          {status.capUsd == null && <Badge variant="default">No cap set</Badge>}
+          <span className="font-mono text-sm text-muted-foreground">
+            {formatUsd(status.monthToDateUsd)} of {status.capUsd != null ? formatUsd(status.capUsd) : "—"}
+          </span>
+        </div>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+      </div>
+      {status.capUsd != null && (
+        <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+          <div>
+            <span className="font-medium text-foreground">{formatUsd(status.remainingUsd ?? 0)}</span> remaining
+          </div>
+          <div>
+            EOM projection: <span className="font-medium text-foreground">{formatUsd(status.projectionEomUsd)}</span>
+          </div>
+          <div>
+            {status.projectionEomUsd > status.capUsd ? (
+              <span className="text-warning">Projected to exceed cap</span>
+            ) : (
+              <span>On track</span>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

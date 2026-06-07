@@ -250,6 +250,19 @@ export interface ModelRoutingEvent {
   };
 }
 
+// Phase 62: live tenant budget posture surfaced on the cost dashboard.
+// Mirrors the /api/admin/tenants/me/budget-status response shape so the
+// same model serves the API client and the SPA's direct-from-Supabase
+// path.
+export interface TenantBudgetStatus {
+  capUsd: number | null;
+  monthToDateUsd: number;
+  remainingUsd: number | null;
+  percentUsed: number;
+  projectionEomUsd: number;
+  level: "ok" | "warn" | "over";
+}
+
 export interface ApiKey {
   id: string;
   tenantId: string;
