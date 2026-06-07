@@ -6,7 +6,7 @@
 // Run: pnpm --filter @agent-os/runner test
 import { parseRunSummary } from "@agent-os/core";
 import type { ApiClient, Bundle } from "./api-client.js";
-import { buildSystemPrompt, buildMcpServers, buildToolApproval, buildAllowedTools, runtimeToolName, executeRun } from "./execute.js";
+import { buildSystemPrompt, buildMcpServers, buildToolApproval, buildAllowedTools, runtimeToolName, customToolSpecs, executeRun } from "./execute.js";
 import type { RunnerConfig } from "./config.js";
 
 let passed = 0;
@@ -171,6 +171,16 @@ async function main() {
   assert(allowed.includes("tool_dunning_engine") && allowed.includes("tool_22"), "allowedTools includes the agent's bound custom tools");
   assert(allowed.includes("mcp__close") && allowed.includes("mcp__slack"), "allowedTools includes the agent's bound MCP servers");
   assert(!allowed.includes("mcp__stripe"), "allowedTools excludes connectors the agent isn't bound to (least privilege)");
+
+  console.log("\n[customToolSpecs — implemented tools become callable, stubs excluded]");
+  const specs = customToolSpecs([
+    { key: "tool.compliance-ruleset", name: "Compliance Ruleset", description: "evaluate ad claims", kind: "custom", requiresApproval: false, reversible: true },
+    { key: "tool.billing-engine", name: "Billing Engine", description: "stub", kind: "custom", requiresApproval: true, reversible: false },
+  ]);
+  assert(specs.length === 1 && specs[0]!.key === "tool.compliance-ruleset", "only implemented tools get a spec (stub excluded)");
+  assert(specs[0]!.name === "tool_compliance_ruleset", "spec uses the SDK-safe runtime name");
+  const out = specs[0]!.handler({ text: "Guaranteed to 10x your revenue." }) as { ok: boolean; result: { decision: string } };
+  assert(out.ok && out.result.decision === "block", "spec handler actually runs the real tool (blocks a bad claim)");
 
   console.log(`\nResult: ${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);

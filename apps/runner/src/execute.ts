@@ -1,4 +1,4 @@
-import { autonomyGate, buildApprovalOptions, planModelFallback } from "@agent-os/core";
+import { autonomyGate, buildApprovalOptions, planModelFallback, runCustomTool, isImplementedTool } from "@agent-os/core";
 import type { ApiClient, Bundle } from "./api-client.js";
 import type { RunnerConfig } from "./config.js";
 import { buildPostToolUseHook, buildPreToolUseHook, recordToolUse } from "./hooks.js";
@@ -74,6 +74,22 @@ export function buildAllowedTools(tools: Bundle["tools"], mcpServerKeys: string[
   const custom = tools.map((t) => runtimeToolName(t.key));
   const mcp = mcpServerKeys.map((k) => `mcp__${k}`);
   return [...new Set([...custom, ...mcp])];
+}
+
+export interface CustomToolSpec { key: string; name: string; description: string; handler: (input: unknown) => unknown }
+
+/** The agent's bound tools that have a REAL implementation (via the core dispatcher), shaped for
+ *  in-process SDK registration: SDK-safe name, description, and a handler delegating to runCustomTool.
+ *  Pure + exported so the bridge is unit-tested without the SDK. */
+export function customToolSpecs(tools: Bundle["tools"]): CustomToolSpec[] {
+  return tools
+    .filter((t) => isImplementedTool(t.key))
+    .map((t) => ({
+      key: t.key,
+      name: runtimeToolName(t.key),
+      description: t.description || t.name,
+      handler: (input: unknown) => runCustomTool(t.key, input),
+    }));
 }
 
 /** Translate the bundle's bound connectors into Claude Agent SDK `mcpServers` config so the agent
@@ -212,6 +228,28 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig, modelOverri
   const { mcpServers, skipped } = buildMcpServers(b.mcpServers);
   if (Object.keys(mcpServers).length) options.mcpServers = mcpServers;
   if (skipped.length) await api.postActivity(runId, "mcp", `Connectors not wired (need endpoint/local config): ${skipped.join(", ")}`).catch(() => {});
+  // Register the agent's IMPLEMENTED deterministic tools as an in-process SDK MCP server so calls to
+  // them actually execute (via the core dispatcher). Guarded: if the SDK build doesn't expose the
+  // in-process tool API, we skip without breaking the run (the tool stays catalog-only).
+  const specs = customToolSpecs(b.tools);
+  if (specs.length) {
+    try {
+      const m = sdk as unknown as {
+        createSdkMcpServer?: (cfg: { name: string; version?: string; tools: unknown[] }) => unknown;
+        tool?: (name: string, description: string, schema: unknown, handler: (args: unknown) => Promise<unknown>) => unknown;
+      };
+      if (typeof m.createSdkMcpServer === "function" && typeof m.tool === "function") {
+        const tools = specs.map((s) =>
+          m.tool!(s.name, s.description, {}, async (args: unknown) => ({
+            content: [{ type: "text", text: JSON.stringify(s.handler(args)) }],
+          })),
+        );
+        (options.mcpServers as Record<string, unknown>) = { ...mcpServers, "acqu-tools": m.createSdkMcpServer({ name: "acqu-tools", version: "1.0.0", tools }) };
+      }
+    } catch (err) {
+      await api.postActivity(runId, "mcp", `in-process tool registration skipped: ${err instanceof Error ? err.message : String(err)}`).catch(() => {});
+    }
+  }
   // Least-privilege: restrict the agent to its bound custom tools + bound MCP servers.
   const allowedTools = buildAllowedTools(b.tools, Object.keys(mcpServers));
   if (allowedTools.length) options.allowedTools = allowedTools;
