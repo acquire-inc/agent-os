@@ -1,6 +1,6 @@
 import { schema, type Db } from "@agent-os/db";
 import type { ApprovalOption } from "@agent-os/shared";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { indexDocument, type Embedder } from "./knowledge.js";
 import { emit } from "./relay/emit.js";
 import { composeRunSummary, CostInvariantViolation } from "./relay/summary.js";
@@ -71,6 +71,14 @@ export async function setRunStatus(db: Db, runId: string, update: StatusUpdate, 
   if (update.tokensOut !== undefined) patch.tokensOut = update.tokensOut;
   if (update.costUsd !== undefined) patch.costUsd = String(update.costUsd);
   if (update.sdkSessionId !== undefined) patch.sdkSessionId = update.sdkSessionId;
+  // Stamp startedAt the first time we observe a run in 'running' (most
+  // production paths) — and defensively on any terminal transition that
+  // arrives without it, so composeRunSummary's startedAt/endedAt invariant
+  // holds even when callers insert a row already in status='running' without
+  // stamping the timestamp themselves.
+  if (update.status === "running" || TERMINAL.has(update.status)) {
+    patch.startedAt = sql`COALESCE(${runs.startedAt}, NOW())`;
+  }
   if (TERMINAL.has(update.status)) patch.endedAt = new Date();
 
   let row: typeof schema.runs.$inferSelect | undefined;
