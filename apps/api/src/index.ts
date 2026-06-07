@@ -1035,6 +1035,49 @@ app.get("/api/admin/artifacts/recent", requireAdmin, async (c) => {
   return c.json({ artifacts: rows });
 });
 
+// ============================ Model routing audit (Phase 60) =========
+// GET /api/admin/model-routing/recent — operator surface for the
+// model.routed Relay audit trail. Each emit captures one model-pick
+// decision: which agent it was for, the baseline (`agent_model`), the
+// model that actually ran (`model_ran` when applied=true, else
+// `recommended_slug`), and the rationale. Used by the Model Routing
+// dashboard page to make the model-intelligence loop observable.
+//
+// Query params:
+//   limit    1–200, default 50
+//   agentId  filter to a single agent
+//   applied  "true" | "false" — filter by payload.applied
+app.get("/api/admin/model-routing/recent", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 50), 1), 200);
+  const agentId = c.req.query("agentId");
+  const appliedFilter = c.req.query("applied");
+
+  const conditions = [
+    eq(schema.relayEvents.tenantId, tenantId),
+    eq(schema.relayEvents.eventName, "model.routed"),
+  ];
+  if (agentId) conditions.push(eq(schema.relayEvents.agentId, agentId));
+  if (appliedFilter === "true" || appliedFilter === "false") {
+    conditions.push(sql`(${schema.relayEvents.payload} ->> 'applied') = ${appliedFilter}`);
+  }
+
+  const rows = await db
+    .select({
+      id: schema.relayEvents.id,
+      agentId: schema.relayEvents.agentId,
+      runId: schema.relayEvents.runId,
+      occurredAt: schema.relayEvents.occurredAt,
+      payload: schema.relayEvents.payload,
+    })
+    .from(schema.relayEvents)
+    .where(and(...conditions))
+    .orderBy(desc(schema.relayEvents.occurredAt))
+    .limit(Number.isFinite(limit) ? limit : 50);
+
+  return c.json({ events: rows });
+});
+
 // ============================ Model feedback proposals (Phase 45) ====
 // GET /api/admin/models/proposals — list pending + recently-applied
 app.get("/api/admin/models/proposals", requirePlatformOwner, async (c) => {

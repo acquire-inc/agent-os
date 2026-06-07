@@ -302,6 +302,50 @@ async function main() {
   const search = await app.request("/api/knowledge/search", { method: "POST", headers: rh, body: JSON.stringify({ query: "test" }) });
   assert(search.status === 200, "POST /api/knowledge/search responds");
 
+  console.log("\n[model routing audit (Phase 60)]");
+  // Seed two model.routed events directly so the endpoint has something to return.
+  // One audit-only (applied=false), one realized (applied=true). Tenant-scoped.
+  await db.insert(schema.relayEvents).values([
+    {
+      tenantId: ACQU,
+      agentId: ADOPS,
+      eventName: "model.routed",
+      actor: "system",
+      occurredAt: new Date(Date.now() - 60_000),
+      payload: { agent_model: "nousresearch/hermes-4-70b", applied: false, recommended_slug: "nousresearch/hermes-4-405b", source: "tier_fork", reason: "task needed reasoning" },
+    },
+    {
+      tenantId: ACQU,
+      agentId: ADOPS,
+      eventName: "model.routed",
+      actor: "system",
+      occurredAt: new Date(),
+      payload: { agent_model: "nousresearch/hermes-4-70b", applied: true, model_ran: "nousresearch/hermes-4-405b", source: "sub_agent_dispatch", task_label: "synthesize", cost_usd: 0.04 },
+    },
+  ]);
+  // Cross-tenant noise: a model.routed event under a different tenant must NOT leak in.
+  await db.insert(schema.relayEvents).values({
+    tenantId: TENANT_IDS.cliently,
+    agentId: CLIENTLY_AGENT,
+    eventName: "model.routed",
+    actor: "system",
+    occurredAt: new Date(),
+    payload: { agent_model: "x", applied: false, source: "tier_fork" },
+  });
+
+  const mrAll = await (await app.request("/api/admin/model-routing/recent", { headers: ah })).json() as { events: Array<{ id: string; agentId: string | null; payload: Record<string, unknown> }> };
+  assert(mrAll.events.length >= 2, `model-routing/recent returns rows (got ${mrAll.events.length})`);
+  assert(mrAll.events.every((e) => e.agentId === null || e.agentId === ADOPS), "model-routing/recent is tenant-scoped (no Cliently leak)");
+
+  const mrApplied = await (await app.request("/api/admin/model-routing/recent?applied=true", { headers: ah })).json() as { events: Array<{ payload: Record<string, unknown> }> };
+  assert(mrApplied.events.length >= 1 && mrApplied.events.every((e) => e.payload.applied === true), "applied=true filter narrows to realized forks");
+
+  const mrLimited = await (await app.request("/api/admin/model-routing/recent?limit=1", { headers: ah })).json() as { events: unknown[] };
+  assert(mrLimited.events.length === 1, "limit param honored");
+
+  const mrUnauth = await app.request("/api/admin/model-routing/recent", { headers: rh });
+  assert(mrUnauth.status === 403, `runner key rejected on admin endpoint (got ${mrUnauth.status})`);
+
   console.log(`\nResult: ${passed} passed, ${failed} failed\n`);
   process.exit(failed > 0 ? 1 : 0);
 }

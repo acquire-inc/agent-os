@@ -55,13 +55,14 @@ A multi-tenant Agent OS — the control plane that runs Acquire Inc (Acqu) on ag
 - [x] **Phase 48: Runner artifact emission** — `dispatchCustomTool` auto-registers tool results as artifacts (best-effort). **(closed 2026-06-03)**
 - [x] **Phase 49: Artifact-emit integration test** — 4 assertions. **(closed 2026-06-03)**
 - [x] **Phase 50: Chat dispatch + cost forecast integration** — `POST /api/admin/chat/dispatch` body accepts optional `tokens` + `budgetCapUsd`; response includes forecast block. **(closed 2026-06-03)**
-
-## Backlog (Phase 51+ planned, recorded with full context docs)
-
-- [ ] **Phase 51: Knowledge-driven TaskProfile generation** — Chat endpoint infers profile from intent + tenant knowledge; T-cheap classifier + canonical category→capability mapping. See `.planning/phases/51-knowledge-driven-task-profile/51-CONTEXT.md`
-- [ ] **Phase 52: Sub-agent SDK dispatch** — Actually swap the model mid-run via Claude Agent SDK sub-agent primitive. Per-skill reserve/commit. See `.planning/phases/52-sub-agent-sdk-dispatch/52-CONTEXT.md`
-- [ ] **Phase 53: Tenant monthly cost cap** — Materialized view + budget gate + tenant-level cap_breached event. See `.planning/phases/53-tenant-monthly-cost-cap/53-CONTEXT.md`
-- [ ] **Phase 54: Architect uses pickBestModel** — Blueprint synthesis consults the catalog; LLM intent overrides allowed. See `.planning/phases/54-architect-uses-picker/54-CONTEXT.md`
+- [x] **Phase 51: Knowledge-driven TaskProfile generation** — keyword-based profile inference from intent. **(closed)**
+- [x] **Phase 52: Sub-agent SDK dispatch** — `dispatchSubAgent` with per-call BudgetTracker reserve/commit. **(closed)**
+- [x] **Phase 53: Tenant monthly cost cap** — migration 0025 + materialized view + `tenant_month_to_date_usd()` SQL helper + chat-dispatch gate. **(closed)**
+- [x] **Phase 54: Architect uses pickBestModel** — `suggestModelForBlueprint` consults the catalog. **(closed)**
+- [x] **Phase 55-57: monthly rollup + architect wire-up + review polish.** **(closed)**
+- [x] **Phase 58: Built-in `tool.delegate`** — closes the model-intelligence loop via sub-agent routing. **(closed)**
+- [x] **Phase 59: System-prompt delegation primer** — primer injected when skills have `taskProfile` or `preferredModelTier`. **(closed)**
+- [x] **Phase 60: Model-routing audit endpoint** — `GET /api/admin/model-routing/recent` makes the `model.routed` audit trail queryable, with `applied=` + `agentId=` filters and tenant scoping. Operator dashboard UI page is a follow-up. **(closed 2026-06-07)**
 
 ## Backlog (Tier 2 — recorded for future planning)
 
