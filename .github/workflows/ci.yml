@@ -45,7 +45,7 @@ jobs:
       - name: Generate a vault key if not provided
         run: |
           if [ -z "${AOS_VAULT_KEY}" ]; then
-            echo "AOS_VAULT_KEY=$(node -e 'console.log(require(\"crypto\").randomBytes(32).toString(\"base64\"))')" >> "$GITHUB_ENV"
+            echo "AOS_VAULT_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
           fi
 
       - name: Verify (migrate, seed, typecheck, test suites, build)

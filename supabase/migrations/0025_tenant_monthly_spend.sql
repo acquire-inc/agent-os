@@ -13,7 +13,7 @@
 CREATE MATERIALIZED VIEW IF NOT EXISTS tenant_monthly_spend AS
 SELECT
   tenant_id,
-  date_trunc('month', detected_at) AS month,
+  date_trunc('month', occurred_at) AS month,
   SUM(COALESCE((payload->>'amount_usd')::numeric, 0)) AS total_usd,
   COUNT(DISTINCT run_id) AS run_count
 FROM relay_events
@@ -35,7 +35,7 @@ RETURNS NUMERIC AS $$
   FROM relay_events
   WHERE tenant_id = p_tenant_id
     AND event_name = 'budget.committed'
-    AND detected_at >= date_trunc('month', now());
+    AND occurred_at >= date_trunc('month', now());
 $$ LANGUAGE SQL STABLE;
 
 COMMENT ON FUNCTION tenant_month_to_date_usd IS
