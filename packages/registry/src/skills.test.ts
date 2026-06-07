@@ -33,8 +33,16 @@ async function main() {
   assert(Object.keys(parseFrontMatter("no front matter")).length === 0, "no front-matter → empty");
 
   console.log("\n[real repo parse]");
-  const realFiles = await findSkillFiles("/tmp/superpowers/skills");
-  assert(realFiles.length >= 10, `finds SKILL.md files in superpowers (${realFiles.length})`);
+  // Local-only fixture — /tmp/superpowers/skills is the dev workstation's
+  // checkout of the superpowers repo. Not present on CI runners, so skip
+  // when missing rather than fail the suite.
+  const { existsSync } = await import("node:fs");
+  if (existsSync("/tmp/superpowers/skills")) {
+    const realFiles = await findSkillFiles("/tmp/superpowers/skills");
+    assert(realFiles.length >= 10, `finds SKILL.md files in superpowers (${realFiles.length})`);
+  } else {
+    console.log("  ⊘ skipped: /tmp/superpowers/skills not present (local-only fixture)");
+  }
 
   console.log("\n[sync create / idempotent / update]");
   const dir = await mkdtemp(join(tmpdir(), "aos-skilltest-"));
