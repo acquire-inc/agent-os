@@ -30,6 +30,7 @@ pnpm --filter @agent-os/core exec tsx src/model-registry.test.ts | grep -E "Resu
 pnpm --filter @agent-os/core exec tsx src/autonomy.test.ts | grep -E "Result:"
 pnpm --filter @agent-os/core exec tsx src/compliance-ruleset.test.ts | grep -E "Result:"
 pnpm --filter @agent-os/core exec tsx src/isolation-tester.test.ts | grep -E "Result:"
+pnpm --filter @agent-os/core exec tsx src/custom-tools.test.ts | grep -E "Result:"
 pnpm --filter @agent-os/vault test | grep -E "Result:"
 pnpm --filter @agent-os/registry test | grep -E "Result:"
 pnpm --filter @agent-os/api test | grep -E "Result:"
