@@ -10,6 +10,7 @@ import type {
   Job,
   KnowledgeFolder,
   Mcp,
+  ModelRoutingEvent,
   Profile,
   Project,
   Routine,
@@ -309,4 +310,27 @@ export const demoCostDays: CostDay[] = (() => {
 export const demoApiKeys: ApiKey[] = [
   { id: "key1", tenantId: ACQU, kind: "runner", name: "Acqu VPS runner", hashPreview: "aos_run_…7f2a", createdBy: DEMO_USER_ID, createdAt: iso(40) },
   { id: "key2", tenantId: ACQU, kind: "admin", name: "Management agent", hashPreview: "aos_adm_…91c4", createdBy: DEMO_USER_ID, createdAt: iso(35) },
+];
+
+
+// --- Model routing audit (Phase 61) ---
+// A handful of demo picks across Acqu agents so the operator dashboard has
+// content before any real run has fired model.routed.
+export const demoModelRoutingEvents: ModelRoutingEvent[] = [
+  {
+    id: "mr1", tenantId: ACQU, agentId: A.adOps, runId: null, occurredAt: iso(0, 0, 5),
+    payload: { agent_model: "nousresearch/hermes-4-70b", applied: true, model_ran: "nousresearch/hermes-4-405b", source: "sub_agent_dispatch", task_label: "synthesize Q3 narrative", reason: "task profile required reasoning + summarization", cost_usd: 0.041, tokens_in: 8200, tokens_out: 1450 },
+  },
+  {
+    id: "mr2", tenantId: ACQU, agentId: A.briefing, runId: null, occurredAt: iso(0, 1, 12),
+    payload: { agent_model: "nousresearch/hermes-4-70b", applied: false, recommended_slug: "anthropic/claude-sonnet-4.6", recommended_tier: "T-work", source: "tier_fork", reason: "tool-heavy step; Sonnet more reliable at chained calls" },
+  },
+  {
+    id: "mr3", tenantId: ACQU, agentId: A.intel, runId: null, occurredAt: iso(0, 2, 33),
+    payload: { agent_model: "nousresearch/hermes-4-70b", applied: true, model_ran: "nousresearch/hermes-4-70b", source: "agent_baseline", task_label: "monitor competitor pricing page", reason: "single classification call — baseline is the value-per-dollar pick", cost_usd: 0.003, tokens_in: 1200, tokens_out: 220 },
+  },
+  {
+    id: "mr4", tenantId: ACQU, agentId: A.adOps, runId: null, occurredAt: iso(0, 4, 1),
+    payload: { agent_model: "nousresearch/hermes-4-70b", applied: true, model_ran: "anthropic/claude-opus-4.8", source: "cant_fail_pin", task_label: "ad claim review", reason: "T-critical agent; Opus pin enforced", cost_usd: 0.22, tokens_in: 5400, tokens_out: 800 },
+  },
 ];

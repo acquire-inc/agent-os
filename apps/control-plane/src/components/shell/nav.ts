@@ -5,6 +5,7 @@ import {
   CircleDollarSign,
   Cable,
   ClipboardCheck,
+  Cpu,
   LayoutGrid,
   Plug,
   Repeat,
@@ -31,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/knowledge", label: "Knowledge", icon: BrainCircuit },
   { to: "/approvals", label: "Approvals", icon: ClipboardCheck },
   { to: "/cost", label: "Cost", icon: CircleDollarSign },
+  { to: "/model-routing", label: "Model routing", icon: Cpu },
   { to: "/connections", label: "Connections", icon: Plug },
   { to: "/settings", label: "Settings", icon: Settings },
 ];

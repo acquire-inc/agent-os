@@ -223,6 +223,33 @@ export interface CostDay {
   tokensOut: number;
 }
 
+// Phase 60-61: a single model-pick decision recorded in the relay_events
+// stream. The control-plane Model Routing page renders these as a table so
+// operators can see what model ran for which agent and why.
+export interface ModelRoutingEvent {
+  id: string;
+  tenantId: string;
+  agentId: string | null;
+  runId: string | null;
+  occurredAt: string;
+  // Payload echoed from relay_events.payload — superset across audit-only
+  // (applied=false; recommended_slug present) and realized (applied=true;
+  // model_ran present) shapes.
+  payload: {
+    agent_model: string;
+    applied: boolean;
+    model_ran?: string;
+    recommended_slug?: string;
+    recommended_tier?: string;
+    source?: string;
+    task_label?: string;
+    reason?: string;
+    cost_usd?: number;
+    tokens_in?: number;
+    tokens_out?: number;
+  };
+}
+
 export interface ApiKey {
   id: string;
   tenantId: string;

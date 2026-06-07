@@ -9,6 +9,7 @@ import {
   demoFolders,
   demoJobs,
   demoMcps,
+  demoModelRoutingEvents,
   demoProjects,
   demoRoutines,
   demoRunActivity,
@@ -23,6 +24,7 @@ import {
   type Job,
   type KnowledgeFolder,
   type Mcp,
+  type ModelRoutingEvent,
   type Project,
   type Routine,
   type Run,
@@ -125,5 +127,23 @@ export const data = {
   async costDays(tenantId: string): Promise<CostDay[]> {
     if (isSupabaseConfigured) return [];
     return byTenant(demoCostDays, tenantId);
+  },
+
+  // Phase 61: recent model.routed events for the operator dashboard. Supabase
+  // RLS scopes by tenant; the demo fixture is returned otherwise so the page
+  // is never blank.
+  async modelRoutingRecent(tenantId: string, limit = 50): Promise<ModelRoutingEvent[]> {
+    if (isSupabaseConfigured && supabase) {
+      const { data: rows, error } = await supabase
+        .from("relay_events")
+        .select("id, tenant_id, agent_id, run_id, occurred_at, payload")
+        .eq("tenant_id", tenantId)
+        .eq("event_name", "model.routed")
+        .order("occurred_at", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return (rows ?? []).map((r) => mapRow<ModelRoutingEvent>(r as Record<string, unknown>));
+    }
+    return byTenant(demoModelRoutingEvents, tenantId).slice(0, limit);
   },
 };
