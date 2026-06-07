@@ -17,7 +17,8 @@
     "test:execute-flow": "tsx src/execute-flow.test.ts",
     "test:predispatch": "tsx src/predispatch.test.ts",
     "test:run-state": "tsx src/run-state.test.ts",
-    "test:sub-agent": "tsx src/sub-agent.test.ts"
+    "test:sub-agent": "tsx src/sub-agent.test.ts",
+    "test:system-prompt": "tsx src/system-prompt.test.ts"
   },
   "dependencies": {
     "@agent-os/core": "workspace:*",

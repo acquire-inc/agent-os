@@ -158,11 +158,26 @@ export interface RunResult {
   sdkSessionId?: string;
 }
 
-function buildSystemPrompt(b: Bundle): string {
+export function buildSystemPrompt(b: Bundle): string {
+  // Phase 59: skills are "delegatable" when they declare a non-empty
+  // task_profile (Phase 40) or a preferred_model_tier (Phase 32). The
+  // runner's tool.delegate (Phase 58) routes them to the optimal model
+  // via pickModelIntelligently + dispatchSubAgent. We teach the agent
+  // explicitly here so it actually delegates instead of leaving the
+  // tool unused.
+  const delegatableSkills = (b.skills ?? []).filter((s) => {
+    const profile = s.taskProfile as Record<string, unknown> | undefined;
+    const hasProfile = profile && profile.capabilities && Object.keys(profile.capabilities).length > 0;
+    return Boolean(hasProfile) || Boolean(s.preferredModelTier);
+  });
+
   const lines = [
     b.agent.persona ?? `You are ${b.agent.name}, an autonomous agent.`,
     b.job ? `\n## Your task\n${b.job.instructions}` : "",
     b.skills.length ? `\n## Skills available\n${b.skills.map((s) => `- ${s.name}: ${s.description}`).join("\n")}` : "",
+    delegatableSkills.length
+      ? `\n## Skill delegation\nThe following skills are optimized when delegated to a specialized sub-agent. Use \`tool.delegate({skill_key, prompt})\` to delegate. The runner picks the best model for the skill automatically; you receive the result as a structured artifact.\n${delegatableSkills.map((s) => `- delegate({skill_key: "${s.key}"}) — ${s.name}`).join("\n")}`
+      : "",
     b.mcpServers.length ? `\n## Connectors\n${b.mcpServers.map((m) => `- ${m.name} (${m.transport})`).join("\n")}` : "",
     b.agent.escalationPolicy ? `\n## Escalation policy\n${b.agent.escalationPolicy}` : "",
     `\n## Autonomy: ${b.autonomy}`,
