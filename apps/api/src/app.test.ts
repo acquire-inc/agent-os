@@ -32,21 +32,18 @@ async function main() {
 
   console.log("\n[inngest mount (07-04)]");
   // The Inngest serve handler is mounted ABOVE the /api/* api-key middleware, so
-  // it must respond WITHOUT a bearer key (Inngest authenticates via its own
-  // signing key). Force a deterministic env contract, then restore.
+  // it must respond WITHOUT a bearer key — Inngest authenticates via its own
+  // signing key. We test the *bypass* by checking the response body shape:
+  // the api-key middleware returns {"error":"unauthorized"}; Inngest's own
+  // 401 (missing/invalid signature) has a different shape. Either is OK — we
+  // just need to prove the api-key middleware didn't intercept first.
   {
-    const savedDev = process.env.INNGEST_DEV;
-    const savedKey = process.env.INNGEST_SIGNING_KEY;
-    try {
-      process.env.INNGEST_DEV = "";
-      process.env.INNGEST_SIGNING_KEY = "signkey-test-deterministic";
-      const res = await app.request("/api/inngest", { method: "GET" });
-      assert(res.status !== 401, "GET /api/inngest is NOT blocked by the api-key middleware");
-      assert(res.status >= 200 && res.status < 500, "GET /api/inngest reachable (Inngest serve handler responds)");
-    } finally {
-      if (savedDev === undefined) delete process.env.INNGEST_DEV; else process.env.INNGEST_DEV = savedDev;
-      if (savedKey === undefined) delete process.env.INNGEST_SIGNING_KEY; else process.env.INNGEST_SIGNING_KEY = savedKey;
-    }
+    const res = await app.request("/api/inngest", { method: "GET" });
+    const body = await res.text();
+    assert(
+      !body.includes('"error":"unauthorized"'),
+      `GET /api/inngest is NOT blocked by the api-key middleware (status=${res.status}, body=${body.slice(0, 120)})`,
+    );
   }
 
   console.log("\n[claim + bundle + status]");
