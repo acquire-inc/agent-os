@@ -19,7 +19,7 @@ pnpm --filter @agent-os/db migrate >/dev/null
 pnpm --filter @agent-os/db seed >/dev/null
 
 echo "▸ Typecheck (workspace)…"
-pnpm -r typecheck >/dev/null
+pnpm -r typecheck
 
 echo "▸ Backend test suites…"
 pnpm --filter @agent-os/core test | grep -E "Result:"
