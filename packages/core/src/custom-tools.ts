@@ -4,12 +4,14 @@
 // catalog stubs (metadata only) — runCustomTool reports that honestly rather than pretending.
 import { evaluateClaim } from "./compliance-ruleset.js";
 import { evaluateIsolation, type IsolationProbe } from "./isolation-tester.js";
+import { evaluateConnectorHealth, type ConnectorHealth } from "./connector-health.js";
 import { lintVoice } from "./voice-lint.js";
 
 /** Registry tool_keys that have a real implementation today (everything else is a catalog stub). */
 export const IMPLEMENTED_TOOL_KEYS = [
   "tool.compliance-ruleset",
   "tool.isolation-test-suite",
+  "tool.connector-healthcheck",
   "tool.voice-lint",
 ] as const;
 export type ImplementedToolKey = (typeof IMPLEMENTED_TOOL_KEYS)[number];
@@ -41,6 +43,12 @@ export function runCustomTool(key: string, input: unknown): CustomToolResult {
         ? (input as { probes: IsolationProbe[] }).probes
         : []) as IsolationProbe[];
       return { ok: true, result: evaluateIsolation(Array.isArray(probes) ? probes : []) };
+    }
+    case "tool.connector-healthcheck": {
+      const connectors = (input && typeof input === "object" && "connectors" in input
+        ? (input as { connectors: ConnectorHealth[] }).connectors
+        : []) as ConnectorHealth[];
+      return { ok: true, result: evaluateConnectorHealth(Array.isArray(connectors) ? connectors : []) };
     }
     default:
       return { ok: false, error: `tool '${key}' has no implementation yet (catalog stub).` };
