@@ -86,11 +86,26 @@ export interface Blueprint {
   createdAt: string;
 }
 
+// Phase 64: model suggestion threaded from the API per agent so the
+// architect UI can surface why a given model was picked.
+export interface ModelSuggestion {
+  recommendedModel: string;
+  rationale: string;
+  llmEmittedModel: string | null;
+  alternatives: Array<{
+    slug: string;
+    capabilityMatchScore: number;
+    costIndex: number;
+  }>;
+}
+
+export type ProposeResponse = { blueprint: Blueprint; modelSuggestions?: Record<string, ModelSuggestion | null> };
+
 export const architect = {
   propose: (args: { prompt: string; mode?: "team" | "single" | "remix"; baseAgentKey?: string }) =>
-    call<{ blueprint: Blueprint }>("POST", "/api/admin/architect/propose", args),
+    call<ProposeResponse>("POST", "/api/admin/architect/propose", args),
   remix: (baseAgentKey: string, instruction: string) =>
-    call<{ blueprint: Blueprint }>("POST", "/api/admin/architect/propose", {
+    call<ProposeResponse>("POST", "/api/admin/architect/propose", {
       prompt: instruction,
       mode: "remix",
       baseAgentKey,

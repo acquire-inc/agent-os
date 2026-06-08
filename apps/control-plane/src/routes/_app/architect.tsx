@@ -9,7 +9,7 @@ import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
 import { Separator } from "#/components/ui/misc";
-import { ApiError, architect, hasAdminKey, type Blueprint } from "#/lib/api";
+import { ApiError, architect, hasAdminKey, type Blueprint, type ModelSuggestion } from "#/lib/api";
 
 type ArchitectSearch = { focus?: string };
 export const Route = createFileRoute("/_app/architect")({
@@ -31,6 +31,7 @@ function ArchitectPage() {
   const { focus } = Route.useSearch();
   const [prompt, setPrompt] = useState("");
   const [active, setActive] = useState<Blueprint | null>(null);
+  const [suggestions, setSuggestions] = useState<Record<string, ModelSuggestion | null>>({});
   const noKey = !hasAdminKey();
 
   const list = useQuery({
@@ -50,6 +51,7 @@ function ArchitectPage() {
     mutationFn: () => architect.propose({ prompt }),
     onSuccess: (r) => {
       setActive(r.blueprint);
+      setSuggestions(r.modelSuggestions ?? {});
       setPrompt("");
       qc.invalidateQueries({ queryKey: ["architect", "blueprints"] });
     },
@@ -126,6 +128,7 @@ function ArchitectPage() {
       {active && (
         <BlueprintCard
           blueprint={active}
+          suggestions={suggestions}
           onSeed={() => seed.mutate(active.id)}
           seeding={seed.isPending}
           seeded={active.status === "seeded"}
@@ -181,11 +184,13 @@ function ProposeError({ err }: { err: Error }) {
 
 function BlueprintCard({
   blueprint,
+  suggestions,
   onSeed,
   seeding,
   seeded,
 }: {
   blueprint: Blueprint;
+  suggestions: Record<string, ModelSuggestion | null>;
   onSeed: () => void;
   seeding: boolean;
   seeded: boolean;
@@ -217,29 +222,61 @@ function BlueprintCard({
 
       <SectionLabel>Agents ({blueprint.agents.length})</SectionLabel>
       <div className="space-y-3">
-        {blueprint.agents.map((a) => (
-          <Card key={a.key} className="p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-medium">{a.name} <span className="text-xs text-muted-foreground">— {a.key}</span></p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  <Badge variant="info" className="text-xs">{a.model}</Badge>
-                  <Badge variant="outline" className="text-xs">autonomy: {a.autonomy}</Badge>
-                  <Badge variant="outline" className="text-xs">budget: ${a.budgetCapUsd}</Badge>
-                  {a.cron && <Badge variant="outline" className="text-xs">cron: {a.cron.schedule}</Badge>}
-                  {a.enabled === false && <Badge variant="outline" className="text-xs">enabled: false</Badge>}
+        {blueprint.agents.map((a) => {
+          const s = suggestions[a.key];
+          const overrode = Boolean(s && s.llmEmittedModel && s.llmEmittedModel !== s.recommendedModel);
+          return (
+            <Card key={a.key} className="p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{a.name} <span className="text-xs text-muted-foreground">— {a.key}</span></p>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <Badge variant="info" className="text-xs">{a.model}</Badge>
+                    <Badge variant="outline" className="text-xs">autonomy: {a.autonomy}</Badge>
+                    <Badge variant="outline" className="text-xs">budget: ${a.budgetCapUsd}</Badge>
+                    {a.cron && <Badge variant="outline" className="text-xs">cron: {a.cron.schedule}</Badge>}
+                    {a.enabled === false && <Badge variant="outline" className="text-xs">enabled: false</Badge>}
+                  </div>
                 </div>
               </div>
-            </div>
-            <pre className="mt-3 max-h-32 overflow-auto rounded bg-muted/40 p-2 text-[11px] leading-snug text-muted-foreground">
-              {a.systemPrompt}
-            </pre>
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-              {a.skills.length > 0 && <span>skills: {a.skills.map((s) => s.key).join(", ")}</span>}
-              {a.mcpNames.length > 0 && <span>mcps: {a.mcpNames.join(", ")}</span>}
-            </div>
-          </Card>
-        ))}
+              {s && (
+                <div className="mt-3 rounded-md border border-border bg-muted/30 p-2.5 text-[11px] leading-relaxed">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="font-semibold uppercase tracking-wider text-muted-foreground">Picker rationale</span>
+                    {overrode && <Badge variant="warning" className="text-[10px]">LLM overrode pick</Badge>}
+                  </div>
+                  <p className="text-foreground/80">{s.rationale}</p>
+                  {overrode && s.llmEmittedModel && (
+                    <p className="mt-1 text-muted-foreground">
+                      Picker recommended <code className="rounded bg-muted px-1">{s.recommendedModel}</code>;
+                      blueprint shipped with <code className="rounded bg-muted px-1">{s.llmEmittedModel}</code>.
+                    </p>
+                  )}
+                  {s.alternatives.length > 1 && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-muted-foreground">Top alternatives</summary>
+                      <ul className="mt-1 space-y-0.5 pl-3 text-muted-foreground">
+                        {s.alternatives.slice(0, 3).map((alt) => (
+                          <li key={alt.slug}>
+                            <code className="rounded bg-muted px-1 text-foreground/80">{alt.slug}</code>
+                            <span className="ml-2">cap {alt.capabilityMatchScore.toFixed(1)} · cost {alt.costIndex.toFixed(2)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+              <pre className="mt-3 max-h-32 overflow-auto rounded bg-muted/40 p-2 text-[11px] leading-snug text-muted-foreground">
+                {a.systemPrompt}
+              </pre>
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                {a.skills.length > 0 && <span>skills: {a.skills.map((s) => s.key).join(", ")}</span>}
+                {a.mcpNames.length > 0 && <span>mcps: {a.mcpNames.join(", ")}</span>}
+              </div>
+            </Card>
+          );
+        })}
       </div>
 
       {(blueprint.proposedSkills.length > 0 || blueprint.proposedMcps.length > 0) && (
