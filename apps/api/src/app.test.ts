@@ -346,6 +346,48 @@ async function main() {
   const mrUnauth = await app.request("/api/admin/model-routing/recent", { headers: rh });
   assert(mrUnauth.status === 403, `runner key rejected on admin endpoint (got ${mrUnauth.status})`);
 
+  console.log("\n[tier overrides (Phase 65)]");
+  // GET: every tier reports its default; T-critical is pinned.
+  const toGetRes = await app.request("/api/admin/tenants/me/tier-overrides", { headers: ah });
+  const toGet = (await toGetRes.json()) as { tiers: Array<{ tier: string; defaultModel: string; override: string | null; effective: string; pinned: boolean }> };
+  assert(toGetRes.status === 200, "GET tier-overrides returns 200");
+  const tcritical = toGet.tiers.find((t) => t.tier === "T-critical");
+  assert(tcritical?.pinned === true, "T-critical is pinned");
+  const tcheap = toGet.tiers.find((t) => t.tier === "T-cheap");
+  assert(tcheap?.defaultModel.length, "T-cheap has a defaultModel");
+
+  // PUT a valid override → effective changes.
+  const setRes = await app.request("/api/admin/tenants/me/tier-overrides", {
+    method: "PUT", headers: ah, body: JSON.stringify({ tier: "T-cheap", model: "nousresearch/hermes-4-405b" }),
+  });
+  assert(setRes.status === 200, `PUT valid override returns 200 (got ${setRes.status})`);
+  const after = (await (await app.request("/api/admin/tenants/me/tier-overrides", { headers: ah })).json()) as typeof toGet;
+  assert(after.tiers.find((t) => t.tier === "T-cheap")?.override === "nousresearch/hermes-4-405b", "T-cheap override persisted");
+
+  // T-critical refused.
+  const tcRes = await app.request("/api/admin/tenants/me/tier-overrides", {
+    method: "PUT", headers: ah, body: JSON.stringify({ tier: "T-critical", model: "nousresearch/hermes-4-70b" }),
+  });
+  assert(tcRes.status === 400, `T-critical override refused (got ${tcRes.status})`);
+
+  // Unknown slug refused.
+  const badRes = await app.request("/api/admin/tenants/me/tier-overrides", {
+    method: "PUT", headers: ah, body: JSON.stringify({ tier: "T-reason", model: "fake/model" }),
+  });
+  assert(badRes.status === 400, `unknown slug refused (got ${badRes.status})`);
+
+  // Clear by sending null.
+  const clearRes = await app.request("/api/admin/tenants/me/tier-overrides", {
+    method: "PUT", headers: ah, body: JSON.stringify({ tier: "T-cheap", model: null }),
+  });
+  assert(clearRes.status === 200, "PUT null clears override");
+  const cleared = (await (await app.request("/api/admin/tenants/me/tier-overrides", { headers: ah })).json()) as typeof toGet;
+  assert(cleared.tiers.find((t) => t.tier === "T-cheap")?.override === null, "T-cheap override cleared");
+
+  // Runner key blocked.
+  const runnerBlock = await app.request("/api/admin/tenants/me/tier-overrides", { headers: rh });
+  assert(runnerBlock.status === 403, `runner key blocked from tier-overrides (got ${runnerBlock.status})`);
+
   console.log(`\nResult: ${passed} passed, ${failed} failed\n`);
   process.exit(failed > 0 ? 1 : 0);
 }

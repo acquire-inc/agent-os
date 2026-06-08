@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Copy, FolderGit2, KeyRound, Plus, Tag as TagIcon, Trash2, Users } from "lucide-react";
 import { useState } from "react";
@@ -10,7 +10,7 @@ import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
 import { Avatar, Input, Separator } from "#/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
-import { clearAdminKey, getAdminKey, getApiUrl, setAdminKey, setApiUrl } from "#/lib/api";
+import { clearAdminKey, getAdminKey, getApiUrl, hasAdminKey, setAdminKey, setApiUrl, tierOverrides as tierOverridesApi, type TierOverrideRow } from "#/lib/api";
 import { useApp } from "#/lib/app-context";
 import { useAuth } from "#/lib/auth";
 import { data } from "#/lib/data";
@@ -51,6 +51,7 @@ function SettingsPage() {
           <TabsTrigger value="projects">Projects</TabsTrigger>
           <TabsTrigger value="apikeys">API Keys</TabsTrigger>
           <TabsTrigger value="api">API Connection</TabsTrigger>
+          <TabsTrigger value="models">Models</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
         </TabsList>
 
@@ -243,6 +244,11 @@ function SettingsPage() {
           <ApiConnectionPanel />
         </TabsContent>
 
+        {/* ── Models (Phase 65: per-tier overrides) ──────────────────── */}
+        <TabsContent value="models">
+          <ModelTierOverridesPanel />
+        </TabsContent>
+
         {/* ── Tags ────────────────────────────────────────────────────── */}
         <TabsContent value="tags">
           <Card className="max-w-2xl">
@@ -357,6 +363,124 @@ function TagsPanel({ tags }: { tags: Tag[] }) {
       <p className="text-xs text-muted-foreground">
         Tags are extensible and shared across all registries in this organization.
       </p>
+    </div>
+  );
+}
+
+// Phase 65: per-tier model overrides UI. Reads tier rows from the API
+// (defaults from DEFAULT_TIER_MODELS, plus any tenant override), and lets
+// operators choose from the platform default or type a custom slug. The
+// server validates against the model catalog and refuses T-critical.
+function ModelTierOverridesPanel() {
+  const qc = useQueryClient();
+  const noKey = !hasAdminKey();
+  const { data: list, isLoading, error } = useQuery({
+    queryKey: ["tierOverrides"],
+    queryFn: () => tierOverridesApi.list().then((r) => r.tiers),
+    enabled: !noKey,
+  });
+
+  const set = useMutation({
+    mutationFn: ({ tier, model }: { tier: TierOverrideRow["tier"]; model: string | null }) =>
+      tierOverridesApi.set(tier, model),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tierOverrides"] }),
+  });
+
+  if (noKey) {
+    return (
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle>Model tier overrides</CardTitle>
+          <CardDescription>Paste an admin API key on the API Connection tab to manage tier overrides.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader>
+        <CardTitle>Model tier overrides</CardTitle>
+        <CardDescription>
+          Replace the platform default model for a tier on this tenant. T-critical is pinned to Opus and never honors overrides.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {error && <p className="text-sm text-destructive">Failed to load: {(error as Error).message}</p>}
+        {list?.map((row) => (
+          <TierOverrideRowEditor
+            key={row.tier}
+            row={row}
+            pending={set.isPending && set.variables?.tier === row.tier}
+            onSet={(model) => set.mutate({ tier: row.tier, model })}
+            error={
+              set.isError && set.variables?.tier === row.tier
+                ? (set.error as Error).message
+                : null
+            }
+          />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TierOverrideRowEditor({
+  row,
+  pending,
+  onSet,
+  error,
+}: {
+  row: TierOverrideRow;
+  pending: boolean;
+  onSet: (model: string | null) => void;
+  error: string | null;
+}) {
+  const [draft, setDraft] = useState(row.override ?? "");
+  const dirty = draft !== (row.override ?? "");
+  return (
+    <div className="rounded-md border border-border p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <span className="font-medium">{row.tier}</span>
+          {row.pinned && <Badge variant="warning" className="ml-2 text-[10px]">pinned</Badge>}
+          {row.override != null && !row.pinned && (
+            <Badge variant="success" className="ml-2 text-[10px]">overridden</Badge>
+          )}
+        </div>
+        <span className="font-mono text-[11px] text-muted-foreground">{row.effective}</span>
+      </div>
+      <p className="mb-2 text-xs text-muted-foreground">
+        Default: <code className="rounded bg-muted px-1">{row.defaultModel}</code>
+      </p>
+      {!row.pinned && (
+        <div className="flex items-center gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={`Override slug (blank = use default)`}
+            disabled={pending}
+          />
+          <Button size="sm" disabled={!dirty || pending} onClick={() => onSet(draft.trim() || null)}>
+            Save
+          </Button>
+          {row.override && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                setDraft("");
+                onSet(null);
+              }}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+      )}
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
     </div>
   );
 }

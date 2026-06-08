@@ -119,3 +119,23 @@ export const architect = {
       { blueprintId },
     ),
 };
+
+// ---------- Tier overrides (Phase 65) ----------
+
+export interface TierOverrideRow {
+  tier: "T-trivial" | "T-cheap" | "T-reason" | "T-work" | "T-critical";
+  defaultModel: string;
+  override: string | null;
+  effective: string;
+  pinned: boolean;
+}
+
+export const tierOverrides = {
+  list: () => call<{ tiers: TierOverrideRow[] }>("GET", "/api/admin/tenants/me/tier-overrides"),
+  set: (tier: TierOverrideRow["tier"], model: string | null) =>
+    call<{ tenant: { id: string; tierOverrides: Record<string, string> } }>(
+      "PUT",
+      "/api/admin/tenants/me/tier-overrides",
+      { tier, model },
+    ),
+};

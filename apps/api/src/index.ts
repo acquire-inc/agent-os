@@ -35,7 +35,7 @@ import {
   type ApiKeyContext,
   type LlmClient,
 } from "@agent-os/core";
-import { checkTenantBudget, compareForecasts, inferTaskProfile, pickBestModel, suggestModelForBlueprint, type ModelCatalogEntry, type ModelSuggestion, type TaskProfile, type TokenEstimate } from "@agent-os/core";
+import { checkTenantBudget, compareForecasts, DEFAULT_TIER_MODELS, inferTaskProfile, isModelTier, MODEL_TIERS, pickBestModel, suggestModelForBlueprint, type ModelCatalogEntry, type ModelSuggestion, type ModelTier, type TaskProfile, type TokenEstimate } from "@agent-os/core";
 import { loadModelCatalog, readTenantMonthToDateUsd } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
@@ -1231,6 +1231,85 @@ app.put("/api/admin/tenants/me/model-override", requireAdmin, async (c) => {
     .set({ defaultModelOverride: newOverride })
     .where(eq(schema.tenants.id, tenantId))
     .returning({ id: schema.tenants.id, defaultModelOverride: schema.tenants.defaultModelOverride });
+  return c.json({ tenant: updated });
+});
+
+// ============================ Tier overrides (Phase 65) ==============
+// GET /api/admin/tenants/me/tier-overrides — list every tier with its
+// effective model: the tenant override when present, else the platform
+// default from DEFAULT_TIER_MODELS. T-critical is always pinned and
+// flagged as such so the UI hides the override control.
+app.get("/api/admin/tenants/me/tier-overrides", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const [tenant] = await db
+    .select({ tierOverrides: schema.tenants.tierOverrides })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, tenantId))
+    .limit(1);
+  const overrides = (tenant?.tierOverrides ?? {}) as Partial<Record<ModelTier, string>>;
+  const tiers = MODEL_TIERS.map((tier) => {
+    const defaultModel = DEFAULT_TIER_MODELS[tier].primary;
+    const override = overrides[tier] ?? null;
+    return {
+      tier,
+      defaultModel,
+      override,
+      effective: override ?? defaultModel,
+      // T-critical is the safety floor — never honors per-tenant overrides.
+      // The router fails closed via cantfail.model_violation if drift is
+      // ever detected, but the UI should not even offer the control.
+      pinned: tier === "T-critical",
+    };
+  });
+  return c.json({ tiers });
+});
+
+// PUT /api/admin/tenants/me/tier-overrides  body: { tier: ModelTier, model: string | null }
+// Sets or clears a single tier's per-tenant override. T-critical is refused
+// (the only honest answer is to keep it on Opus). Validates the model exists
+// in the catalog before writing.
+app.put("/api/admin/tenants/me/tier-overrides", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const b = await c.req.json().catch(() => ({})) as { tier?: string; model?: string | null };
+  if (!b.tier || typeof b.tier !== "string" || !isModelTier(b.tier)) {
+    return c.json({ error: `tier must be one of ${MODEL_TIERS.join(", ")}` }, 400);
+  }
+  if (b.tier === "T-critical") {
+    return c.json({
+      error: "T-critical is pinned to claude-opus-4.8 and never honors per-tenant overrides (CLAUDE.md non-negotiable)",
+    }, 400);
+  }
+  const newSlug: string | null = typeof b.model === "string" && b.model.length > 0 ? b.model : null;
+  if (newSlug !== null) {
+    const catalog = await loadModelCatalog(db);
+    const candidate = catalog.find((m) => m.slug === newSlug);
+    if (!candidate) {
+      return c.json({
+        error: `model slug "${newSlug}" is not in the catalog`,
+        catalog_slugs: catalog.filter((m) => m.enabled && m.status !== "deprecated").map((m) => m.slug),
+      }, 400);
+    }
+    if (candidate.tierAffinity === "T-critical") {
+      return c.json({
+        error: "T-critical models cannot be set as a tier override (Tier wins, override loses)",
+        rejected_slug: newSlug,
+      }, 400);
+    }
+  }
+  const [tenant] = await db
+    .select({ tierOverrides: schema.tenants.tierOverrides })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, tenantId))
+    .limit(1);
+  const current = (tenant?.tierOverrides ?? {}) as Partial<Record<ModelTier, string>>;
+  const next: Partial<Record<ModelTier, string>> = { ...current };
+  if (newSlug === null) delete next[b.tier as ModelTier];
+  else next[b.tier as ModelTier] = newSlug;
+  const [updated] = await db
+    .update(schema.tenants)
+    .set({ tierOverrides: next })
+    .where(eq(schema.tenants.id, tenantId))
+    .returning({ id: schema.tenants.id, tierOverrides: schema.tenants.tierOverrides });
   return c.json({ tenant: updated });
 });
 
