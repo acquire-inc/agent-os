@@ -255,7 +255,7 @@ function ModelSpendCard({ rows }: { rows: Array<{ model: string; costUsd: number
   return (
     <Card className="mb-5 p-5">
       <div className="mb-3 flex items-center justify-between">
-        <SectionLabel>Spend by model</SectionLabel>
+        <SectionLabel>Spend by model (this month)</SectionLabel>
         <span className="text-xs text-muted-foreground">From applied routing events</span>
       </div>
       <div className="space-y-2">

@@ -151,7 +151,7 @@ function AgentCard({ agent, cost, mtdSpend, lastRun, onClick }: { agent: Agent; 
           <span title="Month-to-date spend from applied model.routed events">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">MTD</span> {formatUsd(mtdSpend)}
           </span>
-          {cost > 0 && cost !== mtdSpend && (
+          {cost > 0 && Math.abs(cost - mtdSpend) > 0.005 && (
             <span title="All-time cost from the runs table" className="text-muted-foreground/60">
               {formatUsd(cost)}
             </span>
