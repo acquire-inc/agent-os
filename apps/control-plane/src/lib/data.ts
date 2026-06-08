@@ -189,4 +189,23 @@ export const data = {
     }
     return byTenant(demoModelRoutingEvents, tenantId).slice(0, limit);
   },
+
+  // Phase 63: per-model cost roll-up for the cost dashboard. Aggregates
+  // applied=true model.routed events whose payload has a cost_usd, grouped
+  // by model_ran. Reuses modelRoutingRecent for the data source so demo and
+  // Supabase paths stay in lock-step.
+  async costByModel(tenantId: string, limit = 500): Promise<Array<{ model: string; costUsd: number; runs: number }>> {
+    const events = await this.modelRoutingRecent(tenantId, limit);
+    const totals = new Map<string, { costUsd: number; runs: number }>();
+    for (const e of events) {
+      if (!e.payload.applied) continue;
+      const cost = e.payload.cost_usd ?? 0;
+      const model = e.payload.model_ran ?? e.payload.agent_model;
+      const prev = totals.get(model) ?? { costUsd: 0, runs: 0 };
+      totals.set(model, { costUsd: prev.costUsd + cost, runs: prev.runs + 1 });
+    }
+    return Array.from(totals.entries())
+      .map(([model, t]) => ({ model, ...t }))
+      .sort((a, b) => b.costUsd - a.costUsd);
+  },
 };

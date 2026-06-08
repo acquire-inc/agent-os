@@ -50,6 +50,11 @@ function CostPage() {
     queryFn: () => data.tenantBudgetStatus(tenantId!, activeTenant?.monthlyBudgetUsd ?? null),
     enabled: Boolean(tenantId),
   });
+  const { data: costByModel = [] } = useQuery({
+    queryKey: ["costByModel", tenantId],
+    queryFn: () => data.costByModel(tenantId!),
+    enabled: Boolean(tenantId),
+  });
 
   // Slice to selected period
   const sliced = costDays.slice(-period);
@@ -109,6 +114,8 @@ function CostPage() {
       {/* Budget cap (Phase 62: live month-to-date from tenant_month_to_date_usd) */}
       <BudgetCard status={budgetStatus} />
 
+      {/* Phase 63: per-model spend roll-up from applied model.routed events */}
+      {costByModel.length > 0 && <ModelSpendCard rows={costByModel} />}
 
       {/* Spend over time chart */}
       <Card className="mb-5 p-5">
@@ -238,6 +245,38 @@ function BudgetCard({ status }: { status: TenantBudgetStatus | undefined }) {
           </div>
         </div>
       )}
+    </Card>
+  );
+}
+
+function ModelSpendCard({ rows }: { rows: Array<{ model: string; costUsd: number; runs: number }> }) {
+  const total = rows.reduce((s, r) => s + r.costUsd, 0);
+  const max = rows.reduce((m, r) => Math.max(m, r.costUsd), 0) || 1;
+  return (
+    <Card className="mb-5 p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <SectionLabel>Spend by model</SectionLabel>
+        <span className="text-xs text-muted-foreground">From applied routing events</span>
+      </div>
+      <div className="space-y-2">
+        {rows.map((r) => {
+          const pct = (r.costUsd / max) * 100;
+          const share = total > 0 ? (r.costUsd / total) * 100 : 0;
+          return (
+            <div key={r.model}>
+              <div className="mb-0.5 flex items-center justify-between gap-2 text-xs">
+                <code className="truncate text-foreground">{r.model}</code>
+                <span className="font-mono text-muted-foreground">
+                  {formatUsd(r.costUsd)} · {r.runs} {r.runs === 1 ? "run" : "runs"} · {share.toFixed(0)}%
+                </span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </Card>
   );
 }
