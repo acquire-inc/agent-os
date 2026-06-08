@@ -190,6 +190,25 @@ export const data = {
     return byTenant(demoModelRoutingEvents, tenantId).slice(0, limit);
   },
 
+  // Phase 66: per-agent month-to-date spend rolled up from applied
+  // model.routed events. Returns a Map<agentId, costUsd>. Drives the
+  // 'MTD' figure on each AgentCard and keeps the Agents page aligned
+  // with the Cost dashboard's source of truth (relay events, not the
+  // runs fixture).
+  async agentSpendThisMonth(tenantId: string, limit = 500): Promise<Map<string, number>> {
+    const events = await this.modelRoutingRecent(tenantId, limit);
+    const now = new Date();
+    const monthPrefix = now.toISOString().slice(0, 7);
+    const totals = new Map<string, number>();
+    for (const e of events) {
+      if (!e.payload.applied) continue;
+      if (!e.agentId) continue;
+      if (typeof e.occurredAt === "string" && !e.occurredAt.startsWith(monthPrefix)) continue;
+      totals.set(e.agentId, (totals.get(e.agentId) ?? 0) + (e.payload.cost_usd ?? 0));
+    }
+    return totals;
+  },
+
   // Phase 63: per-model cost roll-up for the cost dashboard. Aggregates
   // applied=true model.routed events whose payload has a cost_usd, grouped
   // by model_ran. Reuses modelRoutingRecent for the data source so demo and

@@ -22,7 +22,8 @@ export const Route = createFileRoute("/_app/agents")({ component: AgentsPage });
 
 const SORTS = [
   { value: "name", label: "Name" },
-  { value: "cost", label: "Today's cost" },
+  { value: "mtd", label: "MTD spend" },
+  { value: "cost", label: "All-time cost" },
   { value: "recent", label: "Recently active" },
 ];
 const SOURCES = [
@@ -40,6 +41,13 @@ function AgentsPage() {
 
   const { data: agents = [] } = useQuery({ queryKey: ["agents", tenantId], queryFn: () => data.agents(tenantId!), enabled: Boolean(tenantId) });
   const { data: runs = [] } = useQuery({ queryKey: ["runs", tenantId], queryFn: () => data.runs(tenantId!), enabled: Boolean(tenantId) });
+  // Phase 66: month-to-date spend per agent, sourced from applied
+  // model.routed events (same wire as the Cost dashboard).
+  const { data: mtdByAgent = new Map<string, number>() } = useQuery({
+    queryKey: ["agentSpendThisMonth", tenantId],
+    queryFn: () => data.agentSpendThisMonth(tenantId!),
+    enabled: Boolean(tenantId),
+  });
 
   const costByAgent = new Map<string, number>();
   const lastRunByAgent = new Map<string, Run>();
@@ -57,6 +65,7 @@ function AgentsPage() {
     .filter((a) => matchesSearch([a.name, a.key, a.persona ?? ""], f.filters.search));
 
   const sorted = [...filtered].sort((a, b) => {
+    if (f.filters.sort === "mtd") return (mtdByAgent.get(b.id) ?? 0) - (mtdByAgent.get(a.id) ?? 0);
     if (f.filters.sort === "cost") return (costByAgent.get(b.id) ?? 0) - (costByAgent.get(a.id) ?? 0);
     if (f.filters.sort === "recent") {
       const at = lastRunByAgent.get(a.id)?.startedAt ?? "";
@@ -98,6 +107,7 @@ function AgentsPage() {
               key={a.id}
               agent={a}
               cost={costByAgent.get(a.id) ?? 0}
+              mtdSpend={mtdByAgent.get(a.id) ?? 0}
               lastRun={lastRunByAgent.get(a.id)}
               onClick={() => setSelected(a)}
             />
@@ -110,7 +120,7 @@ function AgentsPage() {
   );
 }
 
-function AgentCard({ agent, cost, lastRun, onClick }: { agent: Agent; cost: number; lastRun?: Run; onClick: () => void }) {
+function AgentCard({ agent, cost, mtdSpend, lastRun, onClick }: { agent: Agent; cost: number; mtdSpend: number; lastRun?: Run; onClick: () => void }) {
   return (
     <Card onClick={onClick} className="cursor-pointer p-5 transition-all hover:border-primary/40 hover:shadow-[var(--shadow-pop)]">
       <div className="flex items-start justify-between">
@@ -137,7 +147,16 @@ function AgentCard({ agent, cost, lastRun, onClick }: { agent: Agent; cost: numb
       <Separator className="my-3" />
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>{lastRun ? `Last run ${relativeTime(lastRun.startedAt ?? lastRun.scheduledFor)}` : "No runs yet"}</span>
-        <span className="font-mono">{formatUsd(cost)}</span>
+        <div className="flex items-center gap-3 font-mono">
+          <span title="Month-to-date spend from applied model.routed events">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">MTD</span> {formatUsd(mtdSpend)}
+          </span>
+          {cost > 0 && cost !== mtdSpend && (
+            <span title="All-time cost from the runs table" className="text-muted-foreground/60">
+              {formatUsd(cost)}
+            </span>
+          )}
+        </div>
       </div>
     </Card>
   );
