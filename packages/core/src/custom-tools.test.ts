@@ -1,6 +1,6 @@
-// Pure test for the custom-tool dispatcher. No DB.
+// Pure test for the custom-tool dispatcher + coverage surfacer. No DB.
 // Run: pnpm --filter @agent-os/core exec tsx src/custom-tools.test.ts
-import { runCustomTool, isImplementedTool, IMPLEMENTED_TOOL_KEYS } from "./custom-tools.js";
+import { runCustomTool, isImplementedTool, IMPLEMENTED_TOOL_KEYS, toolCoverage } from "./custom-tools.js";
 
 let passed = 0, failed = 0;
 function assert(cond: unknown, msg: string) {
@@ -28,6 +28,14 @@ function main() {
   const stub = runCustomTool("tool.billing-engine", {});
   assert(!stub.ok && /no implementation/.test(stub.error ?? ""), "a stub tool returns ok:false, not a fake result");
   assert(IMPLEMENTED_TOOL_KEYS.every((k) => runCustomTool(k, {}).ok), "every declared-implemented key actually dispatches");
+
+  // ── toolCoverage: go-live visibility on what's implemented vs still a stub ──
+  const cov = toolCoverage(["tool.compliance-ruleset", "tool.billing-engine", "tool.compliance-ruleset", "tool.dunning-engine"]);
+  assert(cov.total === 3, "toolCoverage dedupes referenced keys");
+  assert(cov.implemented.length === 1 && cov.implemented[0] === "tool.compliance-ruleset", "implemented tools recognized");
+  assert(cov.stub.includes("tool.billing-engine") && cov.stub.includes("tool.dunning-engine"), "stub tools listed (what's left to build)");
+  assert(Math.abs(cov.ratio - 1 / 3) < 1e-9, "coverage ratio correct");
+  assert(toolCoverage([]).ratio === 0 && toolCoverage([]).total === 0, "empty input → 0 ratio, no divide-by-zero");
 
   console.log(`\nResult: ${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);

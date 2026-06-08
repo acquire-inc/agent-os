@@ -20,6 +20,22 @@ export function isImplementedTool(key: string): key is ImplementedToolKey {
   return (IMPLEMENTED_TOOL_KEYS as readonly string[]).includes(key);
 }
 
+export interface ToolCoverage {
+  implemented: string[];
+  stub: string[];
+  total: number;
+  ratio: number; // implemented / total (0 when total is 0)
+}
+
+/** Partition referenced tool keys into implemented (real dispatcher) vs. stub (catalog metadata
+ *  only). Go-live visibility: the `stub` list is exactly what still needs building. Pure. */
+export function toolCoverage(toolKeys: string[]): ToolCoverage {
+  const unique = [...new Set(toolKeys)];
+  const implemented = unique.filter(isImplementedTool).sort();
+  const stub = unique.filter((k) => !isImplementedTool(k)).sort();
+  return { implemented, stub, total: unique.length, ratio: unique.length ? implemented.length / unique.length : 0 };
+}
+
 export interface CustomToolResult { ok: boolean; result?: unknown; error?: string }
 
 function asText(input: unknown): string {
