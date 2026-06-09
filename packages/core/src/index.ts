@@ -15,6 +15,7 @@ export * from "./compliance-ruleset.js";
 export * from "./isolation-tester.js";
 export * from "./connector-health.js";
 export * from "./ad-rules.js";
+export * from "./change-discipline.js";
 export * from "./custom-tools.js";
 export * from "./workforce.js";
 export * from "./metering.js";

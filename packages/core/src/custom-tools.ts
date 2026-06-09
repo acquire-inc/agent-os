@@ -6,6 +6,7 @@ import { evaluateClaim } from "./compliance-ruleset.js";
 import { evaluateIsolation, type IsolationProbe } from "./isolation-tester.js";
 import { evaluateConnectorHealth, type ConnectorHealth } from "./connector-health.js";
 import { evaluateAdRules, type AdsetPerf } from "./ad-rules.js";
+import { enforceChangeLimit, type ProposedChange, type ChangeRecord } from "./change-discipline.js";
 import { lintVoice } from "./voice-lint.js";
 
 /** Registry tool_keys that have a real implementation today (everything else is a catalog stub). */
@@ -14,6 +15,7 @@ export const IMPLEMENTED_TOOL_KEYS = [
   "tool.isolation-test-suite",
   "tool.connector-healthcheck",
   "tool.4", // Rules Engine (ad-ops)
+  "tool.5", // One-Change-Per-Day Enforcer (ad-ops)
   "tool.voice-lint",
 ] as const;
 export type ImplementedToolKey = (typeof IMPLEMENTED_TOOL_KEYS)[number];
@@ -73,6 +75,10 @@ export function runCustomTool(key: string, input: unknown): CustomToolResult {
         ? (input as { adsets: AdsetPerf[] }).adsets
         : []) as AdsetPerf[];
       return { ok: true, result: evaluateAdRules(Array.isArray(adsets) ? adsets : []) };
+    }
+    case "tool.5": {
+      const o = (input ?? {}) as { proposals?: ProposedChange[]; history?: ChangeRecord[]; now?: string };
+      return { ok: true, result: enforceChangeLimit(Array.isArray(o.proposals) ? o.proposals : [], Array.isArray(o.history) ? o.history : [], { now: o.now }) };
     }
     default:
       return { ok: false, error: `tool '${key}' has no implementation yet (catalog stub).` };
