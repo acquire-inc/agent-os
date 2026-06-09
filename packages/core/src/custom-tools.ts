@@ -5,6 +5,7 @@
 import { evaluateClaim } from "./compliance-ruleset.js";
 import { evaluateIsolation, type IsolationProbe } from "./isolation-tester.js";
 import { evaluateConnectorHealth, type ConnectorHealth } from "./connector-health.js";
+import { evaluateAdRules, type AdsetPerf } from "./ad-rules.js";
 import { lintVoice } from "./voice-lint.js";
 
 /** Registry tool_keys that have a real implementation today (everything else is a catalog stub). */
@@ -12,6 +13,7 @@ export const IMPLEMENTED_TOOL_KEYS = [
   "tool.compliance-ruleset",
   "tool.isolation-test-suite",
   "tool.connector-healthcheck",
+  "tool.4", // Rules Engine (ad-ops)
   "tool.voice-lint",
 ] as const;
 export type ImplementedToolKey = (typeof IMPLEMENTED_TOOL_KEYS)[number];
@@ -65,6 +67,12 @@ export function runCustomTool(key: string, input: unknown): CustomToolResult {
         ? (input as { connectors: ConnectorHealth[] }).connectors
         : []) as ConnectorHealth[];
       return { ok: true, result: evaluateConnectorHealth(Array.isArray(connectors) ? connectors : []) };
+    }
+    case "tool.4": {
+      const adsets = (input && typeof input === "object" && "adsets" in input
+        ? (input as { adsets: AdsetPerf[] }).adsets
+        : []) as AdsetPerf[];
+      return { ok: true, result: evaluateAdRules(Array.isArray(adsets) ? adsets : []) };
     }
     default:
       return { ok: false, error: `tool '${key}' has no implementation yet (catalog stub).` };
