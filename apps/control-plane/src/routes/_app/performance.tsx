@@ -2,11 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Activity, ArrowUpDown } from "lucide-react";
 import { useState } from "react";
-import type { AgentPerfRow } from "@agent-os/shared";
+import type { Agent, AgentPerfRow } from "@agent-os/shared";
 import { CardGridSkeleton, EmptyState, Page, PageHeader } from "#/components/shell/page";
-import { DateRangeChips, KpiCard, MetricSection } from "#/components/shell/metrics";
+import { DateRangeChips, KpiCard, MetricSection, RankBarRow } from "#/components/shell/metrics";
 import { Badge } from "#/components/ui/badge";
 import { Card } from "#/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
 import { useApp } from "#/lib/app-context";
 import { data } from "#/lib/data";
 import { agentInProject, agentMap } from "#/lib/helpers";
@@ -93,7 +94,7 @@ function PerformancePage() {
   return (
     <Page>
       <PageHeader
-        title="Agent performance"
+        title="Dashboard"
         description="Fleet throughput, reliability, and cost — and which agents are carrying (or burning) the load."
         actions={<DateRangeChips value={range} onChange={setRange} />}
       />
@@ -101,7 +102,13 @@ function PerformancePage() {
       {isLoading ? (
         <CardGridSkeleton count={4} columns="sm:grid-cols-2 lg:grid-cols-4" />
       ) : (
-        <>
+        <Tabs defaultValue="agents">
+          <TabsList className="mb-5">
+            <TabsTrigger value="agents">Agent performance</TabsTrigger>
+            <TabsTrigger value="cost">Cost analytics</TabsTrigger>
+            <TabsTrigger value="models">Model routing</TabsTrigger>
+          </TabsList>
+          <TabsContent value="agents">
           <MetricSection title="Fleet">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <KpiCard
@@ -238,7 +245,16 @@ function PerformancePage() {
               </Card>
             )}
           </MetricSection>
-        </>
+          </TabsContent>
+
+          <TabsContent value="cost">
+            <CostAnalyticsTab rows={rows} amap={amap} monthlyBudget={activeTenant?.monthlyBudgetUsd ?? null} rangeLabel={rangeLabel} />
+          </TabsContent>
+
+          <TabsContent value="models">
+            <ModelRoutingTab tenantId={tenantId!} amap={amap} />
+          </TabsContent>
+        </Tabs>
       )}
     </Page>
   );
@@ -308,5 +324,162 @@ function AgentRow({ row, name, model }: { row: AgentPerfRow; name: string; model
       <td className="px-4 py-3 font-mono tabular-nums text-muted-foreground">{row.avgDurationSec}s</td>
       <td className="px-4 py-3 text-muted-foreground">{row.lastActiveIso ? relativeTime(row.lastActiveIso) : "—"}</td>
     </tr>
+  );
+}
+
+// --- Cost analytics tab ------------------------------------------------------
+
+function shortModel(model: string): string {
+  return model.replace("anthropic/", "").replace("nousresearch/", "").replace("claude-", "");
+}
+
+function CostAnalyticsTab({
+  rows,
+  amap,
+  monthlyBudget,
+  rangeLabel,
+}: {
+  rows: AgentPerfRow[];
+  amap: Map<string, Agent>;
+  monthlyBudget: number | null;
+  rangeLabel: string;
+}) {
+  // Derive everything from the same fleet data as the Agent performance tab so
+  // the two tabs always agree (the real cost ledger is empty in demo mode).
+  const windowSpend = rows.reduce((s, r) => s + r.costUsd, 0);
+  const cap = monthlyBudget;
+  const pctUsed = cap && cap > 0 ? (windowSpend / cap) * 100 : 0;
+  const remaining = cap != null ? Math.max(0, cap - windowSpend) : null;
+  const avgRun = rows.reduce((s, r) => s + r.runs, 0);
+  const projection = windowSpend * (30 / 14); // rough end-of-month extrapolation from the window
+  const levelColor = pctUsed > 100 ? "var(--color-danger)" : pctUsed > 80 ? "var(--color-warning)" : "var(--color-success)";
+
+  const byModelMap = new Map<string, { costUsd: number; runs: number }>();
+  for (const r of rows) {
+    const model = amap.get(r.agentId)?.model ?? "unknown";
+    const prev = byModelMap.get(model) ?? { costUsd: 0, runs: 0 };
+    byModelMap.set(model, { costUsd: prev.costUsd + r.costUsd, runs: prev.runs + r.runs });
+  }
+  const byModel = [...byModelMap.entries()]
+    .map(([model, v]) => ({ model, ...v }))
+    .sort((a, b) => b.costUsd - a.costUsd);
+  const maxModel = byModel.reduce((m, r) => Math.max(m, r.costUsd), 0) || 1;
+
+  const topSpenders = [...rows].sort((a, b) => b.costUsd - a.costUsd).slice(0, 8);
+  const maxSpender = topSpenders.reduce((m, r) => Math.max(m, r.costUsd), 0) || 1;
+
+  return (
+    <>
+      <MetricSection title="Budget">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard label={`Spend (${rangeLabel})`} value={formatUsd(windowSpend)} note={`Fleet model spend over the ${rangeLabel} across ${avgRun} runs.`} />
+          <KpiCard label="Remaining" value={remaining != null ? formatUsd(remaining) : "—"} note="Monthly budget cap minus window spend." />
+          <KpiCard label="% of budget" value={cap ? `${Math.round(pctUsed)}%` : "—"} note="Share of the monthly cap consumed." />
+          <KpiCard label="EOM projection" value={formatUsd(projection)} goodDirection="down" note="Linear projection to end of month." />
+        </div>
+        {cap != null && (
+          <Card className="mt-3 p-5">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Budget used</span>
+              <span className="font-mono">
+                {formatUsd(windowSpend)} / {formatUsd(cap)}
+              </span>
+            </div>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pctUsed)}%`, background: levelColor }} />
+            </div>
+          </Card>
+        )}
+      </MetricSection>
+
+      <MetricSection title="Spend by model">
+        <Card className="p-4">
+          {byModel.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No model spend in this window.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {byModel.map((r) => (
+                <RankBarRow
+                  key={r.model}
+                  label={<code className="text-xs">{shortModel(r.model)}</code>}
+                  value={`${formatUsd(r.costUsd)} · ${r.runs} runs`}
+                  pct={(r.costUsd / maxModel) * 100}
+                />
+              ))}
+            </div>
+          )}
+        </Card>
+      </MetricSection>
+
+      <MetricSection title="Top spenders">
+        <Card className="p-4">
+          {topSpenders.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No spend in range.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {topSpenders.map((r) => (
+                <RankBarRow
+                  key={r.agentId}
+                  label={amap.get(r.agentId)?.name ?? "Unknown"}
+                  value={`${formatUsd(r.costUsd)} · ${formatUsd(r.avgCostUsd)}/run`}
+                  pct={(r.costUsd / maxSpender) * 100}
+                  color="var(--color-warning)"
+                />
+              ))}
+            </div>
+          )}
+        </Card>
+      </MetricSection>
+    </>
+  );
+}
+
+// --- Model routing tab -------------------------------------------------------
+
+function ModelRoutingTab({ tenantId, amap }: { tenantId: string; amap: Map<string, Agent> }) {
+  const { data: events = [] } = useQuery({
+    queryKey: ["modelRoutingRecent", tenantId],
+    queryFn: () => data.modelRoutingRecent(tenantId),
+    enabled: Boolean(tenantId),
+  });
+
+  const applied = events.filter((e) => e.payload.applied).length;
+  const audit = events.length - applied;
+  const models = new Set(events.map((e) => e.payload.model_ran ?? e.payload.agent_model)).size;
+
+  return (
+    <>
+      <MetricSection title="Routing">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <KpiCard label="Applied forks" value={String(applied)} note="Decisions that changed the model actually run." />
+          <KpiCard label="Audit-only" value={String(audit)} note="Recommendations recorded but not applied." />
+          <KpiCard label="Models touched" value={String(models)} note="Distinct models in recent decisions." />
+        </div>
+      </MetricSection>
+
+      <MetricSection title="Recent decisions">
+        <Card className="overflow-hidden">
+          {events.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No routing events yet.</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {events.slice(0, 20).map((e) => (
+                <div key={e.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate font-medium">{amap.get(e.agentId ?? "")?.name ?? "—"}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <code className="truncate text-xs text-muted-foreground">{e.payload.model_ran ?? e.payload.agent_model}</code>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge variant={e.payload.applied ? "success" : "outline"}>{e.payload.applied ? "applied" : "audit"}</Badge>
+                    <span className="font-mono text-xs text-muted-foreground">{formatUsd(e.payload.cost_usd ?? 0)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </MetricSection>
+    </>
   );
 }

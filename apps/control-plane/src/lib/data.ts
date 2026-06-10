@@ -37,6 +37,7 @@ import {
   type Tenant,
   type TenantBudgetStatus,
 } from "@agent-os/shared";
+import { mergeMcps } from "./connector-store";
 import { isSupabaseConfigured, supabase } from "./supabase";
 
 function snakeToCamel(s: string): string {
@@ -306,7 +307,9 @@ export const data = {
   },
 
   async mcps(tenantId: string): Promise<Mcp[]> {
-    return isSupabaseConfigured ? sb<Mcp>("mcps", tenantId) : byTenant(demoMcps, tenantId);
+    if (isSupabaseConfigured) return sb<Mcp>("mcps", tenantId);
+    // Demo mode: overlay user-created connectors + status changes (add your own).
+    return mergeMcps(tenantId, byTenant(demoMcps, tenantId));
   },
 
   async folders(tenantId: string): Promise<KnowledgeFolder[]> {

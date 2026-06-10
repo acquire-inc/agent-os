@@ -140,6 +140,39 @@ export function KpiCard({
   );
 }
 
+// Ranked bar row (Dub-style): label + value with a proportional fill bar behind
+// the row. Zero chart-library cost — pure layout. `pct` is 0..100.
+export function RankBarRow({
+  label,
+  value,
+  pct,
+  badge,
+  color = "var(--color-primary)",
+}: {
+  label: ReactNode;
+  value: ReactNode;
+  pct: number;
+  badge?: ReactNode;
+  color?: string;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-lg">
+      <div
+        className="absolute inset-y-0 left-0 rounded-lg opacity-[0.12]"
+        style={{ width: `${Math.max(2, Math.min(100, pct))}%`, background: color }}
+        aria-hidden
+      />
+      <div className="relative flex items-center justify-between gap-3 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm font-medium">{label}</span>
+          {badge}
+        </div>
+        <span className="shrink-0 font-mono text-sm tabular-nums text-muted-foreground">{value}</span>
+      </div>
+    </div>
+  );
+}
+
 // Section heading with a left accent bar, matching the "Revenue & profitability"
 // treatment in the reference UI.
 export function MetricSection({ title, children }: { title: string; children: ReactNode }) {

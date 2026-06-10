@@ -34,7 +34,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Operate",
     items: [
       { to: "/", label: "Runs", icon: Activity },
-      { to: "/performance", label: "Performance", icon: Gauge },
+      { to: "/performance", label: "Dashboard", icon: Gauge },
       { to: "/jobs", label: "Jobs", icon: LayoutGrid },
       { to: "/approvals", label: "Approvals", icon: ClipboardCheck },
     ],
