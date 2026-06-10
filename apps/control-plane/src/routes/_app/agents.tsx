@@ -1,22 +1,23 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AlertCircle, Boxes, Cable, Loader2, Plus, Sparkles, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { architect, hasAdminKey } from "#/lib/api";
-import type { Agent, Job, Run } from "@agent-os/shared";
+import { AUTONOMY_LEVELS, THINKING_LEVELS, type Agent, type Autonomy, type Job, type Mcp, type Run, type ThinkingLevel } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
 import { CardGridSkeleton, EmptyState, Page, PageHeader } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
 import { Drawer } from "#/components/ui/drawer";
-import { Avatar, Separator, StatusDot } from "#/components/ui/misc";
+import { Avatar, Input, Separator, StatusDot } from "#/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
+import { setAgentOverride } from "#/lib/agent-store";
 import { useApp } from "#/lib/app-context";
 import { data } from "#/lib/data";
 import { agentInProject, RUN_STATUS_LABEL, statusBadgeVariant } from "#/lib/helpers";
 import { hasAllTags, matchesSearch } from "#/lib/helpers";
-import { formatUsd, relativeTime } from "#/lib/utils";
+import { cn, formatUsd, relativeTime } from "#/lib/utils";
 
 export const Route = createFileRoute("/_app/agents")({ component: AgentsPage });
 
@@ -117,7 +118,14 @@ function AgentsPage() {
         </div>
       )}
 
-      {selected && <AgentDrawer agent={selected} tenantId={tenantId!} onClose={() => setSelected(null)} />}
+      {selected && (
+        <AgentDrawer
+          agent={selected}
+          tenantId={tenantId!}
+          onClose={() => setSelected(null)}
+          onUpdated={(a) => setSelected(a)}
+        />
+      )}
     </Page>
   );
 }
@@ -164,7 +172,7 @@ function AgentCard({ agent, cost, mtdSpend, lastRun, onClick }: { agent: Agent; 
   );
 }
 
-function AgentDrawer({ agent, tenantId, onClose }: { agent: Agent; tenantId: string; onClose: () => void }) {
+function AgentDrawer({ agent, tenantId, onClose, onUpdated }: { agent: Agent; tenantId: string; onClose: () => void; onUpdated: (a: Agent) => void }) {
   const { data: jobs = [] } = useQuery({ queryKey: ["jobs", tenantId], queryFn: () => data.jobs(tenantId) });
   const { data: runs = [] } = useQuery({ queryKey: ["runs", tenantId], queryFn: () => data.runs(tenantId) });
   const { data: approvals = [] } = useQuery({ queryKey: ["approvals", tenantId], queryFn: () => data.approvals(tenantId) });
@@ -218,20 +226,7 @@ function AgentDrawer({ agent, tenantId, onClose }: { agent: Agent; tenantId: str
         </TabsContent>
 
         <TabsContent value="config" className="space-y-4">
-          <ChipGroup icon={<Sparkles className="size-3.5" />} label="Skills" items={agent.skillKeys ?? []} />
-          <ChipGroup icon={<Cable className="size-3.5" />} label="MCPs / connectors" items={agent.mcpKeys ?? []} />
-          <div>
-            <SubLabel>Knowledge scope</SubLabel>
-            <Muted>
-              {(agent.knowledgeScope?.folders?.length ?? 0) === 0 && (agent.knowledgeScope?.tags?.length ?? 0) === 0
-                ? "Inherits tenant defaults."
-                : [...(agent.knowledgeScope?.folders ?? []), ...(agent.knowledgeScope?.tags ?? [])].join(", ")}
-            </Muted>
-          </div>
-          <div>
-            <SubLabel>Escalation policy</SubLabel>
-            <Muted>{agent.escalationPolicy ?? "Default — propose anything irreversible."}</Muted>
-          </div>
+          <AgentControlPanel agent={agent} tenantId={tenantId} onSaved={onUpdated} />
         </TabsContent>
 
         <TabsContent value="runs">
@@ -359,6 +354,198 @@ function ChipGroup({ icon, label, items }: { icon: React.ReactNode; label: strin
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// --- Editable agent control surface -----------------------------------------
+
+const AUTONOMY_LABEL: Record<Autonomy, string> = {
+  propose: "Propose",
+  execute_safe: "Execute safe",
+  execute_full: "Execute full",
+};
+
+function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  labels,
+}: {
+  value: T;
+  options: readonly T[];
+  onChange: (v: T) => void;
+  labels?: Record<string, string>;
+}) {
+  return (
+    <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-muted p-0.5">
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          onClick={() => onChange(o)}
+          className={cn(
+            "rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-all",
+            value === o ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {labels?.[o] ?? o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AgentControlPanel({ agent, tenantId, onSaved }: { agent: Agent; tenantId: string; onSaved: (a: Agent) => void }) {
+  const qc = useQueryClient();
+  const { data: mcps = [] } = useQuery({ queryKey: ["mcps", tenantId], queryFn: () => data.mcps(tenantId), enabled: Boolean(tenantId) });
+
+  const [enabled, setEnabled] = useState(agent.enabled);
+  const [autonomy, setAutonomy] = useState<Autonomy>(agent.autonomy);
+  const [thinking, setThinking] = useState<ThinkingLevel>(agent.thinkingLevel);
+  const [budget, setBudget] = useState(agent.budgetCapUsd != null ? String(agent.budgetCapUsd) : "");
+  const [escalation, setEscalation] = useState(agent.escalationPolicy ?? "");
+  const [bindings, setBindings] = useState<string[]>(agent.mcpKeys ?? []);
+
+  const bound = (mcp: Mcp) => bindings.some((b) => b.toLowerCase() === mcp.name.toLowerCase());
+  const toggle = (mcp: Mcp) =>
+    setBindings((b) =>
+      bound(mcp) ? b.filter((x) => x.toLowerCase() !== mcp.name.toLowerCase()) : [...b, mcp.name],
+    );
+
+  const patch = {
+    enabled,
+    autonomy,
+    thinkingLevel: thinking,
+    budgetCapUsd: budget.trim() === "" ? null : Number(budget),
+    escalationPolicy: escalation.trim() === "" ? null : escalation.trim(),
+    mcpKeys: bindings,
+  };
+  const baseline = {
+    enabled: agent.enabled,
+    autonomy: agent.autonomy,
+    thinkingLevel: agent.thinkingLevel,
+    budgetCapUsd: agent.budgetCapUsd,
+    escalationPolicy: agent.escalationPolicy,
+    mcpKeys: agent.mcpKeys ?? [],
+  };
+  const dirty = JSON.stringify(patch) !== JSON.stringify(baseline);
+  const budgetInvalid = budget.trim() !== "" && (Number.isNaN(Number(budget)) || Number(budget) < 0);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      setAgentOverride(tenantId, agent.id, patch);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agents", tenantId] });
+      onSaved({ ...agent, ...patch });
+    },
+  });
+
+  function reset() {
+    setEnabled(agent.enabled);
+    setAutonomy(agent.autonomy);
+    setThinking(agent.thinkingLevel);
+    setBudget(agent.budgetCapUsd != null ? String(agent.budgetCapUsd) : "");
+    setEscalation(agent.escalationPolicy ?? "");
+    setBindings(agent.mcpKeys ?? []);
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Enabled */}
+      <div className="flex items-center justify-between rounded-lg border border-border bg-subtle px-3.5 py-2.5">
+        <div>
+          <p className="text-sm font-medium">{enabled ? "Active" : "Paused"}</p>
+          <p className="text-xs text-muted-foreground">{enabled ? "This agent runs on its triggers." : "Triggers are suppressed until re-enabled."}</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          onClick={() => setEnabled((e) => !e)}
+          className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors", enabled ? "bg-primary" : "bg-muted-foreground/30")}
+        >
+          <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-all", enabled ? "left-[22px]" : "left-0.5")} />
+        </button>
+      </div>
+
+      <div>
+        <SubLabel>Autonomy</SubLabel>
+        <Segmented value={autonomy} options={AUTONOMY_LEVELS} onChange={setAutonomy} labels={AUTONOMY_LABEL} />
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          {autonomy === "propose" && "Proposes every action for approval — nothing runs unattended."}
+          {autonomy === "execute_safe" && "Runs reversible actions; proposes anything irreversible."}
+          {autonomy === "execute_full" && "Runs autonomously within its budget and tool scope."}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <SubLabel>Thinking</SubLabel>
+          <Segmented value={thinking} options={THINKING_LEVELS} onChange={setThinking} />
+        </div>
+        <div>
+          <SubLabel>Budget cap (per run)</SubLabel>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">$</span>
+            <Input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="No cap" inputMode="decimal" />
+          </div>
+          {budgetInvalid && <p className="mt-1 text-xs text-danger">Enter a non-negative number.</p>}
+        </div>
+      </div>
+
+      <div>
+        <SubLabel>Connector access ({bindings.length})</SubLabel>
+        <p className="mb-2 text-xs text-muted-foreground">Which tools this agent may act through.</p>
+        {mcps.length === 0 ? (
+          <Muted>No connectors available.</Muted>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {mcps.map((m) => {
+              const on = bound(m);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => toggle(m)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                    on ? "border-primary/50 bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <Cable className="size-3" />
+                  {m.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <SubLabel>Escalation policy</SubLabel>
+        <textarea
+          value={escalation}
+          onChange={(e) => setEscalation(e.target.value)}
+          rows={2}
+          placeholder="Default — propose anything irreversible."
+          className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      </div>
+
+      <ChipGroup icon={<Sparkles className="size-3.5" />} label="Skills (read-only)" items={agent.skillKeys ?? []} />
+
+      <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+        {dirty && (
+          <Button type="button" variant="ghost" onClick={reset}>
+            Reset
+          </Button>
+        )}
+        <Button type="button" disabled={!dirty || budgetInvalid || save.isPending} onClick={() => save.mutate()}>
+          {save.isPending ? "Saving…" : dirty ? "Save changes" : "Saved"}
+        </Button>
+      </div>
     </div>
   );
 }

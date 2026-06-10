@@ -39,6 +39,7 @@ import {
   type Tenant,
   type TenantBudgetStatus,
 } from "@agent-os/shared";
+import { mergeAgents } from "./agent-store";
 import { mergeMcps } from "./connector-store";
 import { isSupabaseConfigured, supabase } from "./supabase";
 
@@ -339,7 +340,8 @@ export const data = {
 
   async agents(tenantId: string): Promise<Agent[]> {
     if (isSupabaseConfigured) return sb<Agent>("agents", tenantId);
-    return byTenant(demoAgents, tenantId);
+    // Demo mode: overlay operator edits to the agent control surface.
+    return mergeAgents(tenantId, byTenant(demoAgents, tenantId));
   },
 
   async jobs(tenantId: string): Promise<Job[]> {
