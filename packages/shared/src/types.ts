@@ -290,6 +290,20 @@ export interface AgentPerformance {
   byAgent: AgentPerfRow[];
 }
 
+// Fleet activity feed — one thing an agent did. The platform's visibility layer:
+// what every agent is doing across connectors, in one stream.
+export type FleetActivityKind = "tool" | "proposal" | "summary" | "start" | "status";
+
+export interface FleetActivityItem {
+  id: string;
+  ts: string; // ISO
+  agentId: string;
+  runId: string | null;
+  kind: FleetActivityKind;
+  connector: string | null; // the tool/connector acted through, when kind === "tool"
+  message: string;
+}
+
 export interface ApiKey {
   id: string;
   tenantId: string;

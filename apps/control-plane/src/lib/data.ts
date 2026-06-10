@@ -23,6 +23,8 @@ import {
   type AgentPerfRow,
   type Approval,
   type CostDay,
+  type FleetActivityItem,
+  type FleetActivityKind,
   type Document,
   type Job,
   type KnowledgeFolder,
@@ -256,6 +258,67 @@ function isoToYmd(iso: string): [number, number, number] {
   return [y ?? 1970, (m ?? 1) - 1, d ?? 1];
 }
 
+// --- Fleet activity (command center) -----------------------------------------
+// The platform's visibility layer. Demo mode synthesizes a realistic recent
+// stream of agent actions across connectors so operators see "what is everything
+// doing right now"; Supabase mode would read relay/run_activity.
+
+const ACTIVITY_ACTIONS: Record<string, string[]> = {
+  Slack: ["slack.post_message(#ops)", "slack.read_thread(#alerts)", "slack.search(query='churn')"],
+  Close: ["close.list_leads(stage=qualified)", "close.update_opportunity(stage=won)", "close.get_metrics(period=yesterday)"],
+  "Pipeboard × Meta": ["pipeboard.get_spend(period=7d)", "pipeboard.pause_adset(roas<1)", "pipeboard.get_creatives()"],
+  Gmail: ["gmail.send(to=lead)", "gmail.search(label=inbound)", "gmail.draft(reply)"],
+  "Google Drive": ["drive.read('Q2 plan')", "drive.search('contract')"],
+  Stripe: ["stripe.list_charges(period=today)", "stripe.create_refund(charge=ch_…)"],
+  GitHub: ["github.create_issue('flaky test')", "github.comment_pr(#412)"],
+  HubSpot: ["hubspot.update_contact(stage=mql)", "hubspot.enroll_sequence(welcome)"],
+  Notion: ["notion.append_block('weekly digest')", "notion.search('onboarding')"],
+  Fireflies: ["fireflies.list_transcripts(since=7d)", "fireflies.summarize(meeting)"],
+};
+const ACTIVITY_CONNECTORS = Object.keys(ACTIVITY_ACTIONS);
+const ACTIVITY_SUMMARIES = [
+  "Revenue $14.2k, spend $3.1k, pipeline 23 deals.",
+  "Triaged 18 inbound leads — 4 qualified, 2 routed to AE.",
+  "Drafted 3 follow-ups, queued for send.",
+  "Reconciled yesterday's spend against ROAS floor.",
+  "Summarized 5 call transcripts into the weekly digest.",
+];
+const ACTIVITY_PROPOSALS = [
+  "Account 'Northwind' shows churn signals — propose outreach.",
+  "Adset 4 spend exceeds ROAS floor — propose pause.",
+  "Renewal due in 7d for 'Acme' — propose contract draft.",
+  "Refund request over $500 — propose approval.",
+];
+
+function synthFleetActivity(agents: Agent[], sinceHours = 24, target = 80): FleetActivityItem[] {
+  const items: FleetActivityItem[] = [];
+  const nowMs = new Date().getTime();
+  for (const agent of agents) {
+    const rnd = mulberry32(hashSeed(agent.id + "act"));
+    const connectors = ACTIVITY_CONNECTORS.filter(() => rnd() > 0.45);
+    const pool = connectors.length > 0 ? connectors : [ACTIVITY_CONNECTORS[Math.floor(rnd() * ACTIVITY_CONNECTORS.length)]!];
+    const sessions = 1 + Math.floor(rnd() * 4);
+    for (let s = 0; s < sessions; s++) {
+      const startMs = nowMs - Math.floor(rnd() * sinceHours * 3600 * 1000);
+      let t = startMs;
+      const mk = (kind: FleetActivityKind, connector: string | null, message: string) => {
+        t += 1000 + Math.floor(rnd() * 40000);
+        items.push({ id: `${agent.id}-${s}-${items.length}`, ts: new Date(t).toISOString(), agentId: agent.id, runId: null, kind, connector, message });
+      };
+      mk("start", null, "Run claimed by runner");
+      const calls = 1 + Math.floor(rnd() * 3);
+      for (let c = 0; c < calls; c++) {
+        const conn = pool[Math.floor(rnd() * pool.length)]!;
+        const actions = ACTIVITY_ACTIONS[conn]!;
+        mk("tool", conn, actions[Math.floor(rnd() * actions.length)]!);
+      }
+      if (rnd() > 0.7) mk("proposal", null, ACTIVITY_PROPOSALS[Math.floor(rnd() * ACTIVITY_PROPOSALS.length)]!);
+      else mk("summary", null, ACTIVITY_SUMMARIES[Math.floor(rnd() * ACTIVITY_SUMMARIES.length)]!);
+    }
+  }
+  return items.sort((a, b) => b.ts.localeCompare(a.ts)).slice(0, target);
+}
+
 export const data = {
   async tenants(): Promise<Tenant[]> {
     if (isSupabaseConfigured && supabase) {
@@ -456,5 +519,13 @@ export const data = {
       return aggregateRuns(runs, agents, sinceDays);
     }
     return synthPerformance(agents, sinceDays);
+  },
+
+  // Fleet activity feed — the command center stream. Demo synthesizes recent
+  // cross-connector agent actions; Supabase mode reads run_activity joined to
+  // runs (deferred until live ingest exists).
+  async fleetActivity(tenantId: string): Promise<FleetActivityItem[]> {
+    const agents = (await this.agents(tenantId)).filter((a) => a.enabled);
+    return synthFleetActivity(agents);
   },
 };
