@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Activity, ArrowUpDown } from "lucide-react";
 import { useState } from "react";
-import type { Agent, AgentPerfRow } from "@agent-os/shared";
+import type { Agent, AgentPerfPoint, AgentPerfRow } from "@agent-os/shared";
 import { CardGridSkeleton, EmptyState, Page, PageHeader } from "#/components/shell/page";
 import { DateRangeChips, KpiCard, MetricSection, RankBarRow } from "#/components/shell/metrics";
 import { Badge } from "#/components/ui/badge";
@@ -105,6 +105,7 @@ function PerformancePage() {
         <Tabs defaultValue="agents">
           <TabsList className="mb-5">
             <TabsTrigger value="agents">Agent performance</TabsTrigger>
+            <TabsTrigger value="fleet">Fleet analytics</TabsTrigger>
             <TabsTrigger value="cost">Cost analytics</TabsTrigger>
             <TabsTrigger value="models">Model routing</TabsTrigger>
           </TabsList>
@@ -247,6 +248,10 @@ function PerformancePage() {
           </MetricSection>
           </TabsContent>
 
+          <TabsContent value="fleet">
+            <FleetAnalyticsTab rows={rows} series={series} amap={amap} />
+          </TabsContent>
+
           <TabsContent value="cost">
             <CostAnalyticsTab rows={rows} amap={amap} monthlyBudget={activeTenant?.monthlyBudgetUsd ?? null} rangeLabel={rangeLabel} />
           </TabsContent>
@@ -331,6 +336,133 @@ function AgentRow({ row, name, model }: { row: AgentPerfRow; name: string; model
 
 function shortModel(model: string): string {
   return model.replace("anthropic/", "").replace("nousresearch/", "").replace("claude-", "");
+}
+
+// --- Fleet analytics tab -----------------------------------------------------
+
+function FleetAnalyticsTab({
+  rows,
+  series,
+  amap,
+}: {
+  rows: AgentPerfRow[];
+  series: AgentPerfPoint[];
+  amap: Map<string, Agent>;
+}) {
+  const active = rows.filter((r) => r.runs > 0);
+  const failing = active.filter((r) => r.successRate < 0.85);
+  const busiest = [...active].sort((a, b) => b.runs - a.runs)[0];
+  const slowest = [...active].sort((a, b) => b.avgDurationSec - a.avgDurationSec)[0];
+
+  const topByRuns = [...active].sort((a, b) => b.runs - a.runs).slice(0, 8);
+  const maxRuns = topByRuns.reduce((m, r) => Math.max(m, r.runs), 0) || 1;
+  const reliability = [...active].sort((a, b) => a.successRate - b.successRate).slice(0, 10);
+
+  const failData = series.map((p) => ({ day: shortDay(p.day), Failures: p.failures }));
+  const totalFailures = series.reduce((s, p) => s + p.failures, 0);
+
+  const name = (id: string) => amap.get(id)?.name ?? "Unknown";
+
+  return (
+    <>
+      <MetricSection title="Fleet health">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard label="Active agents" value={String(active.length)} note="Agents with at least one run in the window." />
+          <KpiCard
+            label="Failing agents"
+            value={String(failing.length)}
+            goodDirection="down"
+            note="Agents under 85% success — worth a look."
+          />
+          <KpiCard label="Busiest" value={busiest ? name(busiest.agentId) : "—"} note={busiest ? `${formatNumber(busiest.runs)} runs` : "No activity"} />
+          <KpiCard label="Slowest" value={slowest ? name(slowest.agentId) : "—"} note={slowest ? `${slowest.avgDurationSec}s avg` : "No activity"} />
+        </div>
+      </MetricSection>
+
+      <MetricSection title="Top agents by volume">
+        <Card className="p-4">
+          {topByRuns.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No agent activity in this window.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {topByRuns.map((r) => (
+                <RankBarRow
+                  key={r.agentId}
+                  label={name(r.agentId)}
+                  badge={
+                    <Badge variant={successTone(r.successRate)} className="shrink-0">
+                      {(r.successRate * 100).toFixed(0)}%
+                    </Badge>
+                  }
+                  value={`${formatNumber(r.runs)} runs`}
+                  pct={(r.runs / maxRuns) * 100}
+                />
+              ))}
+            </div>
+          )}
+        </Card>
+      </MetricSection>
+
+      <MetricSection title="Reliability">
+        <Card className="overflow-hidden">
+          {reliability.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No activity in this window.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="px-4 py-3 font-medium">Agent</th>
+                    <th className="px-4 py-3 font-medium">Success</th>
+                    <th className="px-4 py-3 font-medium">Failures</th>
+                    <th className="px-4 py-3 font-medium">Avg dur</th>
+                    <th className="px-4 py-3 font-medium">Last active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reliability.map((r) => (
+                    <tr key={r.agentId} className="border-b border-border/60 last:border-0 hover:bg-muted/40">
+                      <td className="px-4 py-3 font-medium">{name(r.agentId)}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant={successTone(r.successRate)}>{(r.successRate * 100).toFixed(0)}%</Badge>
+                      </td>
+                      <td className="px-4 py-3 font-mono tabular-nums text-muted-foreground">{formatNumber(r.failures)}</td>
+                      <td className="px-4 py-3 font-mono tabular-nums text-muted-foreground">{r.avgDurationSec}s</td>
+                      <td className="px-4 py-3 text-muted-foreground">{r.lastActiveIso ? relativeTime(r.lastActiveIso) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </MetricSection>
+
+      <MetricSection title={`Daily failures · ${formatNumber(totalFailures)} total`}>
+        <Card className="p-5">
+          {totalFailures === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No failures in this window. 🎉</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={failData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="failOnlyFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-danger)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="var(--color-danger)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }} axisLine={{ stroke: "var(--color-border)" }} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }} axisLine={{ stroke: "var(--color-border)" }} tickLine={false} width={28} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
+                <Area type="monotone" dataKey="Failures" stroke="var(--color-danger)" fill="url(#failOnlyFill)" strokeWidth={2} isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+      </MetricSection>
+    </>
+  );
 }
 
 function CostAnalyticsTab({
