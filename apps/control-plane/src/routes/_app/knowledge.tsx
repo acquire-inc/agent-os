@@ -4,7 +4,7 @@ import { BrainCircuit, CheckCircle2, FileText, FolderTree, Search, Sparkles, Upl
 import { useState } from "react";
 import type { Document, KnowledgeFolder } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
-import { EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
+import { CardGridSkeleton, EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
@@ -43,7 +43,7 @@ function KnowledgePage() {
     enabled: Boolean(tenantId),
   });
 
-  const { data: documents = [] } = useQuery({
+  const { data: documents = [], isLoading } = useQuery({
     queryKey: ["documents", tenantId],
     queryFn: () => data.documents(tenantId!),
     enabled: Boolean(tenantId),
@@ -152,7 +152,9 @@ function KnowledgePage() {
 
           <SectionLabel>Documents · {sorted.length}</SectionLabel>
 
-          {sorted.length === 0 ? (
+          {isLoading ? (
+            <CardGridSkeleton count={5} columns="" />
+          ) : sorted.length === 0 ? (
             <EmptyState
               icon={<FileText className="size-8" />}
               title="No documents match your filters"

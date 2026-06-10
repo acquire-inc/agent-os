@@ -7,10 +7,11 @@ interface MenuProps {
   align?: "start" | "end";
   className?: string;
   panelClassName?: string;
+  triggerClassName?: string;
 }
 
 /** Minimal click-outside dropdown. */
-export function Menu({ trigger, children, align = "start", className, panelClassName }: MenuProps) {
+export function Menu({ trigger, children, align = "start", className, panelClassName, triggerClassName }: MenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -39,7 +40,7 @@ export function Menu({ trigger, children, align = "start", className, panelClass
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn("rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring", triggerClassName)}
       >
         {trigger}
       </button>

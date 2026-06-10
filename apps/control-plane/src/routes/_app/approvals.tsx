@@ -4,7 +4,7 @@ import { Check, ClipboardCheck, MessageSquare, Send } from "lucide-react";
 import { useState } from "react";
 import type { Agent, Approval } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
-import { EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
+import { CardGridSkeleton, EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
@@ -34,7 +34,7 @@ function ApprovalsPage() {
   const f = useListFilters("recent");
   const [selectedChoice, setSelectedChoice] = useState<Record<string, string>>({});
 
-  const { data: approvals = [] } = useQuery({
+  const { data: approvals = [], isLoading } = useQuery({
     queryKey: ["approvals", tenantId],
     queryFn: () => data.approvals(tenantId!),
     enabled: Boolean(tenantId),
@@ -102,7 +102,9 @@ function ApprovalsPage() {
         />
       </div>
 
-      {totalVisible === 0 ? (
+      {isLoading ? (
+        <CardGridSkeleton count={4} columns="" />
+      ) : totalVisible === 0 ? (
         <EmptyState
           icon={<ClipboardCheck className="size-8" />}
           title="Inbox zero"

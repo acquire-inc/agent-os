@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Cable, Globe, KeyRound, Plus, RefreshCw, ShieldCheck } from "lucide-react";
 import type { Agent, Mcp } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
-import { EmptyState, Page, PageHeader } from "#/components/shell/page";
+import { CardGridSkeleton, EmptyState, Page, PageHeader } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
@@ -46,7 +46,7 @@ function McpsPage() {
   const tenantId = activeTenant?.id;
   const f = useListFilters("name");
 
-  const { data: mcps = [] } = useQuery({
+  const { data: mcps = [], isLoading } = useQuery({
     queryKey: ["mcps", tenantId],
     queryFn: () => data.mcps(tenantId!),
     enabled: Boolean(tenantId),
@@ -97,7 +97,9 @@ function McpsPage() {
         />
       </div>
 
-      {sorted.length === 0 ? (
+      {isLoading ? (
+        <CardGridSkeleton />
+      ) : sorted.length === 0 ? (
         <EmptyState
           icon={<Cable className="size-8" />}
           title="No MCPs match your filters"

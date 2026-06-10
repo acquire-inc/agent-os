@@ -263,6 +263,33 @@ export interface TenantBudgetStatus {
   level: "ok" | "warn" | "over";
 }
 
+// Agent performance dashboard (fleet throughput / reliability / cost). One
+// daily point in the selected window.
+export interface AgentPerfPoint {
+  day: string; // YYYY-MM-DD (UTC)
+  runs: number;
+  failures: number;
+  costUsd: number;
+}
+
+// Per-agent roll-up over the selected window — the leaderboard row.
+export interface AgentPerfRow {
+  agentId: string;
+  runs: number;
+  failures: number;
+  successRate: number; // 0..1
+  costUsd: number;
+  avgCostUsd: number;
+  avgDurationSec: number;
+  lastActiveIso: string | null;
+}
+
+export interface AgentPerformance {
+  series: AgentPerfPoint[]; // fleet daily over the window (oldest → newest)
+  prevTotals: { runs: number; failures: number; costUsd: number }; // previous equal-length window, for deltas
+  byAgent: AgentPerfRow[];
+}
+
 export interface ApiKey {
   id: string;
   tenantId: string;

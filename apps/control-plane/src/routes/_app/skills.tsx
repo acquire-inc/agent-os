@@ -4,7 +4,7 @@ import { GitBranch, Github, Globe, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import type { Agent, Skill } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
-import { EmptyState, Page, PageHeader } from "#/components/shell/page";
+import { CardGridSkeleton, EmptyState, Page, PageHeader } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
@@ -35,7 +35,7 @@ function SkillsPage() {
   const f = useListFilters("name");
   const [selected, setSelected] = useState<Skill | null>(null);
 
-  const { data: skills = [] } = useQuery({
+  const { data: skills = [], isLoading } = useQuery({
     queryKey: ["skills", tenantId],
     queryFn: () => data.skills(tenantId!),
     enabled: Boolean(tenantId),
@@ -99,7 +99,9 @@ function SkillsPage() {
         />
       </div>
 
-      {sorted.length === 0 ? (
+      {isLoading ? (
+        <CardGridSkeleton />
+      ) : sorted.length === 0 ? (
         <EmptyState
           icon={<Sparkles className="size-8" />}
           title="No skills match your filters"

@@ -4,7 +4,7 @@ import { LayoutGrid, Plus } from "lucide-react";
 import { useState } from "react";
 import type { Job, Run } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
-import { EmptyState, Page, PageHeader } from "#/components/shell/page";
+import { CardGridSkeleton, EmptyState, Page, PageHeader } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
@@ -35,7 +35,7 @@ function JobsPage() {
   const f = useListFilters("name");
   const [selected, setSelected] = useState<Job | null>(null);
 
-  const { data: jobs = [] } = useQuery({
+  const { data: jobs = [], isLoading } = useQuery({
     queryKey: ["jobs", tenantId],
     queryFn: () => data.jobs(tenantId!),
     enabled: Boolean(tenantId),
@@ -108,7 +108,9 @@ function JobsPage() {
         />
       </div>
 
-      {sorted.length === 0 ? (
+      {isLoading ? (
+        <CardGridSkeleton count={5} columns="" />
+      ) : sorted.length === 0 ? (
         <EmptyState
           icon={<LayoutGrid className="size-8" />}
           title="No jobs match your filters"

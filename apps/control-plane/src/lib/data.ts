@@ -18,6 +18,9 @@ import {
   demoTags,
   demoTenants,
   type Agent,
+  type AgentPerformance,
+  type AgentPerfPoint,
+  type AgentPerfRow,
   type Approval,
   type CostDay,
   type Document,
@@ -73,6 +76,183 @@ async function sb<T>(table: string, tenantId: string, order?: string): Promise<T
 
 function byTenant<T extends { tenantId: string }>(rows: T[], tenantId: string): T[] {
   return rows.filter((r) => r.tenantId === tenantId);
+}
+
+// --- Agent performance (dashboard) ---------------------------------------
+// Demo mode synthesizes a realistic fleet from the agent registry so the
+// dashboard's charts and leaderboard have shape before any real run fires.
+// Seeded per-agent so the numbers are stable across reloads (no flicker).
+
+function hashSeed(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function dayIsoUtc(daysAgo: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - daysAgo);
+  return d.toISOString().slice(0, 10);
+}
+
+// Per-model cost/latency bands — opus is slow + pricey, hermes fast + cheap.
+function modelBand(model: string): { lo: number; hi: number; durLo: number; durHi: number } {
+  const m = model.toLowerCase();
+  if (m.includes("opus")) return { lo: 0.12, hi: 0.42, durLo: 22, durHi: 140 };
+  if (m.includes("sonnet")) return { lo: 0.03, hi: 0.12, durLo: 10, durHi: 70 };
+  if (m.includes("haiku")) return { lo: 0.008, hi: 0.03, durLo: 5, durHi: 30 };
+  if (m.includes("405")) return { lo: 0.02, hi: 0.08, durLo: 8, durHi: 55 };
+  return { lo: 0.004, hi: 0.02, durLo: 4, durHi: 24 }; // hermes / cheap tiers
+}
+
+function synthPerformance(agents: Agent[], sinceDays: number): AgentPerformance {
+  const span = sinceDays * 2; // current window + previous window for deltas
+  const dayKey = (daysAgo: number) => dayIsoUtc(daysAgo);
+  const fleet = new Map<string, AgentPerfPoint>(); // current window, keyed by day
+  for (let d = sinceDays - 1; d >= 0; d--) fleet.set(dayKey(d), { day: dayKey(d), runs: 0, failures: 0, costUsd: 0 });
+  const prevTotals = { runs: 0, failures: 0, costUsd: 0 };
+  const byAgent: AgentPerfRow[] = [];
+
+  for (const agent of agents) {
+    const rnd = mulberry32(hashSeed(agent.id));
+    const band = modelBand(agent.model);
+    const activity = 2 + Math.floor(rnd() * 14); // base runs/day 2..15
+    const failRate = rnd() * 0.18; // 0..18%
+    const avgDurationSec = Math.round(band.durLo + rnd() * (band.durHi - band.durLo));
+
+    let curRuns = 0;
+    let curFails = 0;
+    let curCost = 0;
+    let lastActiveDaysAgo: number | null = null;
+
+    for (let d = span - 1; d >= 0; d--) {
+      const wobble = 0.5 + rnd() * 1.0; // per-day multiplier
+      const runsToday = Math.max(0, Math.round(activity * wobble));
+      const failsToday = Math.min(runsToday, Math.round(runsToday * failRate * (0.4 + rnd())));
+      const costToday = Math.round(runsToday * (band.lo + rnd() * (band.hi - band.lo)) * 1000) / 1000;
+
+      if (d < sinceDays) {
+        const pt = fleet.get(dayKey(d));
+        if (pt) {
+          pt.runs += runsToday;
+          pt.failures += failsToday;
+          pt.costUsd = Math.round((pt.costUsd + costToday) * 1000) / 1000;
+        }
+        curRuns += runsToday;
+        curFails += failsToday;
+        curCost += costToday;
+        if (runsToday > 0 && (lastActiveDaysAgo === null || d < lastActiveDaysAgo)) lastActiveDaysAgo = d;
+      } else {
+        prevTotals.runs += runsToday;
+        prevTotals.failures += failsToday;
+        prevTotals.costUsd += costToday;
+      }
+    }
+
+    let lastActiveIso: string | null = null;
+    if (lastActiveDaysAgo !== null) {
+      const dt = new Date();
+      dt.setUTCDate(dt.getUTCDate() - lastActiveDaysAgo);
+      dt.setUTCHours(8 + Math.floor(rnd() * 12), Math.floor(rnd() * 60), 0, 0);
+      lastActiveIso = dt.toISOString();
+    }
+
+    byAgent.push({
+      agentId: agent.id,
+      runs: curRuns,
+      failures: curFails,
+      successRate: curRuns > 0 ? (curRuns - curFails) / curRuns : 0,
+      costUsd: Math.round(curCost * 100) / 100,
+      avgCostUsd: curRuns > 0 ? curCost / curRuns : 0,
+      avgDurationSec,
+      lastActiveIso,
+    });
+  }
+
+  prevTotals.costUsd = Math.round(prevTotals.costUsd * 100) / 100;
+  return {
+    series: Array.from(fleet.values()),
+    prevTotals,
+    byAgent: byAgent.sort((a, b) => b.runs - a.runs),
+  };
+}
+
+// Real-runs path: bucket the runs table by start day into the current and
+// previous windows.
+function aggregateRuns(runs: Run[], agents: Agent[], sinceDays: number): AgentPerformance {
+  const startMs = Date.UTC(...isoToYmd(dayIsoUtc(sinceDays - 1)));
+  const prevStartMs = Date.UTC(...isoToYmd(dayIsoUtc(sinceDays * 2 - 1)));
+  const fleet = new Map<string, AgentPerfPoint>();
+  for (let d = sinceDays - 1; d >= 0; d--) fleet.set(dayIsoUtc(d), { day: dayIsoUtc(d), runs: 0, failures: 0, costUsd: 0 });
+  const prevTotals = { runs: 0, failures: 0, costUsd: 0 };
+  const agg = new Map<string, { runs: number; failures: number; costUsd: number; durSec: number; durN: number; last: string | null }>();
+  for (const a of agents) agg.set(a.id, { runs: 0, failures: 0, costUsd: 0, durSec: 0, durN: 0, last: null });
+
+  for (const r of runs) {
+    const started = r.startedAt ?? r.scheduledFor;
+    if (!started) continue;
+    const ms = Date.parse(started);
+    const failed = r.status === "failed";
+    if (ms >= startMs) {
+      const day = started.slice(0, 10);
+      const pt = fleet.get(day);
+      if (pt) {
+        pt.runs += 1;
+        if (failed) pt.failures += 1;
+        pt.costUsd = Math.round((pt.costUsd + r.costUsd) * 1000) / 1000;
+      }
+      const a = agg.get(r.agentId);
+      if (a) {
+        a.runs += 1;
+        if (failed) a.failures += 1;
+        a.costUsd += r.costUsd;
+        if (r.startedAt && r.endedAt) {
+          a.durSec += Math.max(0, (Date.parse(r.endedAt) - Date.parse(r.startedAt)) / 1000);
+          a.durN += 1;
+        }
+        if (!a.last || started > a.last) a.last = started;
+      }
+    } else if (ms >= prevStartMs) {
+      prevTotals.runs += 1;
+      if (failed) prevTotals.failures += 1;
+      prevTotals.costUsd += r.costUsd;
+    }
+  }
+
+  const byAgent: AgentPerfRow[] = [];
+  for (const [agentId, a] of agg) {
+    if (a.runs === 0) continue;
+    byAgent.push({
+      agentId,
+      runs: a.runs,
+      failures: a.failures,
+      successRate: (a.runs - a.failures) / a.runs,
+      costUsd: Math.round(a.costUsd * 100) / 100,
+      avgCostUsd: a.costUsd / a.runs,
+      avgDurationSec: a.durN > 0 ? Math.round(a.durSec / a.durN) : 0,
+      lastActiveIso: a.last,
+    });
+  }
+  prevTotals.costUsd = Math.round(prevTotals.costUsd * 100) / 100;
+  return { series: Array.from(fleet.values()), prevTotals, byAgent: byAgent.sort((x, y) => y.runs - x.runs) };
+}
+
+function isoToYmd(iso: string): [number, number, number] {
+  const [y, m, d] = iso.split("-").map(Number);
+  return [y ?? 1970, (m ?? 1) - 1, d ?? 1];
 }
 
 export const data = {
@@ -261,5 +441,17 @@ export const data = {
     return Array.from(totals.entries())
       .map(([model, t]) => ({ model, ...t }))
       .sort((a, b) => b.costUsd - a.costUsd);
+  },
+
+  // Agent performance dashboard. Supabase mode aggregates the real runs table
+  // by start day; demo mode synthesizes a deterministic fleet from the agent
+  // registry so the charts and leaderboard have shape out of the box.
+  async agentPerformance(tenantId: string, sinceDays: number): Promise<AgentPerformance> {
+    const agents = (await this.agents(tenantId)).filter((a) => a.enabled);
+    if (isSupabaseConfigured && supabase) {
+      const runs = await this.runs(tenantId);
+      return aggregateRuns(runs, agents, sinceDays);
+    }
+    return synthPerformance(agents, sinceDays);
   },
 };

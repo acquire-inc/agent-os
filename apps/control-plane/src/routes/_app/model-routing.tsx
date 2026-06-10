@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ArrowRight, Cpu, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import type { Agent, ModelRoutingEvent } from "@agent-os/shared";
-import { EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
+import { CardGridSkeleton, EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
@@ -27,7 +27,7 @@ function ModelRoutingPage() {
   const tenantId = activeTenant?.id;
   const [filter, setFilter] = useState<Filter>("all");
 
-  const { data: events = [] } = useQuery<ModelRoutingEvent[]>({
+  const { data: events = [], isLoading } = useQuery<ModelRoutingEvent[]>({
     queryKey: ["modelRoutingRecent", tenantId],
     queryFn: () => data.modelRoutingRecent(tenantId!),
     enabled: Boolean(tenantId),
@@ -78,7 +78,9 @@ function ModelRoutingPage() {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <CardGridSkeleton count={5} columns="" />
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Cpu className="size-8" />}
           title="No routing events yet"

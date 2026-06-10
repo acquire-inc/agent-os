@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle, KeyRound, Link2, Lock, Plug, RefreshCw, ShieldCheck } from "lucide-react";
 import type { Mcp } from "@agent-os/shared";
-import { EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
+import { CardGridSkeleton, EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
@@ -18,7 +18,7 @@ function ConnectionsPage() {
   const { activeTenant, activeProjectId } = useApp();
   const tenantId = activeTenant?.id;
 
-  const { data: mcps = [] } = useQuery({
+  const { data: mcps = [], isLoading } = useQuery({
     queryKey: ["mcps", tenantId],
     queryFn: () => data.mcps(tenantId!),
     enabled: Boolean(tenantId),
@@ -52,7 +52,9 @@ function ConnectionsPage() {
         </div>
       </Card>
 
-      {connectable.length === 0 ? (
+      {isLoading ? (
+        <CardGridSkeleton count={4} columns="" />
+      ) : connectable.length === 0 ? (
         <EmptyState
           icon={<Plug className="size-8" />}
           title="No connections yet"

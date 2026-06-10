@@ -5,7 +5,7 @@ import { useState } from "react";
 import { architect, hasAdminKey } from "#/lib/api";
 import type { Agent, Job, Run } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
-import { EmptyState, Page, PageHeader } from "#/components/shell/page";
+import { CardGridSkeleton, EmptyState, Page, PageHeader } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
@@ -39,7 +39,7 @@ function AgentsPage() {
   const f = useListFilters("name");
   const [selected, setSelected] = useState<Agent | null>(null);
 
-  const { data: agents = [] } = useQuery({ queryKey: ["agents", tenantId], queryFn: () => data.agents(tenantId!), enabled: Boolean(tenantId) });
+  const { data: agents = [], isLoading } = useQuery({ queryKey: ["agents", tenantId], queryFn: () => data.agents(tenantId!), enabled: Boolean(tenantId) });
   const { data: runs = [] } = useQuery({ queryKey: ["runs", tenantId], queryFn: () => data.runs(tenantId!), enabled: Boolean(tenantId) });
   // Phase 66: month-to-date spend per agent, sourced from applied
   // model.routed events (same wire as the Cost dashboard).
@@ -98,7 +98,9 @@ function AgentsPage() {
         />
       </div>
 
-      {sorted.length === 0 ? (
+      {isLoading ? (
+        <CardGridSkeleton />
+      ) : sorted.length === 0 ? (
         <EmptyState icon={<Boxes className="size-8" />} title="No agents here yet" description="Create an agent or switch project scope." />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

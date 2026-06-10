@@ -16,3 +16,4 @@ coverage/
 
 # TanStack Router generated
 routeTree.gen.ts
+.gstack/

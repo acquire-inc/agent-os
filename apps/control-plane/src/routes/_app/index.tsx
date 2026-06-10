@@ -4,7 +4,7 @@ import { Activity, Clock, Coins, Zap } from "lucide-react";
 import { useState } from "react";
 import type { Run } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
-import { EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
+import { CardGridSkeleton, EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Card } from "#/components/ui/card";
 import { Separator, StatusDot } from "#/components/ui/misc";
@@ -49,7 +49,7 @@ function RunsPage() {
   const f = useListFilters("recent");
   const [selected, setSelected] = useState<Run | null>(null);
 
-  const { data: runs = [] } = useQuery({
+  const { data: runs = [], isLoading } = useQuery({
     queryKey: ["runs", tenantId],
     queryFn: () => data.runs(tenantId!),
     enabled: Boolean(tenantId),
@@ -111,7 +111,9 @@ function RunsPage() {
         />
       </div>
 
-      {sorted.length === 0 ? (
+      {isLoading ? (
+        <CardGridSkeleton count={4} columns="lg:grid-cols-2 xl:grid-cols-4" />
+      ) : sorted.length === 0 ? (
         <EmptyState icon={<Activity className="size-8" />} title="No runs match your filters" description="Try clearing filters or switching project scope." />
       ) : (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-4">

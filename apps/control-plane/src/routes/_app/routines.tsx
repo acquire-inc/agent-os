@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Calendar, Clock, Plus, Repeat } from "lucide-react";
 import type { Job, Routine } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
-import { EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
+import { CardGridSkeleton, EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
@@ -55,7 +55,7 @@ function RoutinesPage() {
   const tenantId = activeTenant?.id;
   const f = useListFilters("cadence");
 
-  const { data: routines = [] } = useQuery({
+  const { data: routines = [], isLoading } = useQuery({
     queryKey: ["routines", tenantId],
     queryFn: () => data.routines(tenantId!),
     enabled: Boolean(tenantId),
@@ -110,7 +110,9 @@ function RoutinesPage() {
         />
       </div>
 
-      {sorted.length === 0 ? (
+      {isLoading ? (
+        <CardGridSkeleton />
+      ) : sorted.length === 0 ? (
         <EmptyState
           icon={<Repeat className="size-8" />}
           title="No routines here yet"
