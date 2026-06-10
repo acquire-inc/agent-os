@@ -110,10 +110,10 @@
   --radius-sm: calc(var(--radius) - 0.4rem);
   --radius-xl: calc(var(--radius) + 0.4rem);
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-    "Inter", "Segoe UI", Roboto, Helvetica, Arial, system-ui, sans-serif;
-  --font-mono: "SF Mono", ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo,
-    Consolas, monospace;
+  --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI", Roboto, Helvetica, Arial, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", "SF Mono", ui-monospace, SFMono-Regular,
+    "JetBrains Mono", Menlo, Consolas, monospace;
 }
 
 * {
