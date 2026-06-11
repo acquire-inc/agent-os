@@ -47,7 +47,7 @@ export function Menu({ trigger, children, align = "start", className, panelClass
       {open && (
         <div
           className={cn(
-            "animate-in absolute z-50 mt-2 min-w-52 overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-[var(--shadow-pop)]",
+            "frosted animate-in absolute z-50 mt-2 min-w-52 overflow-hidden rounded-xl border border-border p-1 text-popover-foreground shadow-[var(--shadow-pop)]",
             align === "end" ? "right-0" : "left-0",
             panelClassName,
           )}

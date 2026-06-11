@@ -28,7 +28,7 @@ export function Drawer({
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div
-        className="absolute inset-0 bg-black/30 backdrop-blur-[2px] transition-opacity"
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
         aria-hidden
       />
@@ -41,7 +41,7 @@ export function Drawer({
         )}
         style={{ animationName: "aos-fade-in" }}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+        <div className="frosted sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
           <div className="min-w-0 flex-1">{title}</div>
           <button
             type="button"

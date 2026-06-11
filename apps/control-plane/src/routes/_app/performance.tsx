@@ -227,7 +227,7 @@ function PerformancePage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                        <th className="px-4 py-3 font-medium">Agent</th>
+                        <th className="px-3 py-2.5 font-medium">Agent</th>
                         <SortHeader label="Runs" k="runs" sortKey={sortKey} onSort={setSortKey} />
                         <SortHeader label="Success" k="successRate" sortKey={sortKey} onSort={setSortKey} />
                         <SortHeader label="Avg cost" k="avgCostUsd" sortKey={sortKey} onSort={setSortKey} />
@@ -278,7 +278,7 @@ function SortHeader({
 }) {
   const active = sortKey === k;
   return (
-    <th className="px-4 py-3 font-medium">
+    <th className="px-3 py-2.5 font-medium">
       <button
         type="button"
         onClick={() => onSort(k)}
@@ -310,7 +310,7 @@ function successTone(rate: number): "success" | "warning" | "danger" {
 function AgentRow({ row, name, model }: { row: AgentPerfRow; name: string; model: string }) {
   return (
     <tr className="border-b border-border/60 last:border-0 hover:bg-muted/40">
-      <td className="px-4 py-3">
+      <td className="px-3 py-2.5">
         <div className="flex items-center gap-2">
           <span className="font-medium">{name}</span>
           {model && (
@@ -320,14 +320,14 @@ function AgentRow({ row, name, model }: { row: AgentPerfRow; name: string; model
           )}
         </div>
       </td>
-      <td className="px-4 py-3 font-mono tabular-nums">{formatNumber(row.runs)}</td>
-      <td className="px-4 py-3">
+      <td className="px-3 py-2.5 font-mono tabular-nums">{formatNumber(row.runs)}</td>
+      <td className="px-3 py-2.5">
         <Badge variant={successTone(row.successRate)}>{(row.successRate * 100).toFixed(0)}%</Badge>
       </td>
-      <td className="px-4 py-3 font-mono tabular-nums text-muted-foreground">{formatUsd(row.avgCostUsd)}</td>
-      <td className="px-4 py-3 font-mono tabular-nums">{formatUsd(row.costUsd)}</td>
-      <td className="px-4 py-3 font-mono tabular-nums text-muted-foreground">{row.avgDurationSec}s</td>
-      <td className="px-4 py-3 text-muted-foreground">{row.lastActiveIso ? relativeTime(row.lastActiveIso) : "—"}</td>
+      <td className="px-3 py-2.5 font-mono tabular-nums text-muted-foreground">{formatUsd(row.avgCostUsd)}</td>
+      <td className="px-3 py-2.5 font-mono tabular-nums">{formatUsd(row.costUsd)}</td>
+      <td className="px-3 py-2.5 font-mono tabular-nums text-muted-foreground">{row.avgDurationSec}s</td>
+      <td className="px-3 py-2.5 text-muted-foreground">{row.lastActiveIso ? relativeTime(row.lastActiveIso) : "—"}</td>
     </tr>
   );
 }
@@ -412,23 +412,23 @@ function FleetAnalyticsTab({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th className="px-4 py-3 font-medium">Agent</th>
-                    <th className="px-4 py-3 font-medium">Success</th>
-                    <th className="px-4 py-3 font-medium">Failures</th>
-                    <th className="px-4 py-3 font-medium">Avg dur</th>
-                    <th className="px-4 py-3 font-medium">Last active</th>
+                    <th className="px-3 py-2.5 font-medium">Agent</th>
+                    <th className="px-3 py-2.5 font-medium">Success</th>
+                    <th className="px-3 py-2.5 font-medium">Failures</th>
+                    <th className="px-3 py-2.5 font-medium">Avg dur</th>
+                    <th className="px-3 py-2.5 font-medium">Last active</th>
                   </tr>
                 </thead>
                 <tbody>
                   {reliability.map((r) => (
                     <tr key={r.agentId} className="border-b border-border/60 last:border-0 hover:bg-muted/40">
-                      <td className="px-4 py-3 font-medium">{name(r.agentId)}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2.5 font-medium">{name(r.agentId)}</td>
+                      <td className="px-3 py-2.5">
                         <Badge variant={successTone(r.successRate)}>{(r.successRate * 100).toFixed(0)}%</Badge>
                       </td>
-                      <td className="px-4 py-3 font-mono tabular-nums text-muted-foreground">{formatNumber(r.failures)}</td>
-                      <td className="px-4 py-3 font-mono tabular-nums text-muted-foreground">{r.avgDurationSec}s</td>
-                      <td className="px-4 py-3 text-muted-foreground">{r.lastActiveIso ? relativeTime(r.lastActiveIso) : "—"}</td>
+                      <td className="px-3 py-2.5 font-mono tabular-nums text-muted-foreground">{formatNumber(r.failures)}</td>
+                      <td className="px-3 py-2.5 font-mono tabular-nums text-muted-foreground">{r.avgDurationSec}s</td>
+                      <td className="px-3 py-2.5 text-muted-foreground">{r.lastActiveIso ? relativeTime(r.lastActiveIso) : "—"}</td>
                     </tr>
                   ))}
                 </tbody>

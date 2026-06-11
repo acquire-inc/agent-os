@@ -43,7 +43,7 @@
   --radius: 0.75rem;
 
   --shadow-soft: 0 1px 2px oklch(0 0 0 / 0.04), 0 4px 16px oklch(0 0 0 / 0.05);
-  --shadow-pop: 0 8px 32px oklch(0 0 0 / 0.12);
+  --shadow-pop: 0 2px 8px oklch(0 0 0 / 0.06), 0 16px 48px oklch(0 0 0 / 0.10);
 }
 
 .dark {
@@ -173,4 +173,13 @@ h1, h2, h3 {
   background: color-mix(in oklch, var(--color-background) 72%, transparent);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Whop "Frosted UI" panel — for floating surfaces (menus, drawers, the company
+   switcher). Translucent card tint + blur + saturation so the page reads
+   through. Reserve solid surfaces for dense data tables where blur hurts. */
+@utility frosted {
+  background: color-mix(in oklch, var(--color-card) 68%, transparent);
+  backdrop-filter: saturate(160%) blur(16px);
+  -webkit-backdrop-filter: saturate(160%) blur(16px);
 }
