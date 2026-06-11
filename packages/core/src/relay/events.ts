@@ -60,6 +60,13 @@ export const EVENT_NAMES = [
   // Agent lifecycle (carrier: lifecycle endpoint — Phase 8.5)
   "lifecycle.changed",
 
+  // Real-time anomaly circuit-breaker (V2 P5). Emitted when recent runs trip the
+  // breaker (N consecutive failures or a cant-fail event in the window) and the
+  // agent is pulled to propose or paused — minutes, not the 6h scorecard cycle.
+  // The dashboard consumes this as an early-warning; the scorecard job still
+  // confirms the durable demote verdict.
+  "anomaly.circuit_tripped",
+
   // Connector health (carrier: connector-health-monitor agent)
   "connector.health.degraded",
   "connector.health.recovered",

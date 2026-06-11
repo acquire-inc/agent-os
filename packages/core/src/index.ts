@@ -58,5 +58,24 @@ export {
   type ScorecardJobResult,
   type ScorecardJobSink,
 } from "./eval/job.js";
+export {
+  DEFAULT_BREAKER_CONFIG,
+  evaluateCircuitBreaker,
+  runCircuitBreaker,
+  type CircuitBreakerAction,
+  type CircuitBreakerConfig,
+  type CircuitBreakerDecision,
+  type CircuitBreakerSample,
+  type CircuitBreakerSink,
+} from "./eval/circuit-breaker.js";
+export {
+  composeEpisode,
+  episodeNamespace,
+  formatPriorLearnings,
+  heuristicLessons,
+  heuristicReflector,
+  type Reflector,
+  type RunOutcome,
+} from "./memory.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";
