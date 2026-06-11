@@ -7,6 +7,7 @@ import type { ConnectionStatus, Mcp } from "@agent-os/shared";
 
 const MCP_KEY = "aos-user-mcps";
 const STATUS_KEY = "aos-mcp-status";
+const SCOPES_KEY = "aos-mcp-scopes";
 
 type ByTenant<T> = Record<string, T>;
 
@@ -66,6 +67,29 @@ export function setMcpStatus(tenantId: string, id: string, status: ConnectionSta
   const all = read<Record<string, ConnectionStatus>>(STATUS_KEY);
   all[tenantId] = { ...(all[tenantId] ?? {}), [id]: status };
   write(STATUS_KEY, all);
+}
+
+// --- Granted scopes (the permissions an operator granted on connect) ---------
+
+export function grantedScopes(tenantId: string, id: string): string[] | undefined {
+  return read<Record<string, string[]>>(SCOPES_KEY)[tenantId]?.[id];
+}
+
+// Connect a connector with an explicit set of granted scopes (least-privilege).
+export function grantConnector(tenantId: string, id: string, scopes: string[]): void {
+  const all = read<Record<string, string[]>>(SCOPES_KEY);
+  all[tenantId] = { ...(all[tenantId] ?? {}), [id]: scopes };
+  write(SCOPES_KEY, all);
+  setMcpStatus(tenantId, id, "connected");
+}
+
+export function revokeConnector(tenantId: string, id: string): void {
+  const all = read<Record<string, string[]>>(SCOPES_KEY);
+  if (all[tenantId]) {
+    delete all[tenantId][id];
+    write(SCOPES_KEY, all);
+  }
+  setMcpStatus(tenantId, id, "disconnected");
 }
 
 // Merge a base (fixture) list with user-created rows and apply status overrides.

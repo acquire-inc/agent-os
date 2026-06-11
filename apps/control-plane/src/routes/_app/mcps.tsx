@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Cable, Check, Globe, KeyRound, MoreVertical, Plus, RefreshCw, ShieldCheck, Trash2, Unplug } from "lucide-react";
+import { Cable, Check, Globe, KeyRound, Loader2, Lock, MoreVertical, Plus, RefreshCw, ShieldCheck, Trash2, Unplug } from "lucide-react";
 import { useState } from "react";
 import type { Agent, McpAuthType, McpTransport, Mcp, Scope } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
@@ -21,11 +21,14 @@ import {
 } from "#/lib/connector-catalog";
 import {
   addUserMcp,
+  grantConnector,
+  grantedScopes,
   isUserMcp,
   newMcpId,
   removeUserMcp,
-  setMcpStatus,
+  revokeConnector,
 } from "#/lib/connector-store";
+import { scopesFor } from "#/lib/connector-scopes";
 import { data } from "#/lib/data";
 import { hasAllTags, inProjectScope, matchesSearch } from "#/lib/helpers";
 import { cn } from "#/lib/utils";
@@ -64,6 +67,7 @@ function McpsPage() {
   const tenantId = activeTenant?.id;
   const f = useListFilters("name");
   const [addOpen, setAddOpen] = useState(false);
+  const [connecting, setConnecting] = useState<Mcp | null>(null);
   const qc = useQueryClient();
 
   const { data: mcps = [], isLoading } = useQuery({
@@ -141,14 +145,15 @@ function McpsPage() {
               mcp={mcp}
               agentCount={agentCountForMcp(mcp, agents)}
               custom={tenantId ? isUserMcp(tenantId, mcp.id) : false}
-              onConnect={() => {
-                if (!tenantId) return;
-                setMcpStatus(tenantId, mcp.id, "connected");
-                invalidate();
-              }}
+              scopeCount={
+                mcp.status === "connected"
+                  ? (tenantId && grantedScopes(tenantId, mcp.id)?.length) || scopesFor(mcp).length
+                  : 0
+              }
+              onConnect={() => setConnecting(mcp)}
               onDisconnect={() => {
                 if (!tenantId) return;
-                setMcpStatus(tenantId, mcp.id, "disconnected");
+                revokeConnector(tenantId, mcp.id);
                 invalidate();
               }}
               onRemove={() => {
@@ -171,7 +176,128 @@ function McpsPage() {
           onChanged={invalidate}
         />
       )}
+
+      {connecting && tenantId && (
+        <ConnectMcpDrawer
+          mcp={connecting}
+          tenantId={tenantId}
+          onClose={() => setConnecting(null)}
+          onConnected={() => {
+            invalidate();
+            setConnecting(null);
+          }}
+        />
+      )}
     </Page>
+  );
+}
+
+// --- Connect flow (OAuth realism + least-privilege scopes) -------------------
+
+function ConnectMcpDrawer({
+  mcp,
+  tenantId,
+  onClose,
+  onConnected,
+}: {
+  mcp: Mcp;
+  tenantId: string;
+  onClose: () => void;
+  onConnected: () => void;
+}) {
+  const all = scopesFor(mcp);
+  const [granted, setGranted] = useState<string[]>(all);
+  const [keyVal, setKeyVal] = useState("");
+  const reconnect = mcp.status === "needs_reauth";
+
+  const connect = useMutation({
+    mutationFn: async () => {
+      // Mock the authorize round-trip so the flow feels real.
+      await new Promise((r) => setTimeout(r, 700));
+      grantConnector(tenantId, mcp.id, granted);
+    },
+    onSuccess: onConnected,
+  });
+
+  const toggle = (s: string) => setGranted((g) => (g.includes(s) ? g.filter((x) => x !== s) : [...g, s]));
+  const needsKey = mcp.authType === "api_key";
+  const canConnect = (!needsKey || keyVal.trim().length > 0) && granted.length > 0;
+  const ctaLabel =
+    mcp.authType === "oauth" ? `Continue with ${mcp.name}` : mcp.authType === "api_key" ? "Connect" : "Enable";
+
+  return (
+    <Drawer
+      open
+      onClose={onClose}
+      title={
+        <div className="flex items-center gap-2.5">
+          <StatusDot status={mcp.status} />
+          <div>
+            <h2 className="text-base font-semibold leading-tight">{reconnect ? "Reconnect" : "Connect"} {mcp.name}</h2>
+            <p className="text-xs capitalize text-muted-foreground">{mcp.authType === "api_key" ? "API key" : mcp.authType} · {mcp.transport}</p>
+          </div>
+        </div>
+      }
+    >
+      <div className="space-y-5">
+        <div className="rounded-xl border border-border bg-subtle p-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="size-4 text-muted-foreground" />
+            <p className="text-sm font-medium">Your agents will be able to:</p>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Grant only what they need — uncheck anything you'd rather withhold.</p>
+          <div className="mt-3 space-y-1.5">
+            {all.map((s) => {
+              const on = granted.includes(s);
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => toggle(s)}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-1 py-1 text-left transition-colors hover:bg-muted/50"
+                >
+                  <span className={cn("flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-primary bg-primary text-primary-foreground" : "border-border")}>
+                    {on && <Check className="size-3" />}
+                  </span>
+                  <code className="text-xs">{s}</code>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {mcp.authType === "api_key" && (
+          <Field label="API key" hint="Stored in the tenant vault. Never exposed to agent prompts.">
+            <Input value={keyVal} onChange={(e) => setKeyVal(e.target.value)} placeholder="sk_live_…" type="password" autoFocus />
+          </Field>
+        )}
+        {mcp.authType === "oauth" && (
+          <p className="text-xs text-muted-foreground">
+            You'll be sent to {mcp.name} to authorize the scopes above, then returned here.
+          </p>
+        )}
+        {mcp.authType === "none" && (
+          <p className="text-xs text-muted-foreground">No authentication required — this connector runs locally.</p>
+        )}
+
+        <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={!canConnect || connect.isPending} onClick={() => connect.mutate()}>
+            {connect.isPending ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Authorizing…
+              </>
+            ) : (
+              <>
+                <Lock className="size-3.5" /> {ctaLabel}
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </Drawer>
   );
 }
 
@@ -179,6 +305,7 @@ function McpCard({
   mcp,
   agentCount,
   custom,
+  scopeCount,
   onConnect,
   onDisconnect,
   onRemove,
@@ -186,6 +313,7 @@ function McpCard({
   mcp: Mcp;
   agentCount: number;
   custom: boolean;
+  scopeCount: number;
   onConnect: () => void;
   onDisconnect: () => void;
   onRemove: () => void;
@@ -263,7 +391,11 @@ function McpCard({
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <div className="flex items-center gap-3">
           <span>{agentCount} {agentCount === 1 ? "agent" : "agents"}</span>
-          {mcp.lastHealthCheck && <span>Checked {relativeTime(mcp.lastHealthCheck)}</span>}
+          {connected && scopeCount > 0 && (
+            <span className="flex items-center gap-1" title="Permissions granted to agents">
+              <Lock className="size-3" /> {scopeCount} {scopeCount === 1 ? "scope" : "scopes"}
+            </span>
+          )}
         </div>
         {mcp.status === "needs_reauth" ? (
           <Button size="sm" variant="secondary" onClick={onConnect}>
