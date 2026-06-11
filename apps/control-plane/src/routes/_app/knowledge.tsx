@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { BrainCircuit, CheckCircle2, FileText, FolderTree, Search, Sparkles, Upload } from "lucide-react";
 import { useState } from "react";
@@ -8,9 +8,11 @@ import { CardGridSkeleton, EmptyState, Page, PageHeader, SectionLabel } from "#/
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
+import { Drawer } from "#/components/ui/drawer";
 import { Input, Separator } from "#/components/ui/misc";
-import { useApp } from "#/lib/app-context";
+import { ALL_PROJECTS, useApp } from "#/lib/app-context";
 import { data } from "#/lib/data";
+import { addUserDocument, newDocId } from "#/lib/doc-store";
 import { hasAllTags, inProjectScope, matchesSearch } from "#/lib/helpers";
 import { relativeTime } from "#/lib/utils";
 
@@ -36,6 +38,8 @@ function KnowledgePage() {
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [semanticQuery, setSemanticQuery] = useState("");
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const qc = useQueryClient();
 
   const { data: folders = [] } = useQuery({
     queryKey: ["folders", tenantId],
@@ -84,7 +88,7 @@ function KnowledgePage() {
         title="Knowledge"
         description="Shared context, vector-searchable and scoped per project — your eye of Sauron."
         actions={
-          <Button size="sm">
+          <Button size="sm" onClick={() => setUploadOpen(true)}>
             <Upload className="size-4" /> Upload
           </Button>
         }
@@ -169,7 +173,141 @@ function KnowledgePage() {
           )}
         </div>
       </div>
+
+      {tenantId && (
+        <UploadDocDrawer
+          open={uploadOpen}
+          onClose={() => setUploadOpen(false)}
+          tenantId={tenantId}
+          activeProjectId={activeProjectId}
+          folderId={selectedFolderId}
+          folders={scopedFolders}
+          onUploaded={() => {
+            qc.invalidateQueries({ queryKey: ["documents", tenantId] });
+            setUploadOpen(false);
+          }}
+        />
+      )}
     </Page>
+  );
+}
+
+function UploadDocDrawer({
+  open,
+  onClose,
+  tenantId,
+  activeProjectId,
+  folderId,
+  folders,
+  onUploaded,
+}: {
+  open: boolean;
+  onClose: () => void;
+  tenantId: string;
+  activeProjectId: string;
+  folderId: string | null;
+  folders: KnowledgeFolder[];
+  onUploaded: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [folder, setFolder] = useState<string>(folderId ?? "");
+  const [tags, setTags] = useState("");
+  const [body, setBody] = useState("");
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "md";
+      const doc: Document = {
+        id: newDocId(),
+        tenantId,
+        projectId: activeProjectId !== ALL_PROJECTS ? activeProjectId : null,
+        folderId: folder || null,
+        name: name.trim(),
+        type: ext,
+        source: "upload",
+        vectorNamespace: null,
+        vectorIndexed: true,
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      };
+      addUserDocument(tenantId, doc);
+    },
+    onSuccess: () => {
+      setName("");
+      setTags("");
+      setBody("");
+      onUploaded();
+    },
+  });
+
+  const valid = name.trim().length > 0;
+
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      title={
+        <div>
+          <h2 className="text-base font-semibold">Upload to knowledge</h2>
+          <p className="text-xs text-muted-foreground">Paste or name a document — it's vector-indexed for agent retrieval.</p>
+        </div>
+      }
+    >
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valid) save.mutate();
+        }}
+      >
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Name</span>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Q2 strategy.md" autoFocus />
+        </label>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Folder</span>
+            <select
+              value={folder}
+              onChange={(e) => setFolder(e.target.value)}
+              className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">No folder</option>
+              {folders.map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Tags</span>
+            <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="strategy, q2" />
+          </label>
+        </div>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Content</span>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={6}
+            placeholder="Paste document text…"
+            className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <span className="mt-1 block text-xs text-muted-foreground">Demo mode stores metadata only; in production the body is chunked and embedded.</span>
+        </label>
+
+        <div className="mt-2 flex items-center justify-end gap-2 border-t border-border pt-4">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!valid || save.isPending}>
+            {save.isPending ? "Indexing…" : "Upload"}
+          </Button>
+        </div>
+      </form>
+    </Drawer>
   );
 }
 

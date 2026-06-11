@@ -41,6 +41,7 @@ import {
 } from "@agent-os/shared";
 import { mergeAgents } from "./agent-store";
 import { mergeMcps } from "./connector-store";
+import { mergeDocuments } from "./doc-store";
 import { isSupabaseConfigured, supabase } from "./supabase";
 
 function snakeToCamel(s: string): string {
@@ -382,7 +383,8 @@ export const data = {
   },
 
   async documents(tenantId: string): Promise<Document[]> {
-    return isSupabaseConfigured ? sb<Document>("documents", tenantId) : byTenant(demoDocuments, tenantId);
+    if (isSupabaseConfigured) return sb<Document>("documents", tenantId);
+    return mergeDocuments(tenantId, byTenant(demoDocuments, tenantId));
   },
 
   async approvals(tenantId: string): Promise<Approval[]> {
