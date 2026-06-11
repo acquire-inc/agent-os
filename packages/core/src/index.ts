@@ -77,5 +77,19 @@ export {
   type Reflector,
   type RunOutcome,
 } from "./memory.js";
+export {
+  composeReflexionContext,
+  decideReflexion,
+  DEFAULT_REFLEXION_CONFIG,
+  runReflexion,
+  type AttemptOutcome,
+  type Objective,
+  type ObjectiveStatus,
+  type ReflexionAction,
+  type ReflexionConfig,
+  type ReflexionDecision,
+  type ReflexionRunResult,
+  type ReflexionSink,
+} from "./objective.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";

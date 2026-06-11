@@ -57,7 +57,7 @@ Ordered by value + dependency. **buildable-now** = no live Supabase DB needed
 |---|---|---|---|
 | **1** | **Per-agent episodic memory** (write-back + agent-scoped namespaces) | ✅ | — |
 | **2** | **Reflection/distillation + prior-learnings retrieval** in buildBundle | ✅ | 1 |
-| 3 | Objective state + reflexion retry loop (run-to-run carryover) | DB-gated | 2 |
+| **3** | **Objective state + reflexion retry loop** (run-to-run carryover) — pure logic + migration + tests shipped | ✅* | 2 |
 | 4 | Agent self-improvement: prompt + skill-composition proposal engine | DB-gated | 3 |
 | **5** | **Real-time anomaly circuit-breaker** + continuous approval-rate monitor | ✅ | 4* |
 | 6 | Critic-agent peer-approval (human-gated for can't-fail + CRA) | DB-gated | 5 |

@@ -67,6 +67,13 @@ export const EVENT_NAMES = [
   // confirms the durable demote verdict.
   "anomaly.circuit_tripped",
 
+  // Objective-driven reflexion retry loop (V2 P3). Emitted on every run finish
+  // where the run carries an objective_id — the runner decides retry / complete
+  // / abandon and the dashboard surfaces it as the durable progress signal for
+  // multi-run targets. Payload: { objective_id, action, attempt_number,
+  // followup_run_id, rationale }.
+  "objective.reflexion_decided",
+
   // Connector health (carrier: connector-health-monitor agent)
   "connector.health.degraded",
   "connector.health.recovered",

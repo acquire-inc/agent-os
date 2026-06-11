@@ -38,7 +38,8 @@
     "test:circuit-breaker": "tsx src/eval/circuit-breaker.test.ts",
     "test:job": "tsx src/eval/job.test.ts",
     "test:cantfail": "tsx src/seed/seedAgent.cantfail.test.ts",
-    "test:memory": "tsx src/memory.test.ts"
+    "test:memory": "tsx src/memory.test.ts",
+    "test:objective": "tsx src/objective.test.ts"
   },
   "dependencies": {
     "@agent-os/db": "workspace:*",
