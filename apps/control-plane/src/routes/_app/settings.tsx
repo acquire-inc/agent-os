@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Copy, FolderGit2, KeyRound, Plus, Tag as TagIcon, Trash2, Users } from "lucide-react";
 import { useState } from "react";
-import type { ApiKey, Project, Tag } from "@agent-os/shared";
+import type { ApiKey, Project, Tag, Tenant } from "@agent-os/shared";
 import { demoApiKeys } from "@agent-os/shared";
 import { Page, PageHeader } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
@@ -14,6 +14,7 @@ import { clearAdminKey, getAdminKey, getApiUrl, hasAdminKey, setAdminKey, setApi
 import { useApp } from "#/lib/app-context";
 import { useAuth } from "#/lib/auth";
 import { data } from "#/lib/data";
+import { setTenantOverride } from "#/lib/tenant-store";
 import { relativeTime } from "#/lib/utils";
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsPage });
@@ -57,47 +58,7 @@ function SettingsPage() {
 
         {/* ── General ─────────────────────────────────────────────────── */}
         <TabsContent value="general">
-          <Card className="max-w-2xl">
-            <CardHeader>
-              <CardTitle>Organization</CardTitle>
-              <CardDescription>Basic details about this organization.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Organization name</label>
-                <Input defaultValue={activeTenant?.name ?? ""} />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Slug</label>
-                <Input defaultValue={activeTenant?.slug ?? ""} disabled />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Type</label>
-                <div className="flex items-center h-9">
-                  <Badge variant="primary">{activeTenant?.type ?? "—"}</Badge>
-                </div>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Timezone</label>
-                <Input defaultValue="America/Los_Angeles" />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Monthly budget</label>
-                <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
-                    $
-                  </span>
-                  <Input
-                    className="pl-6"
-                    defaultValue={String(activeTenant?.monthlyBudgetUsd ?? "")}
-                  />
-                </div>
-              </div>
-              <div className="pt-1">
-                <Button size="sm">Save changes</Button>
-              </div>
-            </CardContent>
-          </Card>
+          <OrganizationCard key={activeTenant?.id} tenant={activeTenant} />
         </TabsContent>
 
         {/* ── Team ────────────────────────────────────────────────────── */}
@@ -482,5 +443,76 @@ function TierOverrideRowEditor({
       )}
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
     </div>
+  );
+}
+
+function OrganizationCard({ tenant }: { tenant: Tenant | null }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState(tenant?.name ?? "");
+  const [budget, setBudget] = useState(tenant?.monthlyBudgetUsd != null ? String(tenant.monthlyBudgetUsd) : "");
+
+  const budgetInvalid = budget.trim() !== "" && (Number.isNaN(Number(budget)) || Number(budget) < 0);
+  const dirty =
+    name !== (tenant?.name ?? "") ||
+    budget !== (tenant?.monthlyBudgetUsd != null ? String(tenant.monthlyBudgetUsd) : "");
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!tenant) return;
+      setTenantOverride(tenant.id, {
+        name: name.trim() || tenant.name,
+        monthlyBudgetUsd: budget.trim() === "" ? null : Number(budget),
+      });
+    },
+    onSuccess: () => {
+      // Refresh the tenant (and anything keyed off its budget, e.g. the Cost dashboard).
+      qc.invalidateQueries({ queryKey: ["tenants"] });
+      qc.invalidateQueries({ queryKey: ["tenantBudgetStatus"] });
+    },
+  });
+
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader>
+        <CardTitle>Organization</CardTitle>
+        <CardDescription>Basic details about this organization.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Organization name</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Slug</label>
+          <Input defaultValue={tenant?.slug ?? ""} disabled />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Type</label>
+          <div className="flex h-9 items-center">
+            <Badge variant="primary">{tenant?.type ?? "—"}</Badge>
+          </div>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Monthly budget</label>
+          <div className="relative">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">$</span>
+            <Input
+              className="pl-6"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              inputMode="decimal"
+              placeholder="No cap"
+            />
+          </div>
+          {budgetInvalid && <p className="mt-1 text-xs text-danger">Enter a non-negative number.</p>}
+          <p className="mt-1 text-xs text-muted-foreground">Feeds the budget bar and projection on the Cost dashboard.</p>
+        </div>
+        <div className="flex items-center gap-2 pt-1">
+          <Button size="sm" disabled={!dirty || budgetInvalid || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending ? "Saving…" : dirty ? "Save changes" : "Saved"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

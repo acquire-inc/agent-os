@@ -43,6 +43,7 @@ import { mergeAgents } from "./agent-store";
 import { mergeApprovals } from "./approval-store";
 import { mergeMcps } from "./connector-store";
 import { mergeDocuments } from "./doc-store";
+import { mergeTenants } from "./tenant-store";
 import { isSupabaseConfigured, supabase } from "./supabase";
 
 function snakeToCamel(s: string): string {
@@ -329,7 +330,7 @@ export const data = {
       if (error) throw error;
       return (rows ?? []).map((r) => mapRow<Tenant>(r as Record<string, unknown>));
     }
-    return demoTenants;
+    return mergeTenants(demoTenants);
   },
 
   async projects(tenantId: string): Promise<Project[]> {
