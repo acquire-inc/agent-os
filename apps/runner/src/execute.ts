@@ -180,6 +180,11 @@ export function buildSystemPrompt(b: Bundle): string {
       : "",
     b.mcpServers.length ? `\n## Connectors\n${b.mcpServers.map((m) => `- ${m.name} (${m.transport})`).join("\n")}` : "",
     b.agent.escalationPolicy ? `\n## Escalation policy\n${b.agent.escalationPolicy}` : "",
+    // Phase V2-2: inject this agent's own prior lessons (episodic memory) so it
+    // starts the run smarter. These are the agent's distilled past outcomes.
+    b.priorLearnings?.length
+      ? `\n## What you've learned before\nLessons from your own past runs — apply them:\n${b.priorLearnings.slice(0, 8).map((l) => `- ${l}`).join("\n")}`
+      : "",
     `\n## Autonomy: ${b.autonomy}`,
     b.autonomy === "propose"
       ? "You may draft and analyze, but DO NOT take irreversible actions — surface them as a proposal for human approval."

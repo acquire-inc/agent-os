@@ -2,6 +2,7 @@ import { schema, type Db } from "@agent-os/db";
 import type { ApprovalOption } from "@agent-os/shared";
 import { and, eq, sql } from "drizzle-orm";
 import { indexDocument, type Embedder } from "./knowledge.js";
+import { composeEpisode, episodeNamespace, heuristicLessons, type RunOutcome } from "./memory.js";
 import { emit } from "./relay/emit.js";
 import { composeRunSummary, CostInvariantViolation } from "./relay/summary.js";
 import { createDb } from "@agent-os/db";
@@ -484,12 +485,19 @@ export async function raiseCapBreachApproval(
 export async function writeRunMemory(db: Db, run: typeof schema.runs.$inferSelect, embedder?: Embedder) {
   if (!run.summary) return;
   const day = new Date().toISOString().slice(0, 10);
-  const namespace = `tenant/${run.tenantId}/memory`;
+  // Phase V2-1: per-agent episodic namespace (under tenant isolation) so an
+  // agent retrieves only what IT learned. Condense the OUTCOME, not just the
+  // summary, and fold in distilled lessons (Phase V2-2 reflection — heuristic
+  // default; an LLM reflector is the production path).
+  const namespace = episodeNamespace(run.agentId);
+  const outcome: RunOutcome = { status: run.status, costUsd: run.costUsd == null ? null : Number(run.costUsd) };
+  const lessons = heuristicLessons({ summary: run.summary, outcome });
+  const content = composeEpisode({ agentKey: run.agentId.slice(0, 8), day, summary: run.summary, outcome, lessons });
   const [doc] = await db
     .insert(documents)
     .values({
       tenantId: run.tenantId,
-      name: `run-summary_${run.agentId.slice(0, 8)}_${day}`,
+      name: `episode_${run.agentId.slice(0, 8)}_${day}`,
       type: "markdown",
       source: "agent-generated",
       vectorNamespace: namespace,
@@ -497,6 +505,6 @@ export async function writeRunMemory(db: Db, run: typeof schema.runs.$inferSelec
     })
     .returning();
   if (doc && embedder) {
-    await indexDocument(db, embedder, { documentId: doc.id, tenantId: run.tenantId, content: run.summary, vectorNamespace: namespace });
+    await indexDocument(db, embedder, { documentId: doc.id, tenantId: run.tenantId, content, vectorNamespace: namespace });
   }
 }

@@ -1,6 +1,7 @@
 import { schema, type Db } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { and, eq, inArray } from "drizzle-orm";
+import { episodeNamespace, formatPriorLearnings } from "./memory.js";
 
 const { agents, agentMcps, agentSkills, agentTools, documents, envVars, jobRefs, jobs, mcps, runs, skills, tools } = schema;
 
@@ -66,6 +67,9 @@ export interface Bundle {
     taskProfile: Record<string, unknown>;
   }[];
   knowledge: { chunk: string; source: string }[];
+  /** Phase V2-2: prior lessons this agent learned in past runs (agent-scoped
+   *  episodic memory), injected so the next run starts smarter. */
+  priorLearnings: string[];
   envVars: Record<string, string>;
   autonomy: string;
   escalationPolicy: string | null;
@@ -130,9 +134,14 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
 
   // Vector-retrieve knowledge relevant to this job, scoped to the agent.
   let knowledge: { chunk: string; source: string }[] = [];
+  let priorLearnings: string[] = [];
   if (opts.retrieveKnowledge) {
     const query = [job?.instructions, agent.persona].filter(Boolean).join("\n").slice(0, 2000);
     if (query) knowledge = await opts.retrieveKnowledge(query, scope.folders).catch(() => []);
+    // Phase V2-2: pull this agent's own prior lessons (episodic memory) so the
+    // run starts smarter. Separate namespace from job-knowledge; best-effort.
+    const chunks = await opts.retrieveKnowledge(query || agent.persona || agent.name, [episodeNamespace(agent.id)]).catch(() => []);
+    priorLearnings = formatPriorLearnings(chunks);
   }
 
   return {
@@ -203,6 +212,7 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
       taskProfile: (t.taskProfile ?? {}) as Record<string, unknown>,
     })),
     knowledge,
+    priorLearnings,
     // Decrypt env values via the vault; never emit ciphertext. Omit if no decryptor.
     envVars: opts.decryptEnv
       ? Object.fromEntries(envRows.flatMap((e) => {

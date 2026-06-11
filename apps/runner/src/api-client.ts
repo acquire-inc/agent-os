@@ -20,6 +20,9 @@ export interface Bundle {
   // back-compat with API responses that predate the tools registry.
   tools?: { key: string; name: string; kind: string; inputSchema: unknown; requiresApproval: boolean; reversible: boolean; costEstimateUsd?: string | number; preferredModelTier?: string | null; taskProfile?: Record<string, unknown> }[];
   knowledge: { chunk: string; source: string }[];
+  /** Phase V2-2: the agent's own prior lessons (episodic memory). Optional for
+   *  wire back-compat with API responses that predate the memory loop. */
+  priorLearnings?: string[];
   envVars: Record<string, string>;
   autonomy: string;
   api: { statusUrl: string; activityUrl: string; approvalsUrl: string; validStatuses: string[] };

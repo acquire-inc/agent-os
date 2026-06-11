@@ -5,7 +5,9 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "tsx src/integration.test.ts",
@@ -34,7 +36,8 @@
     "test:scorecard-flow": "tsx src/eval/scorecard-flow.test.ts",
     "test:controller": "tsx src/eval/controller.test.ts",
     "test:job": "tsx src/eval/job.test.ts",
-    "test:cantfail": "tsx src/seed/seedAgent.cantfail.test.ts"
+    "test:cantfail": "tsx src/seed/seedAgent.cantfail.test.ts",
+    "test:memory": "tsx src/memory.test.ts"
   },
   "dependencies": {
     "@agent-os/db": "workspace:*",
