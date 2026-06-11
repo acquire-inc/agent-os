@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Check, ClipboardCheck, MessageSquare, Send } from "lucide-react";
 import { useState } from "react";
@@ -10,6 +10,8 @@ import { Button } from "#/components/ui/button";
 import { Card } from "#/components/ui/card";
 import { Avatar, Separator } from "#/components/ui/misc";
 import { useApp } from "#/lib/app-context";
+import { approvalDecision, decideApproval } from "#/lib/approval-store";
+import { useAuth } from "#/lib/auth";
 import { data } from "#/lib/data";
 import { agentInProject, agentMap, matchesSearch } from "#/lib/helpers";
 import { relativeTime } from "#/lib/utils";
@@ -32,7 +34,16 @@ function ApprovalsPage() {
   const { activeTenant, activeProjectId } = useApp();
   const tenantId = activeTenant?.id;
   const f = useListFilters("recent");
-  const [selectedChoice, setSelectedChoice] = useState<Record<string, string>>({});
+  const { user } = useAuth();
+  const qc = useQueryClient();
+
+  const decide = useMutation({
+    mutationFn: async ({ id, key }: { id: string; key: string }) => {
+      if (!tenantId) return;
+      decideApproval(tenantId, id, key, user?.name ?? user?.email ?? "operator");
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["approvals", tenantId] }),
+  });
 
   const { data: approvals = [], isLoading } = useQuery({
     queryKey: ["approvals", tenantId],
@@ -121,10 +132,8 @@ function ApprovalsPage() {
                     key={approval.id}
                     approval={approval}
                     agentName={amap.get(approval.agentId)?.name ?? "Unknown"}
-                    chosenKey={selectedChoice[approval.id]}
-                    onChoose={(key) =>
-                      setSelectedChoice((prev) => ({ ...prev, [approval.id]: key }))
-                    }
+                    chosenKey={tenantId ? approvalDecision(tenantId, approval.id)?.choiceKey : undefined}
+                    onChoose={(key) => decide.mutate({ id: approval.id, key })}
                   />
                 ))}
               </div>
@@ -140,10 +149,8 @@ function ApprovalsPage() {
                     key={approval.id}
                     approval={approval}
                     agentName={amap.get(approval.agentId)?.name ?? "Unknown"}
-                    chosenKey={selectedChoice[approval.id]}
-                    onChoose={(key) =>
-                      setSelectedChoice((prev) => ({ ...prev, [approval.id]: key }))
-                    }
+                    chosenKey={tenantId ? approvalDecision(tenantId, approval.id)?.choiceKey : undefined}
+                    onChoose={(key) => decide.mutate({ id: approval.id, key })}
                   />
                 ))}
               </div>
@@ -245,14 +252,19 @@ function ApprovalCard({
           )}
         </>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          {/* The chosen option key isn't persisted on the approval, so we don't
-              falsely highlight one — options are shown neutrally for resolved items. */}
+        <div className="flex flex-wrap items-center gap-2">
           {approval.options.map((opt) => (
-            <Badge key={opt.key} variant="default">
+            <Badge key={opt.key} variant={chosenKey === opt.key ? "success" : "default"}>
+              {chosenKey === opt.key && <Check className="size-3" />}
               {opt.key} · {opt.label}
             </Badge>
           ))}
+          {approval.decidedBy && (
+            <span className="text-xs text-muted-foreground">
+              Decided by {approval.decidedBy}
+              {approval.decidedAt ? ` · ${relativeTime(approval.decidedAt)}` : ""}
+            </span>
+          )}
         </div>
       )}
     </Card>

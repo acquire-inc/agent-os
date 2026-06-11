@@ -40,6 +40,7 @@ import {
   type TenantBudgetStatus,
 } from "@agent-os/shared";
 import { mergeAgents } from "./agent-store";
+import { mergeApprovals } from "./approval-store";
 import { mergeMcps } from "./connector-store";
 import { mergeDocuments } from "./doc-store";
 import { isSupabaseConfigured, supabase } from "./supabase";
@@ -388,7 +389,8 @@ export const data = {
   },
 
   async approvals(tenantId: string): Promise<Approval[]> {
-    return isSupabaseConfigured ? sb<Approval>("approvals", tenantId) : byTenant(demoApprovals, tenantId);
+    if (isSupabaseConfigured) return sb<Approval>("approvals", tenantId);
+    return mergeApprovals(tenantId, byTenant(demoApprovals, tenantId));
   },
 
   async costDays(tenantId: string): Promise<CostDay[]> {
