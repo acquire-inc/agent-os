@@ -12,7 +12,8 @@ import { Card } from "#/components/ui/card";
 import { Drawer } from "#/components/ui/drawer";
 import { Avatar, Input, Separator, StatusDot } from "#/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
-import { setAgentOverride } from "#/lib/agent-store";
+import { addUserAgent, setAgentOverride } from "#/lib/agent-store";
+import { AGENT_TEMPLATES, TEMPLATE_CATEGORIES, blankAgent, templateToAgent, type AgentTemplate } from "#/lib/agent-templates";
 import { useApp } from "#/lib/app-context";
 import { data } from "#/lib/data";
 import { agentInProject, RUN_STATUS_LABEL, statusBadgeVariant } from "#/lib/helpers";
@@ -39,6 +40,8 @@ function AgentsPage() {
   const tenantId = activeTenant?.id;
   const f = useListFilters("name");
   const [selected, setSelected] = useState<Agent | null>(null);
+  const [deployOpen, setDeployOpen] = useState(false);
+  const qc = useQueryClient();
 
   const { data: agents = [], isLoading } = useQuery({ queryKey: ["agents", tenantId], queryFn: () => data.agents(tenantId!), enabled: Boolean(tenantId) });
   const { data: runs = [] } = useQuery({ queryKey: ["runs", tenantId], queryFn: () => data.runs(tenantId!), enabled: Boolean(tenantId) });
@@ -83,7 +86,7 @@ function AgentsPage() {
       <PageHeader
         title="Agents"
         description="Your workforce — each with a persona, model, autonomy, skills, and connectors."
-        actions={<Button size="sm"><Plus className="size-4" /> New agent</Button>}
+        actions={<Button size="sm" onClick={() => setDeployOpen(true)}><Plus className="size-4" /> New agent</Button>}
       />
       <div className="mb-4">
         <FilterBar
@@ -124,6 +127,19 @@ function AgentsPage() {
           tenantId={tenantId!}
           onClose={() => setSelected(null)}
           onUpdated={(a) => setSelected(a)}
+        />
+      )}
+
+      {tenantId && (
+        <DeployAgentDrawer
+          open={deployOpen}
+          onClose={() => setDeployOpen(false)}
+          tenantId={tenantId}
+          onDeployed={(a) => {
+            qc.invalidateQueries({ queryKey: ["agents", tenantId] });
+            setDeployOpen(false);
+            setSelected(a);
+          }}
         />
       )}
     </Page>
@@ -547,6 +563,101 @@ function AgentControlPanel({ agent, tenantId, onSaved }: { agent: Agent; tenantI
         </Button>
       </div>
     </div>
+  );
+}
+
+// --- Deploy agent (template gallery) ----------------------------------------
+
+function DeployAgentDrawer({
+  open,
+  onClose,
+  tenantId,
+  onDeployed,
+}: {
+  open: boolean;
+  onClose: () => void;
+  tenantId: string;
+  onDeployed: (a: Agent) => void;
+}) {
+  const [cat, setCat] = useState("All");
+  const [blankName, setBlankName] = useState("");
+
+  const templates = AGENT_TEMPLATES.filter((t) => cat === "All" || t.category === cat);
+
+  function deploy(template: AgentTemplate) {
+    const a = templateToAgent(tenantId, template);
+    addUserAgent(tenantId, a);
+    onDeployed(a);
+  }
+  function deployBlank() {
+    const a = blankAgent(tenantId, blankName);
+    addUserAgent(tenantId, a);
+    setBlankName("");
+    onDeployed(a);
+  }
+
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      width="max-w-2xl"
+      title={
+        <div>
+          <h2 className="text-base font-semibold">Deploy an agent</h2>
+          <p className="text-xs text-muted-foreground">Start from a template — it lands in propose mode for you to tune.</p>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-1.5">
+          {["All", ...TEMPLATE_CATEGORIES].map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setCat(c)}
+              className={cn(
+                "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+                cat === c ? "border-primary/50 bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {templates.map((t) => (
+            <div key={t.key} className="flex flex-col rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">{t.name}</span>
+                <Badge variant="outline" className="shrink-0 text-[10px]">{t.category}</Badge>
+              </div>
+              <p className="mt-1 flex-1 text-xs text-muted-foreground">{t.persona}</p>
+              <div className="mt-2.5 flex flex-wrap gap-1">
+                {t.connectors.slice(0, 3).map((c) => (
+                  <span key={c} className="inline-flex items-center gap-1 rounded-md border border-border bg-subtle px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    <Cable className="size-2.5" /> {c}
+                  </span>
+                ))}
+              </div>
+              <Button size="sm" variant="secondary" className="mt-3" onClick={() => deploy(t)}>
+                <Plus className="size-3.5" /> Deploy
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-xl border border-dashed border-border p-4">
+          <SubLabel>Or start blank</SubLabel>
+          <div className="flex items-center gap-2">
+            <Input value={blankName} onChange={(e) => setBlankName(e.target.value)} placeholder="Agent name" />
+            <Button size="sm" variant="outline" onClick={deployBlank} disabled={!blankName.trim()}>
+              Create
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Drawer>
   );
 }
 function JobRow({ job }: { job: Job }) {

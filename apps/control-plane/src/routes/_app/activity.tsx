@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Cable, FileText, MessageSquareWarning, Play, Radio, Wrench } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FleetActivityItem, FleetActivityKind } from "@agent-os/shared";
+import { markActivityViewed } from "#/components/onboarding-checklist";
 import { EmptyState, Page, PageHeader } from "#/components/shell/page";
 import { KpiCard } from "#/components/shell/metrics";
 import { Badge } from "#/components/ui/badge";
@@ -44,6 +45,11 @@ function ActivityPage() {
   const tenantId = activeTenant?.id;
   const [kind, setKind] = useState<FleetActivityKind | "all">("all");
   const [agentFilter, setAgentFilter] = useState<string>("all");
+
+  // Mark the onboarding "watch it work" step complete on first view.
+  useEffect(() => {
+    markActivityViewed();
+  }, []);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["fleetActivity", tenantId],

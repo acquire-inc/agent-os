@@ -11,12 +11,14 @@
 import type { Agent } from "@agent-os/shared";
 
 const KEY = "aos-agent-overrides";
+const NEW_KEY = "aos-user-agents";
 
 export type AgentPatch = Partial<
   Pick<Agent, "enabled" | "autonomy" | "thinkingLevel" | "budgetCapUsd" | "escalationPolicy" | "mcpKeys">
 >;
 
 type ByTenant = Record<string, Record<string, AgentPatch>>;
+type AgentsByTenant = Record<string, Agent[]>;
 
 function read(): ByTenant {
   if (typeof localStorage === "undefined") return {};
@@ -56,9 +58,55 @@ export function clearAgentOverride(tenantId: string, id: string): void {
   }
 }
 
-// Apply stored overrides onto a base (fixture) agent list.
+// --- User-created agents (deployed from templates or blank) ------------------
+
+function readAgents(): AgentsByTenant {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(NEW_KEY) ?? "{}") as AgentsByTenant;
+  } catch {
+    return {};
+  }
+}
+
+function writeAgents(value: AgentsByTenant): void {
+  try {
+    localStorage.setItem(NEW_KEY, JSON.stringify(value));
+  } catch {
+    /* non-fatal in demo */
+  }
+}
+
+export function userAgents(tenantId: string): Agent[] {
+  return readAgents()[tenantId] ?? [];
+}
+
+export function addUserAgent(tenantId: string, agent: Agent): void {
+  const all = readAgents();
+  all[tenantId] = [...(all[tenantId] ?? []), agent];
+  writeAgents(all);
+}
+
+export function removeUserAgent(tenantId: string, id: string): void {
+  const all = readAgents();
+  all[tenantId] = (all[tenantId] ?? []).filter((a) => a.id !== id);
+  writeAgents(all);
+}
+
+export function isUserAgent(tenantId: string, id: string): boolean {
+  return (readAgents()[tenantId] ?? []).some((a) => a.id === id);
+}
+
+export function newAgentId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `user-agent-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+}
+
+// Apply stored overrides onto fixture agents, then append user-created agents
+// (overrides apply to those too).
 export function mergeAgents(tenantId: string, base: Agent[]): Agent[] {
   const overrides = read()[tenantId];
-  if (!overrides) return base;
-  return base.map((a) => (overrides[a.id] ? { ...a, ...overrides[a.id] } : a));
+  const all = [...base, ...userAgents(tenantId)];
+  if (!overrides) return all;
+  return all.map((a) => (overrides[a.id] ? { ...a, ...overrides[a.id] } : a));
 }

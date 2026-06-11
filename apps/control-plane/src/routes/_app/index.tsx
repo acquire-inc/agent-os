@@ -4,6 +4,7 @@ import { Activity, Clock, Coins, Zap } from "lucide-react";
 import { useState } from "react";
 import type { Run } from "@agent-os/shared";
 import { FilterBar, useListFilters } from "#/components/shell/filter-bar";
+import { OnboardingChecklist } from "#/components/onboarding-checklist";
 import { CardGridSkeleton, EmptyState, Page, PageHeader, SectionLabel } from "#/components/shell/page";
 import { Badge } from "#/components/ui/badge";
 import { Card } from "#/components/ui/card";
@@ -89,6 +90,8 @@ function RunsPage() {
   return (
     <Page>
       <PageHeader title="Runs" description="Live view of everything your agents are doing right now." />
+
+      {tenantId && <OnboardingChecklist tenantId={tenantId} />}
 
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat icon={<Zap className="size-4" />} label="Running" value={String(statusGroup("running").length)} tone="info" />
