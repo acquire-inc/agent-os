@@ -97,9 +97,12 @@ export function isUserAgent(tenantId: string, id: string): boolean {
   return (readAgents()[tenantId] ?? []).some((a) => a.id === id);
 }
 
+let agentCounter = 0;
 export function newAgentId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `user-agent-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  // Monotonic counter (not Math.random) so rapid creates can't collide.
+  agentCounter += 1;
+  return `user-agent-${Date.now()}-${agentCounter}`;
 }
 
 // Apply stored overrides onto fixture agents, then append user-created agents

@@ -78,7 +78,14 @@ async function sb<T>(table: string, tenantId: string, order?: string): Promise<T
   if (order) q = q.order(order, { ascending: false });
   const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).map((r) => mapRow<T>(r as Record<string, unknown>));
+  const rows = data ?? [];
+  // Defense-in-depth: RLS + the explicit tenant filter should already scope
+  // this, but never let a policy regression leak cross-tenant rows through the
+  // merge layer unnoticed.
+  if (rows.some((r) => (r as { tenant_id?: string }).tenant_id !== tenantId)) {
+    throw new Error(`sb(${table}): cross-tenant row in response — refusing to surface`);
+  }
+  return rows.map((r) => mapRow<T>(r as Record<string, unknown>));
 }
 
 function byTenant<T extends { tenantId: string }>(rows: T[], tenantId: string): T[] {
@@ -508,6 +515,7 @@ export const data = {
       if (!e.payload.applied) continue;
       const cost = e.payload.cost_usd ?? 0;
       const model = e.payload.model_ran ?? e.payload.agent_model;
+      if (!model) continue; // guard: never key the map on undefined
       const prev = totals.get(model) ?? { costUsd: 0, runs: 0 };
       totals.set(model, { costUsd: prev.costUsd + cost, runs: prev.runs + 1 });
     }

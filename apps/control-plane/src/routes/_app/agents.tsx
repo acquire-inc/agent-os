@@ -136,7 +136,10 @@ function AgentsPage() {
           onClose={() => setDeployOpen(false)}
           tenantId={tenantId}
           onDeployed={(a) => {
+            // A new agent affects the agents grid AND the MTD-spend / runs panels.
             qc.invalidateQueries({ queryKey: ["agents", tenantId] });
+            qc.invalidateQueries({ queryKey: ["agentSpendThisMonth", tenantId] });
+            qc.invalidateQueries({ queryKey: ["runs", tenantId] });
             setDeployOpen(false);
             setSelected(a);
           }}

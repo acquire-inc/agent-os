@@ -38,6 +38,9 @@ export function approvalDecision(tenantId: string, id: string): ApprovalDecision
 
 export function decideApproval(tenantId: string, id: string, choiceKey: string, decidedBy: string): void {
   const all = read();
+  // Idempotency: first decision wins. A double-submit or two-tab race cannot
+  // flip an already-resolved approval to a different choice.
+  if (all[tenantId]?.[id]) return;
   all[tenantId] = { ...(all[tenantId] ?? {}), [id]: { choiceKey, decidedBy, decidedAt: new Date().toISOString() } };
   write(all);
 }

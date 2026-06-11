@@ -39,7 +39,9 @@ export function mergeDocuments(tenantId: string, base: Document[]): Document[] {
   return [...userDocuments(tenantId), ...base];
 }
 
+let docCounter = 0;
 export function newDocId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `user-doc-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  docCounter += 1;
+  return `user-doc-${Date.now()}-${docCounter}`;
 }
