@@ -41,7 +41,8 @@
     "test:memory": "tsx src/memory.test.ts",
     "test:objective": "tsx src/objective.test.ts",
     "test:improve": "tsx src/improve.test.ts",
-    "test:critic": "tsx src/critic.test.ts"
+    "test:critic": "tsx src/critic.test.ts",
+    "test:dispatch-contract": "tsx src/dispatch-contract.test.ts"
   },
   "dependencies": {
     "@agent-os/db": "workspace:*",

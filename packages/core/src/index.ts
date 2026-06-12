@@ -124,5 +124,28 @@ export {
   type QuorumDecision,
   type QuorumOutcome,
 } from "./critic.js";
+export {
+  RUN_CLAIMABLE_STATUSES,
+  RUN_IN_FLIGHT_STATUSES,
+  RUN_TERMINAL_STATUSES,
+  RUN_WAITING_STATUSES,
+  isClaimableStatus,
+  isInFlightStatus,
+  isTerminalStatus,
+  isWaitingStatus,
+  nextValidStatuses,
+  orderClaimQueue,
+  validRunTransition,
+  validateApprovalCycle,
+  validateBundleShape,
+  validateSessionEndInvariant,
+  validateToolsRegistry,
+  type BundleValidationResult,
+  type RunClaimableStatus,
+  type RunInFlightStatus,
+  type RunTerminalStatus,
+  type RunWaitingStatus,
+  type ToolContractFacts,
+} from "./dispatch-contract.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";

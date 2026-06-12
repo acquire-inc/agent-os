@@ -17,18 +17,18 @@ migration-time check.
 *Day-one test:* yes — every tenant that touches a policy knob wants malformed
 config refused loudly. · *Class B (review gate).* · Added 2026-06-12.
 
-### I-002 · Offline dispatch/results contract test (CI-runnable)
-The only true dispatch/results contract test (`packages/core/src/integration.test.ts`)
-requires a live DATABASE_URL, so CI and sandbox runs skip the platform's most
-load-bearing seam. Extract the contract shape (run row → dispatch → result
-write-back → summary compose) into a sink-based offline test, mirroring how
-eval/job.ts, objective.ts, and critic.ts test their DB seams. The live test
-stays as the operator gate; the offline twin catches drift on every push.
-*Day-one test:* yes — contract drift breaks every tenant simultaneously.
-*Class B (review gate).* · Added 2026-06-12.
+### I-002 · Offline dispatch/results contract test (CI-runnable) — ✅ SHIPPED 2026-06-12
+Shipped on branch `os-ralph/2026-06-12-i-002-offline-dispatch-contract`:
+`packages/core/src/dispatch-contract.ts` (status partitions w/ compile-time
+exhaustiveness guard, state-machine transition validator, claim ordering,
+Bundle shape validator, approval-cycle invariant, session-end invariant,
+tools-registry contract) + `dispatch-contract.test.ts` (59/59) +
+agent-readable `docs/dispatch-contract.md`. Standing gate added to PLATFORM.md.
+The live integration test stays as the operator gate; this offline twin runs
+on every push.
 
 ## APPROVED
-(none yet)
+- I-002 (shipped — see PENDING entry; left there as the audit row)
 
 ## REJECTED / MOVED-TO-ACQU-LAYER
 (none yet)
