@@ -42,7 +42,8 @@
     "test:objective": "tsx src/objective.test.ts",
     "test:improve": "tsx src/improve.test.ts",
     "test:critic": "tsx src/critic.test.ts",
-    "test:dispatch-contract": "tsx src/dispatch-contract.test.ts"
+    "test:dispatch-contract": "tsx src/dispatch-contract.test.ts",
+    "test:lease": "tsx src/lease.test.ts"
   },
   "dependencies": {
     "@agent-os/db": "workspace:*",

@@ -88,6 +88,18 @@ export const EVENT_NAMES = [
   // and so never emit here.
   "critic.quorum_decided",
 
+  // Agent lease arbitration (I-003) — emitted on every lease decision so the
+  // operator can see "agent X was held off by agent Y on resource Z at time
+  // T." Three variants share one event name; payload.decision_kind
+  // disambiguates: 'grant' | 'renew' | 'conflict' | 'preempt'. Cant-fail
+  // preempt path also emits 'cantfail.lease_preempt' below for the safety
+  // tier dashboard.
+  "agent.lease_decided",
+  // Safety-tier signal: a cant-fail agent preempted a non-cant-fail lease.
+  // Distinct from agent.lease_decided so the safety dashboard can subscribe
+  // narrowly. Payload: { target_kind, target_key, preempted_run_id, holder_agent_id }.
+  "cantfail.lease_preempt",
+
   // Connector health (carrier: connector-health-monitor agent)
   "connector.health.degraded",
   "connector.health.recovered",

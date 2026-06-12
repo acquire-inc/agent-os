@@ -29,6 +29,14 @@ on every push.
 
 ## APPROVED
 - I-002 (shipped — see PENDING entry; left there as the audit row)
+- I-003 — Agent lease arbitration. SHIPPED 2026-06-12.
+  Two-agent overlap on the same target (lead/deal/connector record/objective/
+  tool invocation) was the operator-visible "slop / interfere" failure mode.
+  packages/core/src/lease.ts + lease.test.ts (42/42) + mig 0029 (unique
+  active-lease index) + docs/lease-arbitration.md. Doctrine encoded as hard
+  rules: cant-fail preempts non-cant-fail, cant-fail-vs-cant-fail does NOT
+  preempt, cant-fail TTL floor 5min, self-renew always grants. Two new relay
+  events.
 
 ## REJECTED / MOVED-TO-ACQU-LAYER
 (none yet)

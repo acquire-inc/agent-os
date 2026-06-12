@@ -147,5 +147,24 @@ export {
   type RunWaitingStatus,
   type ToolContractFacts,
 } from "./dispatch-contract.js";
+export {
+  CANTFAIL_LEASE_FLOOR_MS,
+  DEFAULT_CONFLICT_BACKOFF_MS,
+  DEFAULT_LEASE_TTL_MS,
+  clampLeaseTtl,
+  decideLease,
+  formatLeaseTarget,
+  isLeaseActive,
+  leaseTargetEq,
+  releaseLease,
+  requestLease,
+  type ActiveLease,
+  type LeaseDecision,
+  type LeaseDecisionKind,
+  type LeaseHolder,
+  type LeaseRunResult,
+  type LeaseSink,
+  type LeaseTarget,
+} from "./lease.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";

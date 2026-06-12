@@ -44,6 +44,7 @@
 | Eval scorecard → autonomy ladder controller (Ph 18/20/21) | HARDENED | 33+25+25 asserts; cant-fail capped execute_safe |
 | Real-time anomaly circuit-breaker (V2 P5) | EXISTS | 15/15 pure tests; post-run live sink DB-gated |
 | Critic peer-approval: quorum on low-stakes, human keeps doubt (V2 P6, mig 0028) | EXISTS | 37/37 pure tests; live sink DB-gated |
+| Agent lease arbitration: one owner per (kind, key); cant-fail preempts; tier-wins (I-003, mig 0029) | EXISTS | 42/42 pure tests; unique-active DB index; relay audit |
 | Tenant-isolation tester package (32 vectors) | EXISTS | live run = launch gate; static suite green |
 
 ### Intelligence & self-improvement
