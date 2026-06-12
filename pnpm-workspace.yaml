@@ -3,6 +3,7 @@ packages:
   - "packages/*"
   - "scripts/seed"
   - "scripts/verify"
+  - "scripts/launch-readiness"
 
 onlyBuiltDependencies:
   - esbuild

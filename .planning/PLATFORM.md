@@ -12,6 +12,7 @@
 
 | Gate | How to run | Status 2026-06-12 |
 |---|---|---|
+| **Internal-launch readiness check** | `pnpm launch:check` | ✅ READY · 22/22 offline checks pass |
 | RLS isolation (static) | `pnpm --filter @agent-os/tool-rls-test test` | ✅ 10/10 · 32 attack vectors frozen/append-only |
 | RLS isolation (live) | `scripts/verify/isolation-live.ts` (needs DATABASE_URL) | ⏸ operator-gated — **hard gate #2: no external tenant until live PASS** |
 | Contract battery (offline) | `cd packages/core && pnpm run test:{architect,relay,router,budget,scorecard-flow,cantfail,cra,injection}` | ✅ 286/286 |
