@@ -179,6 +179,7 @@ console.log("\n[6] Required doctrine docs present");
     "docs/lease-arbitration.md",
     "docs/tenant-config-validation.md",
     "docs/agent-coordination-guidelines.md",
+    "docs/internal-launch-runbook.md",
     ".planning/PLATFORM.md",
     ".planning/IDEAS.md",
     ".planning/ROADMAP.md",
