@@ -148,6 +148,17 @@ export {
   type ToolContractFacts,
 } from "./dispatch-contract.js";
 export {
+  OVERRIDABLE_TIERS,
+  validateScorecardThresholds,
+  validateTenantConfig,
+  validateTierOverrides,
+  type ScorecardThresholdOverrides,
+  type TenantConfigPatch,
+  type TenantConfigValidationResult,
+  type TierOverrides,
+  type ValidationResult as TenantConfigValidationResultPerKnob,
+} from "./tenant-config.js";
+export {
   CANTFAIL_LEASE_FLOOR_MS,
   DEFAULT_CONFLICT_BACKOFF_MS,
   DEFAULT_LEASE_TTL_MS,

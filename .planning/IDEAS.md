@@ -6,16 +6,15 @@
 
 ## PENDING
 
-### I-001 · Tenant config JSONB shape validation (write-time)
-`tenants.tier_overrides`, `tenants.scorecard_thresholds`, and `tenants.feature_flags`
-are free-form JSONB. A malformed override (typo'd tier name, string where number
-expected) silently no-ops or — worse — falls through to defaults without telling
-the operator. Add a Zod schema per knob, validated at the API write path (PUT
-tier-overrides already does this partially; scorecard_thresholds and
-feature_flags do not), plus a `validateTenantConfig()` sweep usable as a
-migration-time check.
-*Day-one test:* yes — every tenant that touches a policy knob wants malformed
-config refused loudly. · *Class B (review gate).* · Added 2026-06-12.
+### I-001 · Tenant config JSONB shape validation (write-time) — ✅ SHIPPED 2026-06-12
+Note: `feature_flags` is NOT a column on `tenants` (verified at inventory);
+the two real knobs are `tier_overrides` and `scorecard_thresholds`. Shipped:
+`packages/core/src/tenant-config.ts` (hand-rolled validators — no zod dep)
++ `tenant-config.test.ts` (38/38) + `docs/tenant-config-validation.md`.
+Doctrine encoded as rejection rules (T-critical override always rejected,
+pairwise threshold consistency, slug shape `provider/model`). Wired into the
+public core exports; ready for the Settings UI pre-flight and a future
+bulk-config endpoint.
 
 ### I-002 · Offline dispatch/results contract test (CI-runnable) — ✅ SHIPPED 2026-06-12
 Shipped on branch `os-ralph/2026-06-12-i-002-offline-dispatch-contract`:
@@ -28,6 +27,7 @@ The live integration test stays as the operator gate; this offline twin runs
 on every push.
 
 ## APPROVED
+- I-001 (shipped — see PENDING entry; left there as the audit row)
 - I-002 (shipped — see PENDING entry; left there as the audit row)
 - I-003 — Agent lease arbitration. SHIPPED 2026-06-12.
   Two-agent overlap on the same target (lead/deal/connector record/objective/

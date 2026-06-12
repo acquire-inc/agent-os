@@ -63,7 +63,7 @@
 | Capability | Status | Evidence |
 |---|---|---|
 | RLS on every table incl. vector store; tenant_id everywhere | EXISTS | live verification operator-gated (launch gate) |
-| Tenant policy knobs: tier_overrides, scorecard_thresholds, monthly budget | EXISTS | merge logic tested; **JSONB shape validation PROPOSED (IDEAS I-001)** |
+| Tenant policy knobs: tier_overrides, scorecard_thresholds, monthly budget | EXISTS | merge logic tested; JSONB shape validation shipped (tenant-config.ts 38/38) |
 | Relay event registry (closed namespace, 40+ names) | HARDENED | 29 asserts; append-only registry |
 | Artifacts table + auto-registration from tool results (Ph 47/48, mig 0023) | EXISTS | 4 integration asserts |
 | Agent registry + versioned prompts (`agent_prompts`) + lifecycle states (Ph 8.5) | EXISTS | hire/fire/pause/archive endpoints |
