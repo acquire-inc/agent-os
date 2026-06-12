@@ -74,6 +74,13 @@ export const EVENT_NAMES = [
   // followup_run_id, rationale }.
   "objective.reflexion_decided",
 
+  // Agent self-improvement engine (V2 P4). Emitted when recurring memory-loop
+  // lessons produce a prompt-amendment (or skill composition) proposal in the
+  // operator review queue. Payload: { agent_id, proposal_id, kind,
+  // sample_size, requires_human_approval }. Apply/reject decisions land via
+  // the queue's status column; can't-fail agents are never auto-applied.
+  "improvement.proposed",
+
   // Connector health (carrier: connector-health-monitor agent)
   "connector.health.degraded",
   "connector.health.recovered",

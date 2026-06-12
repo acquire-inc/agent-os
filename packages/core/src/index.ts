@@ -91,5 +91,21 @@ export {
   type ReflexionRunResult,
   type ReflexionSink,
 } from "./objective.js";
+export {
+  composeGuidanceBlock,
+  GUIDANCE_HEADER,
+  MAX_GUIDANCE_CHARS,
+  MAX_GUIDANCE_ITEMS,
+  MIN_RECURRENCE,
+  proposePromptAmendment,
+  recurringLessons,
+  runSelfImprovement,
+  splitGuidanceBlock,
+  type ImprovementKind,
+  type ImprovementObservation,
+  type ImprovementProposal,
+  type ImprovementRunResult,
+  type ImprovementSink,
+} from "./improve.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";
