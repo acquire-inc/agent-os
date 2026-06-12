@@ -81,6 +81,13 @@ export const EVENT_NAMES = [
   // the queue's status column; can't-fail agents are never auto-applied.
   "improvement.proposed",
 
+  // Critic-agent peer-approval (V2 P6). Emitted when a critic quorum
+  // auto-approves a low-stakes proposal OR a critic rejection escalates it
+  // to the human inbox. Payload: { approval_id, outcome, approvals,
+  // rejections, rationale }. Can't-fail proposals never enter critic review
+  // and so never emit here.
+  "critic.quorum_decided",
+
   // Connector health (carrier: connector-health-monitor agent)
   "connector.health.degraded",
   "connector.health.recovered",

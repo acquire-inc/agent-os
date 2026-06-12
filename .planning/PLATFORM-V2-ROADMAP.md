@@ -60,7 +60,7 @@ Ordered by value + dependency. **buildable-now** = no live Supabase DB needed
 | **3** | **Objective state + reflexion retry loop** (run-to-run carryover) — pure logic + migration + tests shipped | ✅* | 2 |
 | **4** | **Agent self-improvement: prompt proposal engine** — pure logic + migration + tests shipped | ✅* | 3 |
 | **5** | **Real-time anomaly circuit-breaker** + continuous approval-rate monitor | ✅ | 4* |
-| 6 | Critic-agent peer-approval (human-gated for can't-fail + CRA) | DB-gated | 5 |
+| **6** | **Critic-agent peer-approval** (human-gated for can't-fail + CRA) — pure logic + migration + tests shipped | ✅* | 5 |
 | 7 | Async A2A handoff chains (correlation/causation wiring) | DB-gated | 6 |
 | 8 | Autonomous manager: spawn/pause/retire endpoint + scheduled job | DB-gated | 7 |
 | **9** | **Control-plane correctness pass** (invalidations, idempotency, Supabase-readiness) | ✅ | — |

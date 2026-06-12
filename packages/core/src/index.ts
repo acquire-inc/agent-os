@@ -107,5 +107,22 @@ export {
   type ImprovementRunResult,
   type ImprovementSink,
 } from "./improve.js";
+export {
+  DEFAULT_CRITIC_POLICY,
+  isCriticEligible,
+  qualifyCritics,
+  runCriticReview,
+  tallyCriticVotes,
+  type CriticCandidate,
+  type CriticPolicy,
+  type CriticReviewResult,
+  type CriticReviewSink,
+  type CriticVerdict,
+  type CriticVote,
+  type EligibilityDecision,
+  type ProposalForReview,
+  type QuorumDecision,
+  type QuorumOutcome,
+} from "./critic.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";

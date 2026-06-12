@@ -40,7 +40,8 @@
     "test:cantfail": "tsx src/seed/seedAgent.cantfail.test.ts",
     "test:memory": "tsx src/memory.test.ts",
     "test:objective": "tsx src/objective.test.ts",
-    "test:improve": "tsx src/improve.test.ts"
+    "test:improve": "tsx src/improve.test.ts",
+    "test:critic": "tsx src/critic.test.ts"
   },
   "dependencies": {
     "@agent-os/db": "workspace:*",
