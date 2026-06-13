@@ -106,6 +106,12 @@ export const EVENT_NAMES = [
   //   objective_id, warning }.
   "agent.handoff_decided",
 
+  // V2 P8: autonomous manager proposed a pause/retire action against an
+  // agent. Operator reviews via the manager_proposals queue before any
+  // actual agents.enabled flip. Payload: { agent_id, kind, rationale,
+  // proposal_id }.
+  "manager.action_proposed",
+
   // Connector health (carrier: connector-health-monitor agent)
   "connector.health.degraded",
   "connector.health.recovered",

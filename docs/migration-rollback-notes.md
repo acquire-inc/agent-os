@@ -26,6 +26,15 @@ migrations come first because they may depend on earlier objects.
 
 ---
 
+## 0031 — manager_proposals (V2 P8)
+
+```sql
+DROP INDEX IF EXISTS manager_proposals_tenant_idx;
+DROP INDEX IF EXISTS manager_proposals_agent_idx;
+DROP INDEX IF EXISTS manager_proposals_pending_idx;
+DROP TABLE IF EXISTS manager_proposals;
+```
+
 ## 0030 — agent_handoffs (V2 P7)
 
 ```sql

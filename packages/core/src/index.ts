@@ -152,6 +152,18 @@ export type {
   LifecycleSinks,
 } from "./lifecycle-hooks.js";
 export {
+  DEFAULT_MANAGER_POLICY,
+  decideManagerAction,
+  planManagerCycle,
+  runManagerCycle,
+  type AgentFleetSample,
+  type ManagerAction,
+  type ManagerActionKind,
+  type ManagerPolicy,
+  type ManagerRunResult,
+  type ManagerSink,
+} from "./manager.js";
+export {
   composeHandoffContext,
   decideHandoff,
   runHandoff,
