@@ -152,6 +152,17 @@ export type {
   LifecycleSinks,
 } from "./lifecycle-hooks.js";
 export {
+  composeHandoffContext,
+  decideHandoff,
+  runHandoff,
+  type HandoffAction,
+  type HandoffDecision,
+  type HandoffRequest,
+  type HandoffRunResult,
+  type HandoffSink,
+  type HandoffTargetAgent,
+} from "./a2a.js";
+export {
   FEATURE_FLAGS,
   featureFlagsSnapshot,
   isFeatureDisabled,

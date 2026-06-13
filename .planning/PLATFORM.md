@@ -83,7 +83,7 @@
 ### SPEC'D (not built)
 | Item | Spec location |
 |---|---|
-| A2A async handoff chains (correlation/causation, `tool.invoke-agent`) | PLATFORM-V2-ROADMAP.md P7 |
+| A2A async handoff chains — **SHIPPED 2026-06-13 (pure logic + mig 0030)** | docs/a2a-handoffs.md · a2a.ts 31/31 |
 | Autonomous manager: spawn/pause/retire within budget | V2 P8 |
 | Auto-onboarding interview → Architect → tailored fleet (Viktor) | V2 P10 |
 | Nango connector OAuth behind connection interface | main doctrine §2.4 — client-launch gate |

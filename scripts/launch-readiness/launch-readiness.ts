@@ -21,7 +21,7 @@
 // Operator gates (printed but NOT failed on — they live on a live DB):
 //   - Live RLS isolation suite (hard gate #2 for external launch).
 //   - Live integration test.
-//   - supabase db push migrations 0014-0029.
+//   - supabase db push migrations 0014-0030.
 //
 // Exit code: 0 = ready to launch internally; non-zero = something offline
 // is failing and must be fixed first.
@@ -57,6 +57,7 @@ const OFFLINE_TESTS: Array<{ label: string; filter: string; script: string }> = 
   { label: "core/architect",          filter: "@agent-os/core",         script: "test:architect" },
   { label: "core/architect-overlap",  filter: "@agent-os/core",         script: "test:architect-overlap" },
   { label: "core/feature-flags",      filter: "@agent-os/core",         script: "test:feature-flags" },
+  { label: "core/a2a",                filter: "@agent-os/core",         script: "test:a2a" },
   { label: "core/relay",              filter: "@agent-os/core",         script: "test:relay" },
   { label: "core/router",             filter: "@agent-os/core",         script: "test:router" },
   { label: "core/budget",             filter: "@agent-os/core",         script: "test:budget" },
@@ -138,6 +139,7 @@ console.log("\n[4] Relay event registry hygiene");
     "critic.quorum_decided",
     "agent.lease_decided",
     "cantfail.lease_preempt",
+    "agent.handoff_decided",
     "cantfail.model_violation",
     "cantfail.cra_violation",
     "architect.refused",
@@ -185,6 +187,7 @@ console.log("\n[6] Required doctrine docs present");
     "docs/internal-launch-runbook.md",
     "docs/migration-rollback-notes.md",
     "docs/feature-flags.md",
+    "docs/a2a-handoffs.md",
     "README.md",
     ".planning/PLATFORM.md",
     ".planning/IDEAS.md",
@@ -201,7 +204,7 @@ console.log("\n[6] Required doctrine docs present");
 console.log("\n[operator-gated — printed only, not blocking]");
 console.log("  • Live RLS isolation: scripts/verify/isolation-live.ts (needs DATABASE_URL)");
 console.log("  • Live integration test: pnpm --filter @agent-os/core test (needs DATABASE_URL)");
-console.log("  • supabase db push migrations 0014-0029");
+console.log("  • supabase db push migrations 0014-0030");
 console.log("  • Inngest signing keys + live relay");
 console.log("  • Browserbase / Stagehand keys for tool.browser");
 

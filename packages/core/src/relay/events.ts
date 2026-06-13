@@ -100,6 +100,12 @@ export const EVENT_NAMES = [
   // narrowly. Payload: { target_kind, target_key, preempted_run_id, holder_agent_id }.
   "cantfail.lease_preempt",
 
+  // V2 P7: async A2A handoff. Emitted on every handoff decision (queue or
+  // refusal) so the operator can see the chain. Payload:
+  // { from_agent_id, to_agent_key, action, handoff_id, next_run_id,
+  //   objective_id, warning }.
+  "agent.handoff_decided",
+
   // Connector health (carrier: connector-health-monitor agent)
   "connector.health.degraded",
   "connector.health.recovered",

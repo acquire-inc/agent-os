@@ -26,6 +26,16 @@ migrations come first because they may depend on earlier objects.
 
 ---
 
+## 0030 — agent_handoffs (V2 P7)
+
+```sql
+DROP INDEX IF EXISTS agent_handoffs_tenant_idx;
+DROP INDEX IF EXISTS agent_handoffs_to_agent_idx;
+DROP INDEX IF EXISTS agent_handoffs_from_run_idx;
+DROP INDEX IF EXISTS agent_handoffs_objective_idx;
+DROP TABLE IF EXISTS agent_handoffs;
+```
+
 ## 0029 — agent_leases (V2 / I-003)
 
 ```sql
