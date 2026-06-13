@@ -147,6 +147,10 @@ export {
   type RunWaitingStatus,
   type ToolContractFacts,
 } from "./dispatch-contract.js";
+export type {
+  LifecycleEntryPoints,
+  LifecycleSinks,
+} from "./lifecycle-hooks.js";
 export {
   OVERRIDABLE_TIERS,
   validateScorecardThresholds,

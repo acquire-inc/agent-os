@@ -6,6 +6,24 @@ on:
   pull_request:
 
 jobs:
+  launch-check:
+    # Fast offline gate — no DB service. Runs on every push, ~30s.
+    # `pnpm launch:check` runs 17 offline test suites + workspace typecheck +
+    # migration ordering + relay registry hygiene + cant-fail key pin +
+    # doctrine-docs presence. Greenlights internal launch when all 22 checks
+    # pass. See docs/internal-launch-runbook.md.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Launch readiness check (offline)
+        run: pnpm launch:check
+
   verify:
     runs-on: ubuntu-latest
 
