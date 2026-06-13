@@ -156,6 +156,65 @@ export type ScorecardThresholdKey =
 export type ScorecardThresholds = Record<ScorecardThresholdKey, number>;
 export type ScorecardThresholdPatch = Partial<ScorecardThresholds>;
 
+// ---------- Proposal review queues (V2 P4 + P8) ----------
+
+export interface ImprovementProposalRow {
+  id: string;
+  tenantId: string;
+  agentId: string;
+  kind: "prompt_amend" | "skill_add" | "skill_remove";
+  proposedPrompt: string | null;
+  skillKey: string | null;
+  evidence: unknown[];
+  sampleSize: number;
+  rationale: string;
+  requiresHumanApproval: boolean;
+  status: "pending" | "applied" | "rejected" | "superseded";
+  appliedAt: string | null;
+  appliedBy: string | null;
+  createdAt: string;
+}
+
+export interface ManagerProposalRow {
+  id: string;
+  tenantId: string;
+  agentId: string;
+  kind: "pause" | "retire";
+  rationale: string;
+  status: "pending" | "applied" | "rejected" | "superseded";
+  appliedAt: string | null;
+  appliedBy: string | null;
+  createdAt: string;
+}
+
+export const improvementProposals = {
+  list: (status: ImprovementProposalRow["status"] = "pending") =>
+    call<{ proposals: ImprovementProposalRow[] }>(
+      "GET",
+      `/api/admin/improvement-proposals?status=${status}`,
+    ),
+  decide: (id: string, decision: "apply" | "reject") =>
+    call<{ ok: boolean; status: string; promptVersionId?: string; version?: number }>(
+      "POST",
+      `/api/admin/improvement-proposals/${id}/decide`,
+      { decision },
+    ),
+};
+
+export const managerProposals = {
+  list: (status: ManagerProposalRow["status"] = "pending") =>
+    call<{ proposals: ManagerProposalRow[] }>(
+      "GET",
+      `/api/admin/manager-proposals?status=${status}`,
+    ),
+  decide: (id: string, decision: "apply" | "reject") =>
+    call<{ ok: boolean; status: string; kind?: string }>(
+      "POST",
+      `/api/admin/manager-proposals/${id}/decide`,
+      { decision },
+    ),
+};
+
 export const scorecardThresholds = {
   get: () =>
     call<{

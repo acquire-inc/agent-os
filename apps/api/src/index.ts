@@ -1351,6 +1351,156 @@ app.put("/api/admin/tenants/me/scorecard-thresholds", requireAdmin, async (c) =>
   return c.json({ tenant: updated, override, effective });
 });
 
+// ============================ V2 Improvement proposals (P4) ===========
+// GET /api/admin/improvement-proposals?status=pending — list for THIS tenant.
+app.get("/api/admin/improvement-proposals", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const status = (c.req.query("status") ?? "pending") as "pending" | "applied" | "rejected" | "superseded";
+  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const rows = await db
+    .select()
+    .from(schema.agentImprovementProposals)
+    .where(and(
+      eq(schema.agentImprovementProposals.tenantId, tenantId),
+      eq(schema.agentImprovementProposals.status, status),
+    ))
+    .orderBy(desc(schema.agentImprovementProposals.createdAt))
+    .limit(Number.isFinite(limit) ? limit : 50);
+  return c.json({ proposals: rows });
+});
+
+// POST /api/admin/improvement-proposals/:id/decide { decision: "apply"|"reject" }
+// Apply path: writes a NEW agent_prompts row (is_current=true) with the
+// proposed text and links it via applied_prompt_version_id — audit-clean
+// rollback is one is_current flip. Cant-fail proposals REQUIRE the
+// requires_human_approval flag to be honored — auto-apply may not skip
+// the requires_human_approval guard.
+app.post("/api/admin/improvement-proposals/:id/decide", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const id = c.req.param("id");
+  const body = await c.req.json().catch(() => ({})) as { decision?: "apply" | "reject" };
+  if (body.decision !== "apply" && body.decision !== "reject") {
+    return c.json({ error: "decision must be 'apply' or 'reject'" }, 400);
+  }
+  const [proposal] = await db
+    .select()
+    .from(schema.agentImprovementProposals)
+    .where(and(
+      eq(schema.agentImprovementProposals.id, id),
+      eq(schema.agentImprovementProposals.tenantId, tenantId),
+    ));
+  if (!proposal) return c.json({ error: "proposal not found" }, 404);
+  if (proposal.status !== "pending") return c.json({ error: `proposal already ${proposal.status}` }, 409);
+
+  if (body.decision === "reject") {
+    await db
+      .update(schema.agentImprovementProposals)
+      .set({ status: "rejected", appliedAt: new Date(), appliedBy: "operator" })
+      .where(eq(schema.agentImprovementProposals.id, id));
+    return c.json({ ok: true, status: "rejected" });
+  }
+
+  // Apply: write new agent_prompts version, flip is_current on the row,
+  // demote the previous current row to not-current.
+  if (proposal.kind !== "prompt_amend" || !proposal.proposedPrompt) {
+    return c.json({ error: `apply not implemented for kind '${proposal.kind}'` }, 400);
+  }
+  // Demote the current row first so the unique-current constraint (if any)
+  // doesn't conflict.
+  await db
+    .update(schema.agentPrompts)
+    .set({ isCurrent: false })
+    .where(and(
+      eq(schema.agentPrompts.agentId, proposal.agentId),
+      eq(schema.agentPrompts.isCurrent, true),
+    ));
+  const [latest] = await db
+    .select({ version: schema.agentPrompts.version })
+    .from(schema.agentPrompts)
+    .where(eq(schema.agentPrompts.agentId, proposal.agentId))
+    .orderBy(desc(schema.agentPrompts.version))
+    .limit(1);
+  const nextVersion = (latest?.version ?? 0) + 1;
+  const [newPromptRow] = await db
+    .insert(schema.agentPrompts)
+    .values({
+      tenantId,
+      agentId: proposal.agentId,
+      version: nextVersion,
+      systemPrompt: proposal.proposedPrompt,
+      isCurrent: true,
+    })
+    .returning({ id: schema.agentPrompts.id });
+  await db
+    .update(schema.agentImprovementProposals)
+    .set({
+      status: "applied",
+      appliedAt: new Date(),
+      appliedBy: "operator",
+      appliedPromptVersionId: newPromptRow?.id ?? null,
+    })
+    .where(eq(schema.agentImprovementProposals.id, id));
+  return c.json({ ok: true, status: "applied", promptVersionId: newPromptRow?.id, version: nextVersion });
+});
+
+// ============================ V2 Manager proposals (P8) ===============
+app.get("/api/admin/manager-proposals", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const status = (c.req.query("status") ?? "pending") as "pending" | "applied" | "rejected" | "superseded";
+  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const rows = await db
+    .select()
+    .from(schema.managerProposals)
+    .where(and(
+      eq(schema.managerProposals.tenantId, tenantId),
+      eq(schema.managerProposals.status, status),
+    ))
+    .orderBy(desc(schema.managerProposals.createdAt))
+    .limit(Number.isFinite(limit) ? limit : 50);
+  return c.json({ proposals: rows });
+});
+
+app.post("/api/admin/manager-proposals/:id/decide", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const id = c.req.param("id");
+  const body = await c.req.json().catch(() => ({})) as { decision?: "apply" | "reject" };
+  if (body.decision !== "apply" && body.decision !== "reject") {
+    return c.json({ error: "decision must be 'apply' or 'reject'" }, 400);
+  }
+  const [proposal] = await db
+    .select()
+    .from(schema.managerProposals)
+    .where(and(
+      eq(schema.managerProposals.id, id),
+      eq(schema.managerProposals.tenantId, tenantId),
+    ));
+  if (!proposal) return c.json({ error: "proposal not found" }, 404);
+  if (proposal.status !== "pending") return c.json({ error: `proposal already ${proposal.status}` }, 409);
+
+  if (body.decision === "reject") {
+    await db
+      .update(schema.managerProposals)
+      .set({ status: "rejected", appliedAt: new Date(), appliedBy: "operator" })
+      .where(eq(schema.managerProposals.id, id));
+    return c.json({ ok: true, status: "rejected" });
+  }
+
+  // Apply: pause or retire (= pause + mark for archival; retirement
+  // archival is a lifecycle concern, here we just flip enabled and stamp
+  // the proposal).
+  if (proposal.kind === "pause" || proposal.kind === "retire") {
+    await db
+      .update(schema.agents)
+      .set({ enabled: false })
+      .where(eq(schema.agents.id, proposal.agentId));
+  }
+  await db
+    .update(schema.managerProposals)
+    .set({ status: "applied", appliedAt: new Date(), appliedBy: "operator" })
+    .where(eq(schema.managerProposals.id, id));
+  return c.json({ ok: true, status: "applied", kind: proposal.kind });
+});
+
 app.post("/api/admin/tenants/me/apply-model-override", requireAdmin, async (c) => {
   const { tenantId } = c.get("auth");
   const [tenant] = await db.select().from(schema.tenants).where(eq(schema.tenants.id, tenantId)).limit(1);

@@ -676,3 +676,92 @@ export const artifacts = pgTable("artifacts", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ============================ V2 platform tables ===========================
+
+/** V2 P3: durable multi-run target for an agent. Migration 0026. */
+export const objectives = pgTable("objectives", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  status: text("status").notNull().default("active"),
+  maxAttempts: integer("max_attempts").notNull().default(3),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  abandonedAt: timestamp("abandoned_at", { withTimezone: true }),
+});
+
+/** V2 P4: self-improvement prompt amendment proposals. Migration 0027. */
+export const agentImprovementProposals = pgTable("agent_improvement_proposals", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  proposedPrompt: text("proposed_prompt"),
+  skillKey: text("skill_key"),
+  evidence: jsonb("evidence").$type<unknown[]>().notNull().default([]),
+  sampleSize: integer("sample_size").notNull(),
+  rationale: text("rationale").notNull(),
+  requiresHumanApproval: boolean("requires_human_approval").notNull().default(false),
+  status: text("status").notNull().default("pending"),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  appliedBy: text("applied_by"),
+  appliedPromptVersionId: uuid("applied_prompt_version_id").references(() => agentPrompts.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** V2 P6: critic-agent votes on approvals. Migration 0028. */
+export const criticVotes = pgTable("critic_votes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  approvalId: uuid("approval_id").notNull().references(() => approvals.id, { onDelete: "cascade" }),
+  criticAgentId: uuid("critic_agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  verdict: text("verdict").notNull(),
+  rationale: text("rationale").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** I-003: agent lease arbitration. Migration 0029. */
+export const agentLeases = pgTable("agent_leases", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  targetKind: text("target_kind").notNull(),
+  targetKey: text("target_key").notNull(),
+  ownerAgentId: uuid("owner_agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  ownerRunId: uuid("owner_run_id").notNull().references(() => runs.id, { onDelete: "cascade" }),
+  ownerIsCantFail: boolean("owner_is_cant_fail").notNull().default(false),
+  acquiredAt: timestamp("acquired_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  releasedAt: timestamp("released_at", { withTimezone: true }),
+});
+
+/** V2 P7: async A2A handoff records. Migration 0030. */
+export const agentHandoffs = pgTable("agent_handoffs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  fromRunId: uuid("from_run_id").notNull().references(() => runs.id, { onDelete: "cascade" }),
+  fromAgentId: uuid("from_agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  toAgentId: uuid("to_agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  nextRunId: uuid("next_run_id").references(() => runs.id, { onDelete: "set null" }),
+  objectiveId: uuid("objective_id").references(() => objectives.id, { onDelete: "set null" }),
+  summary: text("summary").notNull().default(""),
+  artifactRefs: jsonb("artifact_refs").$type<string[]>().notNull().default([]),
+  warning: text("warning"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** V2 P8: autonomous manager pause/retire proposals. Migration 0031. */
+export const managerProposals = pgTable("manager_proposals", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  rationale: text("rationale").notNull(),
+  status: text("status").notNull().default("pending"),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  appliedBy: text("applied_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
