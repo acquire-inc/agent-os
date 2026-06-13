@@ -55,6 +55,7 @@ function tail(s: string, n = 1): string {
 // 1. Offline test battery -- the contract gates the platform depends on.
 const OFFLINE_TESTS: Array<{ label: string; filter: string; script: string }> = [
   { label: "core/architect",          filter: "@agent-os/core",         script: "test:architect" },
+  { label: "core/architect-overlap",  filter: "@agent-os/core",         script: "test:architect-overlap" },
   { label: "core/relay",              filter: "@agent-os/core",         script: "test:relay" },
   { label: "core/router",             filter: "@agent-os/core",         script: "test:router" },
   { label: "core/budget",             filter: "@agent-os/core",         script: "test:budget" },
@@ -71,6 +72,7 @@ const OFFLINE_TESTS: Array<{ label: string; filter: string; script: string }> = 
   { label: "core/critic",             filter: "@agent-os/core",         script: "test:critic" },
   { label: "core/circuit-breaker",    filter: "@agent-os/core",         script: "test:circuit-breaker" },
   { label: "tool-rls-test (static)",  filter: "@agent-os/tool-rls-test", script: "test" },
+  { label: "runner/lease-integration", filter: "@agent-os/runner",        script: "test:lease-integration" },
 ];
 
 console.log("\n[1] Offline test battery");

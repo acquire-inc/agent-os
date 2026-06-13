@@ -324,6 +324,41 @@ export async function dispatchCustomTool(
     throw new Error(`no custom-tool handler registered for ${toolKey}`);
   }
 
+  // I-003 LEASE INTEGRATION SEAM (TODO operator-on-db-up):
+  //
+  // When migration 0029 is live AND lifecycle.ts publishes a LeaseSink on
+  // the runtime context, drop the following snippet here — BEFORE the
+  // budget reserve below, so we fail fast on contention instead of
+  // reserving budget for a yielded call:
+  //
+  //   const target = leaseTargetForToolCall(toolKey, input);
+  //   if (target) {
+  //     const arb = await acquireLeaseForToolCall(
+  //       {
+  //         runId: bundle.run.id,
+  //         agentId: bundle.agent.id,
+  //         agentKey: bundle.agent.key,
+  //         isCantFail: isCantFail(bundle.agent.key),
+  //         target,
+  //       },
+  //       getLeaseSink(),
+  //     );
+  //     if (!arb.proceed) {
+  //       throw new LeaseConflictError(toolKey, arb.retryAfterMs, arb.rationale);
+  //     }
+  //     // arb.lease is the held lease; release it in the run-finish hook.
+  //   }
+  //
+  // `leaseTargetForToolCall(toolKey, input)` is a tiny extractor — a switch
+  // over toolKey returning the right (kind, key) tuple (e.g. for
+  // `tool.connector.hubspot.update_contact`, return `{ kind: "hubspot_contact",
+  // key: input.contactId }`). See docs/lease-arbitration.md "What kinds need
+  // a lease?" for the policy. Tools that aren't sequenceable return null and
+  // the wrapper short-circuits.
+  //
+  // The wrapper + an offline test live at apps/runner/src/lease-integration{,.test}.ts.
+  // Until this seam is wired, lease enforcement is inactive at runtime.
+
   // Phase 26: reserve before dispatch. Skip if the tracker has no open run
   // for this id (dispatchCustomTool used outside executeRun, e.g. a script
   // or a dry-run test path).

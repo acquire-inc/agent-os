@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/com
 import { Avatar, Input, Separator } from "#/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
 import { clearAdminKey, getAdminKey, getApiUrl, hasAdminKey, setAdminKey, setApiUrl, tierOverrides as tierOverridesApi, type TierOverrideRow } from "#/lib/api";
+import { validateTierOverrideSlugClient } from "#/lib/tenant-config-client";
 import { useApp } from "#/lib/app-context";
 import { useAuth } from "#/lib/auth";
 import { data } from "#/lib/data";
@@ -400,6 +401,11 @@ function TierOverrideRowEditor({
 }) {
   const [draft, setDraft] = useState(row.override ?? "");
   const dirty = draft !== (row.override ?? "");
+  // I-001 pre-flight: catch slug-shape + doctrine errors before the API call
+  // so the operator sees the rule immediately instead of after a round trip.
+  const trimmed = draft.trim();
+  const preflight = trimmed.length > 0 ? validateTierOverrideSlugClient(row.tier, trimmed) : { ok: true } as const;
+  const preflightError = !preflight.ok ? preflight.reason : null;
   return (
     <div className="rounded-md border border-border p-3">
       <div className="mb-2 flex items-center justify-between">
@@ -423,7 +429,11 @@ function TierOverrideRowEditor({
             placeholder={`Override slug (blank = use default)`}
             disabled={pending}
           />
-          <Button size="sm" disabled={!dirty || pending} onClick={() => onSet(draft.trim() || null)}>
+          <Button
+            size="sm"
+            disabled={!dirty || pending || preflightError !== null}
+            onClick={() => onSet(draft.trim() || null)}
+          >
             Save
           </Button>
           {row.override && (
@@ -441,7 +451,8 @@ function TierOverrideRowEditor({
           )}
         </div>
       )}
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+      {preflightError && <p className="mt-2 text-xs text-destructive">{preflightError}</p>}
+      {!preflightError && error && <p className="mt-2 text-xs text-destructive">{error}</p>}
     </div>
   );
 }

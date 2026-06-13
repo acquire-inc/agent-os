@@ -15,6 +15,7 @@
     "test:cap-breach-flow": "tsx src/cap-breach-flow.test.ts",
     "test:delegate": "tsx src/delegate.test.ts",
     "test:execute-flow": "tsx src/execute-flow.test.ts",
+    "test:lease-integration": "tsx src/lease-integration.test.ts",
     "test:predispatch": "tsx src/predispatch.test.ts",
     "test:run-state": "tsx src/run-state.test.ts",
     "test:sub-agent": "tsx src/sub-agent.test.ts",

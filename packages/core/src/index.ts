@@ -152,6 +152,11 @@ export type {
   LifecycleSinks,
 } from "./lifecycle-hooks.js";
 export {
+  detectArchitectOverlap,
+  type AgentForOverlap,
+  type OverlapWarning,
+} from "./architect/overlap.js";
+export {
   OVERRIDABLE_TIERS,
   validateScorecardThresholds,
   validateTenantConfig,

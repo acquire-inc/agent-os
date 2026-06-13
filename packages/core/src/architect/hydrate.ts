@@ -4,6 +4,7 @@
 
 import type { AgentSpec } from "../seed/seedAgent.js";
 import { checkCraProhibition } from "./cra-blocklist.js";
+import { detectArchitectOverlap } from "./overlap.js";
 import type { AgentBlueprint, TeamBlueprintProposal } from "./types.js";
 
 export interface ResolverContext {
@@ -137,6 +138,14 @@ export function hydrate(
       enabled: false,
     });
   }
+
+  // B3: Architect overlap detector. Surface (connector, skill) collisions
+  // at blueprint review so the operator can confirm-or-redraw before the
+  // runtime lease layer has to sequence them. See docs/agent-coordination-guidelines.md.
+  const overlapWarnings = detectArchitectOverlap(
+    agents.map((a) => ({ key: a.key, skillKeys: a.skills.map((s) => s.key), mcpNames: a.mcpNames })),
+  );
+  for (const w of overlapWarnings) warnings.push(w.message);
 
   return { agents, warnings };
 }
