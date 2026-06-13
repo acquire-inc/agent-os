@@ -6,9 +6,11 @@
 
 ## Headline
 
-`pnpm launch:check` → **READY ✓ 30/30**. CI gate active. 11 commits
-pushed. V2 P1 → P10 (all 10 phases) buildable-now-portions shipped. Every
-operator UI loop closed. Every safety invariant intact.
+`pnpm launch:check` → **READY ✓ 30/30**. CI gate active. 15 commits
+pushed overnight. V2 P1 → P10 (all 10 phases) buildable-now-portions
+shipped. Every operator UI loop closed (Approvals, Proposals, Onboarding,
+Health, Architect). Every safety invariant intact. Three runbooks
+(launch, coordination, incident). Lifecycle sinks ready for db-up.
 
 ## Commits this overnight session (in order)
 
@@ -23,7 +25,12 @@ operator UI loop closed. Every safety invariant intact.
 | `c1d0dc7` | SECURITY.md — full threat model + audit trail + isolation gates |
 | `7d6db30` | `pnpm tenant:new` — one-command tenant provisioning |
 | `7bd9695` | Lifecycle sink IMPLEMENTATIONS — operator drops in less code |
-| (in progress) | This overnight summary doc |
+| `6471a17` | This overnight summary doc (initial) |
+| `ad6eeca` | `/onboard` route — Auto-Onboarding UI for the Viktor flow |
+| `0e23571` | `/api/admin/platform/health` endpoint + smoke check + client API |
+| `0ea7a85` | `/health` page — live platform health dashboard |
+| `61ece52` | `docs/incident-runbook.md` — on-call response guide |
+| (final) | This summary refresh |
 
 ## What's now shipped
 
@@ -72,16 +79,21 @@ operator UI loop closed. Every safety invariant intact.
 ### Operator UI completeness
 
 - Dashboard tabs (Agent perf / Fleet / Cost / Models)
-- Fleet Activity with **5 new V2 kind filter chips** (lease, handoff,
+- Fleet Activity with **5 V2 kind filter chips** (lease, handoff,
   critic, improvement, circuit) and demo synth weaves them in
 - Editable agent control surface
 - Approvals inbox with **critic-quorum + peer-flagged badges**
-- **NEW: Proposals tab** with two queues (prompt improvements + manager
-  actions) and full apply/reject
-- Settings: tier overrides + **scorecard thresholds editor** with
-  validator pre-flight
+- **Proposals tab** — two queues (prompt improvements + manager actions)
+  with full apply/reject + cant-fail badging
+- **Onboard tab** — Viktor flow UI with live validation, CRA pre-check,
+  Architect prompt copy, 9-step plan
+- **Health tab** — live `/api/admin/platform/health` consumer with
+  safety strip, queue KPIs, feature-flag grid; auto-refreshes every 30s
+- Settings: tier overrides + scorecard thresholds editor with validator
+  pre-flight + organization
 - Connector marketplace + scopes
-- Onboarding checklist
+- Architect with overlap warnings surfaced
+- Onboarding checklist (for individual users)
 
 ### Operator command toolkit
 
@@ -93,7 +105,7 @@ pnpm verify                                     # full live verify (needs DATABA
 pnpm verify:isolation-live                      # external-launch hard gate
 ```
 
-### Doctrine documentation (13 files)
+### Doctrine documentation (16 files)
 
 - `LAUNCH.md` — 60-second orientation
 - `README.md` — repo landing
@@ -110,6 +122,9 @@ pnpm verify:isolation-live                      # external-launch hard gate
 - `docs/auto-onboarding.md` — Viktor flow walkthrough
 - `docs/feature-flags.md` — kill switches
 - `docs/migration-rollback-notes.md` — inverse DROPs per migration
+- `docs/incident-runbook.md` — on-call response guide (NEW)
+- `docs/internal-launch-runbook.md` — operator step-by-step
+- `docs/agent-coordination-guidelines.md` — fleet design mental model
 
 ### Migration safety
 
@@ -134,8 +149,8 @@ Cant-fail / CRA / injection / budget / RLS cannot be disabled — by design.
 
 ## Stats
 
-- **11 commits** pushed overnight (8 last evening + 11 overnight = 19 total session)
-- **~5,500 net new lines** overnight (~10,300 total session)
+- **15 commits** pushed overnight (8 last evening + 15 overnight = 23 total session)
+- **~6,500 net new lines** overnight (~11,300 total session)
 - **31 migrations** authored monotonically
 - **40+ relay events** registered append-only with 14 doctrine-required
 - **30 offline gates** in launch:check (was 22 at start of evening)
