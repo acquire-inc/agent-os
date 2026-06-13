@@ -300,7 +300,19 @@ export interface AgentPerformance {
 
 // Fleet activity feed — one thing an agent did. The platform's visibility layer:
 // what every agent is doing across connectors, in one stream.
-export type FleetActivityKind = "tool" | "proposal" | "summary" | "start" | "status";
+// V2-extended (2026-06-13): five new kinds surface the coordination + safety
+// + self-improvement loops so the operator sees the real platform behavior.
+export type FleetActivityKind =
+  | "tool"
+  | "proposal"
+  | "summary"
+  | "start"
+  | "status"
+  | "lease"        // I-003 — lease grant/conflict/preempt
+  | "handoff"     // V2 P7 — A2A handoff decision
+  | "critic"      // V2 P6 — critic quorum decision
+  | "improvement" // V2 P4 — prompt improvement proposed
+  | "circuit";    // V2 P5 — anomaly circuit-breaker tripped
 
 export interface FleetActivityItem {
   id: string;
@@ -310,6 +322,9 @@ export interface FleetActivityItem {
   kind: FleetActivityKind;
   connector: string | null; // the tool/connector acted through, when kind === "tool"
   message: string;
+  /** When kind is one of the V2 variants, an optional severity for the UI
+   *  to color a chip: "info" (default) | "warn" | "danger". */
+  severity?: "info" | "warn" | "danger";
 }
 
 export interface ApiKey {

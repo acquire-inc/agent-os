@@ -23,6 +23,11 @@ const KIND_FILTERS: { value: FleetActivityKind | "all"; label: string }[] = [
   { value: "tool", label: "Tool calls" },
   { value: "proposal", label: "Proposals" },
   { value: "summary", label: "Summaries" },
+  { value: "lease", label: "Lease decisions" },
+  { value: "handoff", label: "Handoffs" },
+  { value: "critic", label: "Critic quorum" },
+  { value: "improvement", label: "Improvements" },
+  { value: "circuit", label: "Circuit-breaker" },
 ];
 
 function kindMeta(kind: FleetActivityKind): { icon: typeof Wrench; tone: string; label: string } {
@@ -35,6 +40,16 @@ function kindMeta(kind: FleetActivityKind): { icon: typeof Wrench; tone: string;
       return { icon: FileText, tone: "text-success", label: "Summary" };
     case "start":
       return { icon: Play, tone: "text-muted-foreground", label: "Started" };
+    case "lease":
+      return { icon: Radio, tone: "text-warning", label: "Lease" };
+    case "handoff":
+      return { icon: Wrench, tone: "text-info", label: "Handoff" };
+    case "critic":
+      return { icon: MessageSquareWarning, tone: "text-success", label: "Critic" };
+    case "improvement":
+      return { icon: FileText, tone: "text-info", label: "Improvement" };
+    case "circuit":
+      return { icon: Radio, tone: "text-destructive", label: "Circuit" };
     default:
       return { icon: Radio, tone: "text-muted-foreground", label: "Status" };
   }

@@ -317,12 +317,88 @@ function synthFleetActivity(agents: Agent[], sinceHours = 24, target = 80): Flee
         items.push({ id: `${agent.id}-${s}-${items.length}`, ts: new Date(t).toISOString(), agentId: agent.id, runId: null, kind, connector, message });
       };
       mk("start", null, "Run claimed by runner");
+
+      // V2 lease decisions occasionally surface ("agent held off by another
+      // agent on resource Z") — gives operators the platform-real signal
+      // even in demo mode.
+      if (rnd() > 0.78) {
+        items.push({
+          id: `${agent.id}-${s}-${items.length}`,
+          ts: new Date(t + 2000).toISOString(),
+          agentId: agent.id,
+          runId: null,
+          kind: "lease",
+          connector: null,
+          message: rnd() > 0.6
+            ? `Lease granted on lead/L-${Math.floor(rnd() * 9000) + 1000}`
+            : `Lease conflict: target held by another run — yielding`,
+          severity: rnd() > 0.6 ? "info" : "warn",
+        });
+      }
+
       const calls = 1 + Math.floor(rnd() * 3);
       for (let c = 0; c < calls; c++) {
         const conn = pool[Math.floor(rnd() * pool.length)]!;
         const actions = ACTIVITY_ACTIONS[conn]!;
         mk("tool", conn, actions[Math.floor(rnd() * actions.length)]!);
       }
+
+      // V2 P6 critic-quorum decisions on a fraction of proposals.
+      if (rnd() > 0.85) {
+        items.push({
+          id: `${agent.id}-${s}-${items.length}`,
+          ts: new Date(t + 6000).toISOString(),
+          agentId: agent.id,
+          runId: null,
+          kind: "critic",
+          connector: null,
+          message: rnd() > 0.3
+            ? "Critic quorum auto-approved low-stakes proposal (2/2 critics, 0 rejections)"
+            : "Critic rejection — escalated to human inbox",
+          severity: rnd() > 0.3 ? "info" : "warn",
+        });
+      }
+
+      // V2 P7 handoff to the next agent on a fraction of runs.
+      if (rnd() > 0.8) {
+        items.push({
+          id: `${agent.id}-${s}-${items.length}`,
+          ts: new Date(t + 9000).toISOString(),
+          agentId: agent.id,
+          runId: null,
+          kind: "handoff",
+          connector: null,
+          message: `Handoff queued → ${rnd() > 0.5 ? "outreach-writer" : "booking-concierge"}`,
+        });
+      }
+
+      // V2 P4 self-improvement proposals — rare, "lessons recurred".
+      if (rnd() > 0.92) {
+        items.push({
+          id: `${agent.id}-${s}-${items.length}`,
+          ts: new Date(t + 11000).toISOString(),
+          agentId: agent.id,
+          runId: null,
+          kind: "improvement",
+          connector: null,
+          message: "Proposed prompt amendment from 3 recurring lessons (awaiting review)",
+        });
+      }
+
+      // V2 P5 circuit-breaker — very rare, but visible when it fires.
+      if (rnd() > 0.97) {
+        items.push({
+          id: `${agent.id}-${s}-${items.length}`,
+          ts: new Date(t + 13000).toISOString(),
+          agentId: agent.id,
+          runId: null,
+          kind: "circuit",
+          connector: null,
+          message: "Circuit-breaker tripped: 3 consecutive failures — autonomy demoted to propose",
+          severity: "danger",
+        });
+      }
+
       if (rnd() > 0.7) mk("proposal", null, ACTIVITY_PROPOSALS[Math.floor(rnd() * ACTIVITY_PROPOSALS.length)]!);
       else mk("summary", null, ACTIVITY_SUMMARIES[Math.floor(rnd() * ACTIVITY_SUMMARIES.length)]!);
     }
