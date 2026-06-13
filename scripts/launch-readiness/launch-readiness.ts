@@ -196,6 +196,7 @@ console.log("\n[6] Required doctrine docs present");
     "README.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
+    "docs/incident-runbook.md",
     ".planning/PLATFORM.md",
     ".planning/IDEAS.md",
     ".planning/ROADMAP.md",
