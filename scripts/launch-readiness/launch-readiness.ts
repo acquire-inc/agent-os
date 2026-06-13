@@ -195,6 +195,7 @@ console.log("\n[6] Required doctrine docs present");
     "docs/auto-onboarding.md",
     "README.md",
     "CONTRIBUTING.md",
+    "SECURITY.md",
     ".planning/PLATFORM.md",
     ".planning/IDEAS.md",
     ".planning/ROADMAP.md",
