@@ -4,6 +4,7 @@ packages:
   - "scripts/seed"
   - "scripts/verify"
   - "scripts/launch-readiness"
+  - "scripts/smoke"
 
 onlyBuiltDependencies:
   - esbuild
