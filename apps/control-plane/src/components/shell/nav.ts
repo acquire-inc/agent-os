@@ -14,6 +14,7 @@ import {
   Repeat,
   Settings,
   Sparkles,
+  UserPlus,
   Wand2,
   type LucideIcon,
 } from "lucide-react";
@@ -47,6 +48,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Build",
     items: [
       { to: "/agents", label: "Agents", icon: Boxes },
+      { to: "/onboard", label: "Onboard tenant", icon: UserPlus },
       { to: "/architect", label: "Architect", icon: Wand2 },
       { to: "/routines", label: "Routines", icon: Repeat },
       { to: "/skills", label: "Skills", icon: Sparkles },
