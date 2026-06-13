@@ -6,11 +6,12 @@
 
 ## Headline
 
-`pnpm launch:check` → **READY ✓ 30/30**. CI gate active. 15 commits
-pushed overnight. V2 P1 → P10 (all 10 phases) buildable-now-portions
+`pnpm launch:check` → **READY ✓ 30/30**. CI gate active. **17 commits
+pushed overnight**. V2 P1 → P10 (all 10 phases) buildable-now-portions
 shipped. Every operator UI loop closed (Approvals, Proposals, Onboarding,
 Health, Architect). Every safety invariant intact. Three runbooks
 (launch, coordination, incident). Lifecycle sinks ready for db-up.
+ARCHITECTURE.md tour added.
 
 ## Commits this overnight session (in order)
 
@@ -30,6 +31,9 @@ Health, Architect). Every safety invariant intact. Three runbooks
 | `0e23571` | `/api/admin/platform/health` endpoint + smoke check + client API |
 | `0ea7a85` | `/health` page — live platform health dashboard |
 | `61ece52` | `docs/incident-runbook.md` — on-call response guide |
+| `0d50bfb` | Summary refresh (mid-night) |
+| `5181076` | RunCard surfaces V2 P3 attempt number + Run shape extended |
+| `d374481` | `ARCHITECTURE.md` — one-page system tour for new joiners + auditors |
 | (final) | This summary refresh |
 
 ## What's now shipped
@@ -105,12 +109,13 @@ pnpm verify                                     # full live verify (needs DATABA
 pnpm verify:isolation-live                      # external-launch hard gate
 ```
 
-### Doctrine documentation (16 files)
+### Doctrine documentation (17 files)
 
 - `LAUNCH.md` — 60-second orientation
 - `README.md` — repo landing
 - `CONTRIBUTING.md` — discipline encoded
 - `SECURITY.md` — threat model + audit trail
+- `ARCHITECTURE.md` — one-page system tour (NEW)
 - `CLAUDE.md` — non-negotiables
 - `docs/internal-launch-runbook.md` — operator step-by-step
 - `docs/agent-coordination-guidelines.md` — fleet design mental model
@@ -149,8 +154,8 @@ Cant-fail / CRA / injection / budget / RLS cannot be disabled — by design.
 
 ## Stats
 
-- **15 commits** pushed overnight (8 last evening + 15 overnight = 23 total session)
-- **~6,500 net new lines** overnight (~11,300 total session)
+- **17 commits** pushed overnight (8 last evening + 17 overnight = 25 total session)
+- **~7,200 net new lines** overnight (~12,000 total session)
 - **31 migrations** authored monotonically
 - **40+ relay events** registered append-only with 14 doctrine-required
 - **30 offline gates** in launch:check (was 22 at start of evening)
