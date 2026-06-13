@@ -111,6 +111,10 @@ export interface Run {
   costUsd: number;
   summary: string | null;
   sdkSessionId: string | null;
+  /** V2 P3 — parent objective. Null for single-shot runs. */
+  objectiveId?: string | null;
+  /** V2 P3 — 1-indexed attempt within the parent objective. */
+  attemptNumber?: number;
 }
 
 export interface RunActivity {

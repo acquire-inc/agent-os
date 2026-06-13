@@ -152,6 +152,14 @@ function RunCard({ run, agentName, onClick }: { run: Run; agentName: string; onC
         <div className="flex items-center gap-2">
           <StatusDot status={run.status} pulse={run.status === "running"} />
           <span className="text-sm font-medium">{agentName}</span>
+          {/* V2 P3: surface attempt number when this run is one attempt of
+              a multi-run objective. Single-shot runs (no objective) don't
+              render anything. */}
+          {run.objectiveId && (run.attemptNumber ?? 1) > 1 && (
+            <Badge variant="outline" className="text-[10px]" title={`Attempt ${run.attemptNumber} of objective ${run.objectiveId.slice(0, 8)}…`}>
+              attempt {run.attemptNumber}
+            </Badge>
+          )}
         </div>
         <Badge variant={statusBadgeVariant(run.status)}>{RUN_STATUS_LABEL[run.status]}</Badge>
       </div>
