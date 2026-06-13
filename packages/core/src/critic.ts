@@ -207,6 +207,17 @@ export async function runCriticReview(
   sink: CriticReviewSink,
   policy: CriticPolicy = DEFAULT_CRITIC_POLICY,
 ): Promise<CriticReviewResult | null> {
+  // Kill switch: AOS_FEATURE_CRITIC_QUORUM_DISABLED=1. The proposal stays
+  // in the human inbox (default routing); we return a special
+  // "disabled" eligibility so callers can log it once and move on.
+  const { isFeatureDisabled } = await import("./feature-flags.js");
+  if (isFeatureDisabled("CRITIC_QUORUM")) {
+    return {
+      eligibility: { eligible: false, reason: "critic quorum feature disabled (AOS_FEATURE_CRITIC_QUORUM_DISABLED=1)" },
+      decision: null,
+    };
+  }
+
   const proposal = await sink.loadProposal(approvalId);
   if (!proposal) return null;
 

@@ -152,6 +152,13 @@ export type {
   LifecycleSinks,
 } from "./lifecycle-hooks.js";
 export {
+  FEATURE_FLAGS,
+  featureFlagsSnapshot,
+  isFeatureDisabled,
+  isFeatureEnabled,
+  type FeatureFlag,
+} from "./feature-flags.js";
+export {
   detectArchitectOverlap,
   type AgentForOverlap,
   type OverlapWarning,

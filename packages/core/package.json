@@ -15,6 +15,7 @@
     "test:seed-tools": "tsx src/seed/seedAgent.test.ts",
     "test:architect": "tsx src/architect/architect.test.ts",
     "test:architect-overlap": "tsx src/architect/overlap.test.ts",
+    "test:feature-flags": "tsx src/feature-flags.test.ts",
     "test:budget": "tsx src/budget/tracker.test.ts",
     "test:hydrate-restart": "tsx src/budget/hydrate-restart.test.ts",
     "test:cra": "tsx src/architect/cra-blocklist.test.ts",

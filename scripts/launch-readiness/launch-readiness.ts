@@ -56,6 +56,7 @@ function tail(s: string, n = 1): string {
 const OFFLINE_TESTS: Array<{ label: string; filter: string; script: string }> = [
   { label: "core/architect",          filter: "@agent-os/core",         script: "test:architect" },
   { label: "core/architect-overlap",  filter: "@agent-os/core",         script: "test:architect-overlap" },
+  { label: "core/feature-flags",      filter: "@agent-os/core",         script: "test:feature-flags" },
   { label: "core/relay",              filter: "@agent-os/core",         script: "test:relay" },
   { label: "core/router",             filter: "@agent-os/core",         script: "test:router" },
   { label: "core/budget",             filter: "@agent-os/core",         script: "test:budget" },
@@ -183,6 +184,8 @@ console.log("\n[6] Required doctrine docs present");
     "docs/agent-coordination-guidelines.md",
     "docs/internal-launch-runbook.md",
     "docs/migration-rollback-notes.md",
+    "docs/feature-flags.md",
+    "README.md",
     ".planning/PLATFORM.md",
     ".planning/IDEAS.md",
     ".planning/ROADMAP.md",

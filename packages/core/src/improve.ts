@@ -191,6 +191,10 @@ export async function runSelfImprovement(
   sink: ImprovementSink,
   opts: { minRecurrence?: number } = {},
 ): Promise<ImprovementRunResult> {
+  // Kill switch: AOS_FEATURE_SELF_IMPROVEMENT_DISABLED=1.
+  const { isFeatureDisabled } = await import("./feature-flags.js");
+  if (isFeatureDisabled("SELF_IMPROVEMENT")) return { proposalId: null, proposal: null };
+
   const currentPrompt = await sink.loadCurrentPrompt(agentId);
   if (currentPrompt == null) return { proposalId: null, proposal: null };
 

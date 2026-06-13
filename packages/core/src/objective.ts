@@ -224,6 +224,12 @@ export async function runReflexion(
   sink: ReflexionSink,
   config: ReflexionConfig = DEFAULT_REFLEXION_CONFIG,
 ): Promise<ReflexionRunResult | null> {
+  // Kill switch: AOS_FEATURE_REFLEXION_DISABLED=1 (operator opt-out).
+  // No-op return — the run finishes normally, the objective stays
+  // in whatever state lifecycle.setRunStatus left it.
+  const { isFeatureDisabled } = await import("./feature-flags.js");
+  if (isFeatureDisabled("REFLEXION")) return null;
+
   const objective = await sink.loadObjective(objectiveId);
   if (!objective) return null;
 
