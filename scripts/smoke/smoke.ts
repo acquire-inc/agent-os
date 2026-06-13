@@ -76,6 +76,17 @@ const CHECKS: Check[] = [
     method: "GET",
     expect: (j) => isObj(j) && Array.isArray((j as { events?: unknown[] }).events),
   },
+  {
+    label: "platform health",
+    path: "/api/admin/platform/health",
+    method: "GET",
+    expect: (j) =>
+      isObj(j) &&
+      isObj((j as { featureFlags?: unknown }).featureFlags) &&
+      isObj((j as { queues?: unknown }).queues) &&
+      hasNumber(j, "queues.pendingApprovals") &&
+      hasNumber(j, "safety.cantfailEventsLast24h"),
+  },
 ];
 
 function isObj(x: unknown): x is Record<string, unknown> {

@@ -39,7 +39,7 @@ import { checkTenantBudget, compareForecasts, DEFAULT_THRESHOLDS, DEFAULT_TIER_M
 import { loadModelCatalog, readTenantMonthToDateUsd } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { pathToFileURL } from "node:url";
 import { adminGuide, apiGuide } from "./guide.js";
@@ -1349,6 +1349,75 @@ app.put("/api/admin/tenants/me/scorecard-thresholds", requireAdmin, async (c) =>
   const override = (updated?.scorecardThresholds ?? {}) as ScorecardThresholdOverrides;
   const effective: ScorecardThresholds = { ...DEFAULT_THRESHOLDS, ...override };
   return c.json({ tenant: updated, override, effective });
+});
+
+// ============================ Platform health (monitoring) ============
+// Returns a snapshot of the live operational state — kill-switches active,
+// pending review queues, active leases, cant-fail event count in the
+// trailing 24h. Operator hits this in a dashboard or from `pnpm smoke`.
+app.get("/api/admin/platform/health", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+
+  // Pull the feature-flag snapshot from core. Flags are env-driven and
+  // memoized at boot; this surfaces operator-visible state.
+  const { featureFlagsSnapshot } = await import("@agent-os/core");
+  const featureFlags = featureFlagsSnapshot();
+
+  // Pending counts — operator's "what needs my attention" signal.
+  const [pendingApprovals] = await db
+    .select({ count: sql<string>`count(*)` })
+    .from(schema.approvals)
+    .where(and(eq(schema.approvals.tenantId, tenantId), eq(schema.approvals.status, "open")));
+
+  const [pendingImprovements] = await db
+    .select({ count: sql<string>`count(*)` })
+    .from(schema.agentImprovementProposals)
+    .where(and(
+      eq(schema.agentImprovementProposals.tenantId, tenantId),
+      eq(schema.agentImprovementProposals.status, "pending"),
+    ));
+
+  const [pendingManager] = await db
+    .select({ count: sql<string>`count(*)` })
+    .from(schema.managerProposals)
+    .where(and(
+      eq(schema.managerProposals.tenantId, tenantId),
+      eq(schema.managerProposals.status, "pending"),
+    ));
+
+  const [activeLeases] = await db
+    .select({ count: sql<string>`count(*)` })
+    .from(schema.agentLeases)
+    .where(and(
+      eq(schema.agentLeases.tenantId, tenantId),
+      isNull(schema.agentLeases.releasedAt),
+    ));
+
+  // Cant-fail violations in trailing 24h — operator's safety alarm.
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [cantFailEvents] = await db
+    .select({ count: sql<string>`count(*)` })
+    .from(schema.relayEvents)
+    .where(and(
+      eq(schema.relayEvents.tenantId, tenantId),
+      sql`${schema.relayEvents.eventName} LIKE 'cantfail.%'`,
+      sql`${schema.relayEvents.occurredAt} >= ${dayAgo.toISOString()}`,
+    ));
+
+  return c.json({
+    tenantId,
+    featureFlags,
+    queues: {
+      pendingApprovals: Number(pendingApprovals?.count ?? 0),
+      pendingImprovementProposals: Number(pendingImprovements?.count ?? 0),
+      pendingManagerProposals: Number(pendingManager?.count ?? 0),
+      activeLeases: Number(activeLeases?.count ?? 0),
+    },
+    safety: {
+      cantfailEventsLast24h: Number(cantFailEvents?.count ?? 0),
+    },
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // ============================ V2 Improvement proposals (P4) ===========

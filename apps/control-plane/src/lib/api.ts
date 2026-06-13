@@ -215,6 +215,27 @@ export const managerProposals = {
     ),
 };
 
+// ---------- Platform health ----------
+
+export interface PlatformHealthResponse {
+  tenantId: string;
+  featureFlags: Record<string, "enabled" | "disabled">;
+  queues: {
+    pendingApprovals: number;
+    pendingImprovementProposals: number;
+    pendingManagerProposals: number;
+    activeLeases: number;
+  };
+  safety: {
+    cantfailEventsLast24h: number;
+  };
+  timestamp: string;
+}
+
+export const platformHealth = {
+  get: () => call<PlatformHealthResponse>("GET", "/api/admin/platform/health"),
+};
+
 export const scorecardThresholds = {
   get: () =>
     call<{
