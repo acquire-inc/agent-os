@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   Cpu,
   Gauge,
+  HeartPulse,
   LayoutGrid,
   Lightbulb,
   Radio,
@@ -42,6 +43,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: "/jobs", label: "Jobs", icon: LayoutGrid },
       { to: "/approvals", label: "Approvals", icon: ClipboardCheck },
       { to: "/proposals", label: "Proposals", icon: Lightbulb },
+      { to: "/health", label: "Health", icon: HeartPulse },
     ],
   },
   {
