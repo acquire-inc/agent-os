@@ -210,6 +210,14 @@ export interface Approval {
   status: ApprovalStatus;
   decidedBy: string | null;
   decidedAt: string | null;
+  /** V2 P6 — 'human' for operator decisions (default), 'critic_quorum' when
+   *  the peer layer auto-approved. Optional for back-compat with rows that
+   *  predate migration 0028. */
+  decidedVia?: "human" | "critic_quorum";
+  /** V2 P6 — set when a critic rejection bounced this proposal back to the
+   *  human inbox. The approval stays open; this flag surfaces "a peer
+   *  flagged this" in the UI. */
+  escalated?: boolean;
   createdAt: string;
 }
 

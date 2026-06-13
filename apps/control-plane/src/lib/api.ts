@@ -139,3 +139,34 @@ export const tierOverrides = {
       { tier, model },
     ),
 };
+
+// ---------- Scorecard thresholds (I-001 / B6) ----------
+
+export type ScorecardThresholdKey =
+  | "minSampleSize"
+  | "minApprovalRateForPromote"
+  | "minVerificationRate"
+  | "minVerificationRateForPromote"
+  | "maxCostUtilization"
+  | "maxCostUtilizationForPromote"
+  | "maxFindingsRatePerRun"
+  | "maxScopeLockRefusalsPerRun"
+  | "maxOutputQualityFailureRate";
+
+export type ScorecardThresholds = Record<ScorecardThresholdKey, number>;
+export type ScorecardThresholdPatch = Partial<ScorecardThresholds>;
+
+export const scorecardThresholds = {
+  get: () =>
+    call<{
+      defaults: ScorecardThresholds;
+      override: ScorecardThresholdPatch;
+      effective: ScorecardThresholds;
+    }>("GET", "/api/admin/tenants/me/scorecard-thresholds"),
+  set: (patch: ScorecardThresholdPatch) =>
+    call<{
+      tenant: { id: string };
+      override: ScorecardThresholdPatch;
+      effective: ScorecardThresholds;
+    }>("PUT", "/api/admin/tenants/me/scorecard-thresholds", patch),
+};

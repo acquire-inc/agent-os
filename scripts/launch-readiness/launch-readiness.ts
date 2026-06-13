@@ -182,6 +182,7 @@ console.log("\n[6] Required doctrine docs present");
     "docs/tenant-config-validation.md",
     "docs/agent-coordination-guidelines.md",
     "docs/internal-launch-runbook.md",
+    "docs/migration-rollback-notes.md",
     ".planning/PLATFORM.md",
     ".planning/IDEAS.md",
     ".planning/ROADMAP.md",

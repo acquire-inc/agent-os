@@ -76,7 +76,7 @@
 | Dashboard suite (perf / fleet / cost / model-routing tabs) | EXISTS | demo-store overlay pattern; Supabase swap by design |
 | Fleet Activity command center | EXISTS | the Visibility pillar hero |
 | Editable agent control surface (autonomy/budget/connectors; model deliberately excluded) | EXISTS | model stays server-governed — safety invariant un-violable from UI |
-| Approvals inbox with real idempotent decisions (V2 P9) | EXISTS | first-decision-wins guard |
+| Approvals inbox with real idempotent decisions (V2 P9) | EXISTS | first-decision-wins guard + V2 P6 critic-quorum/escalated badges |
 | Connector marketplace (46+ catalog) + least-privilege scopes | EXISTS | localStorage demo-store; Nango SPEC'D |
 | Onboarding: 9 template agents + Get Started checklist | EXISTS | activation signal wired |
 

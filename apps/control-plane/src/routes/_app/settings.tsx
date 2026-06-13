@@ -10,7 +10,7 @@ import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
 import { Avatar, Input, Separator } from "#/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
-import { clearAdminKey, getAdminKey, getApiUrl, hasAdminKey, setAdminKey, setApiUrl, tierOverrides as tierOverridesApi, type TierOverrideRow } from "#/lib/api";
+import { clearAdminKey, getAdminKey, getApiUrl, hasAdminKey, setAdminKey, setApiUrl, scorecardThresholds as scorecardThresholdsApi, tierOverrides as tierOverridesApi, type ScorecardThresholdKey, type ScorecardThresholdPatch, type TierOverrideRow } from "#/lib/api";
 import { validateTierOverrideSlugClient } from "#/lib/tenant-config-client";
 import { useApp } from "#/lib/app-context";
 import { useAuth } from "#/lib/auth";
@@ -209,6 +209,7 @@ function SettingsPage() {
         {/* ── Models (Phase 65: per-tier overrides) ──────────────────── */}
         <TabsContent value="models">
           <ModelTierOverridesPanel />
+          <ScorecardThresholdsPanel />
         </TabsContent>
 
         {/* ── Tags ────────────────────────────────────────────────────── */}
@@ -521,6 +522,128 @@ function OrganizationCard({ tenant }: { tenant: Tenant | null }) {
         <div className="flex items-center gap-2 pt-1">
           <Button size="sm" disabled={!dirty || budgetInvalid || save.isPending} onClick={() => save.mutate()}>
             {save.isPending ? "Saving…" : dirty ? "Save changes" : "Saved"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// I-001 / B6: Scorecard threshold overrides panel.
+//
+// The eval scorecard runs on a ~6h cycle and demotes/promotes agents on the
+// autonomy ladder. Tenants tune the thresholds via this panel; the API runs
+// validateScorecardThresholds before writing, so out-of-range and pairwise-
+// inconsistent values are refused loudly instead of silently no-op'd.
+
+const THRESHOLD_LABELS: Record<ScorecardThresholdKey, { label: string; help: string; step?: number }> = {
+  minSampleSize: { label: "Min sample size", help: "Min runs before a promotion verdict can fire", step: 1 },
+  minApprovalRateForPromote: { label: "Min approval rate (promote)", help: "Approval rate to be eligible to promote (0–1)", step: 0.01 },
+  minVerificationRate: { label: "Min verification rate (hold)", help: "Pass rate to stay at current autonomy (0–1)", step: 0.01 },
+  minVerificationRateForPromote: { label: "Min verification rate (promote)", help: "Must be ≥ the hold floor", step: 0.01 },
+  maxCostUtilization: { label: "Max cost utilization (hold)", help: "Avg cost/cap tolerated (≥ 0)", step: 0.01 },
+  maxCostUtilizationForPromote: { label: "Max cost utilization (promote)", help: "Must be ≤ the hold ceiling", step: 0.01 },
+  maxFindingsRatePerRun: { label: "Max findings/run", help: "Demote if exceeded", step: 0.01 },
+  maxScopeLockRefusalsPerRun: { label: "Max scope-lock refusals/run", help: "Demote if exceeded", step: 1 },
+  maxOutputQualityFailureRate: { label: "Max output-quality failure rate", help: "Demote if exceeded (0–1)", step: 0.01 },
+};
+
+function ScorecardThresholdsPanel() {
+  const qc = useQueryClient();
+  const noKey = !hasAdminKey();
+  const { data: thr, isLoading, error } = useQuery({
+    queryKey: ["scorecardThresholds"],
+    queryFn: () => scorecardThresholdsApi.get(),
+    enabled: !noKey,
+  });
+  const [draft, setDraft] = useState<Record<string, string>>({});
+
+  const save = useMutation({
+    mutationFn: (patch: ScorecardThresholdPatch) => scorecardThresholdsApi.set(patch),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["scorecardThresholds"] });
+      setDraft({});
+    },
+  });
+
+  if (noKey) return null;
+  if (isLoading || !thr) return <Card className="mt-5 max-w-2xl p-4"><CardDescription>Loading thresholds…</CardDescription></Card>;
+  if (error) return <Card className="mt-5 max-w-2xl p-4"><p className="text-sm text-destructive">Failed to load: {(error as Error).message}</p></Card>;
+
+  const keys = Object.keys(THRESHOLD_LABELS) as ScorecardThresholdKey[];
+  const dirty = Object.keys(draft).length > 0;
+
+  function commit() {
+    const patch: ScorecardThresholdPatch = {};
+    for (const k of keys) {
+      const v = draft[k];
+      if (v === undefined) continue;
+      const n = Number(v);
+      if (!Number.isFinite(n)) continue;
+      patch[k] = n;
+    }
+    save.mutate(patch);
+  }
+
+  return (
+    <Card className="mt-5 max-w-2xl">
+      <CardHeader>
+        <CardTitle>Scorecard thresholds</CardTitle>
+        <CardDescription>
+          Tune the eval scorecard ladder. Defaults shown for reference; tenant overrides take precedence. The
+          API rejects out-of-range and pairwise-inconsistent values (e.g. promote-threshold must be at least
+          as strict as the hold floor).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {keys.map((k) => {
+          const meta = THRESHOLD_LABELS[k];
+          const def = thr.defaults[k];
+          const eff = thr.effective[k];
+          const ov = thr.override[k];
+          const draftVal = draft[k] ?? (ov !== undefined ? String(ov) : "");
+          const displayPlaceholder = ov !== undefined ? String(ov) : `${def} (default)`;
+          return (
+            <div key={k} className="rounded-md border border-border p-3">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="font-medium">{meta.label}</span>
+                <span className="font-mono text-[11px] text-muted-foreground">effective {eff}</span>
+              </div>
+              <p className="mb-2 text-xs text-muted-foreground">{meta.help}</p>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step={meta.step}
+                  value={draftVal}
+                  placeholder={displayPlaceholder}
+                  onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
+                  disabled={save.isPending}
+                />
+                {ov !== undefined && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={save.isPending}
+                    onClick={() => {
+                      // Clear this key from override by setting to default+sending without it.
+                      const next = { ...thr.override };
+                      delete next[k];
+                      save.mutate(next);
+                    }}
+                  >
+                    Reset
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <div className="flex items-center justify-end gap-2 pt-1">
+          {save.isError && (
+            <span className="text-xs text-destructive">{(save.error as Error).message}</span>
+          )}
+          <Button disabled={!dirty || save.isPending} onClick={commit}>
+            Save
           </Button>
         </div>
       </CardContent>

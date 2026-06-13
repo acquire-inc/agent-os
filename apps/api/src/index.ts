@@ -35,7 +35,7 @@ import {
   type ApiKeyContext,
   type LlmClient,
 } from "@agent-os/core";
-import { checkTenantBudget, compareForecasts, DEFAULT_TIER_MODELS, inferTaskProfile, isModelTier, MODEL_TIERS, pickBestModel, suggestModelForBlueprint, type ModelCatalogEntry, type ModelSuggestion, type ModelTier, type TaskProfile, type TokenEstimate } from "@agent-os/core";
+import { checkTenantBudget, compareForecasts, DEFAULT_THRESHOLDS, DEFAULT_TIER_MODELS, inferTaskProfile, isModelTier, MODEL_TIERS, pickBestModel, suggestModelForBlueprint, validateScorecardThresholds, type ModelCatalogEntry, type ModelSuggestion, type ModelTier, type ScorecardThresholdOverrides, type ScorecardThresholds, type TaskProfile, type TokenEstimate } from "@agent-os/core";
 import { loadModelCatalog, readTenantMonthToDateUsd } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
@@ -1311,6 +1311,44 @@ app.put("/api/admin/tenants/me/tier-overrides", requireAdmin, async (c) => {
     .where(eq(schema.tenants.id, tenantId))
     .returning({ id: schema.tenants.id, tierOverrides: schema.tenants.tierOverrides });
   return c.json({ tenant: updated });
+});
+
+// I-001 / B6: scorecard threshold overrides.
+// GET returns the merged effective thresholds (DEFAULT_THRESHOLDS overlaid
+// with the tenant's partial override jsonb) plus the override patch itself
+// and the defaults for reference. The UI shows defaults vs override side-by-side.
+app.get("/api/admin/tenants/me/scorecard-thresholds", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const [tenant] = await db
+    .select({ scorecardThresholds: schema.tenants.scorecardThresholds })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, tenantId))
+    .limit(1);
+  const override = (tenant?.scorecardThresholds ?? {}) as ScorecardThresholdOverrides;
+  const effective: ScorecardThresholds = { ...DEFAULT_THRESHOLDS, ...override };
+  return c.json({ defaults: DEFAULT_THRESHOLDS, override, effective });
+});
+
+// PUT accepts a partial patch — only the keys the tenant tunes. Runs through
+// validateScorecardThresholds so out-of-range values and pairwise-inconsistent
+// values are refused before they ever hit the DB. Empty object clears the
+// override and reverts to defaults.
+app.put("/api/admin/tenants/me/scorecard-thresholds", requireAdmin, async (c) => {
+  const { tenantId } = c.get("auth");
+  const raw = await c.req.json().catch(() => ({}));
+  const result = validateScorecardThresholds(raw);
+  if (!result.ok) {
+    return c.json({ error: "invalid scorecard_thresholds", reasons: result.reasons }, 400);
+  }
+  const patch = result.value ?? {};
+  const [updated] = await db
+    .update(schema.tenants)
+    .set({ scorecardThresholds: patch })
+    .where(eq(schema.tenants.id, tenantId))
+    .returning({ id: schema.tenants.id, scorecardThresholds: schema.tenants.scorecardThresholds });
+  const override = (updated?.scorecardThresholds ?? {}) as ScorecardThresholdOverrides;
+  const effective: ScorecardThresholds = { ...DEFAULT_THRESHOLDS, ...override };
+  return c.json({ tenant: updated, override, effective });
 });
 
 app.post("/api/admin/tenants/me/apply-model-override", requireAdmin, async (c) => {

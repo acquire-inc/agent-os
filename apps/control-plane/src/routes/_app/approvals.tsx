@@ -209,6 +209,20 @@ function ApprovalCard({
               Answered: {chosenKey}
             </Badge>
           )}
+          {/* V2 P6: critic peer-approval surface. Auto-approved by quorum
+              gets a distinct badge so an operator can see at a glance
+              that the proposal cleared the trusted-agent layer instead
+              of a human seat. */}
+          {approval.decidedVia === "critic_quorum" && (
+            <Badge variant="primary" title="Auto-approved by trusted-agent quorum (V2 P6)">
+              critic quorum
+            </Badge>
+          )}
+          {approval.escalated && (
+            <Badge variant="warning" title="A trusted-agent critic rejected this proposal — needs a human decision">
+              peer-flagged
+            </Badge>
+          )}
           <Badge variant={statusBadgeVariant(approval.status)}>{approval.status}</Badge>
         </div>
       </div>
@@ -261,7 +275,7 @@ function ApprovalCard({
           ))}
           {approval.decidedBy && (
             <span className="text-xs text-muted-foreground">
-              Decided by {approval.decidedBy}
+              {approval.decidedVia === "critic_quorum" ? "Auto-approved by critic quorum" : `Decided by ${approval.decidedBy}`}
               {approval.decidedAt ? ` · ${relativeTime(approval.decidedAt)}` : ""}
             </span>
           )}
