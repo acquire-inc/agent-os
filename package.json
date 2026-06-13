@@ -24,7 +24,8 @@
     "seed:phase-9": "pnpm --filter @agent-os/seed run phase-9",
     "verify:isolation-live": "pnpm --filter @agent-os/verify run isolation-live",
     "launch:check": "pnpm --filter @agent-os/launch-readiness run check",
-    "smoke": "pnpm --filter @agent-os/smoke run run"
+    "smoke": "pnpm --filter @agent-os/smoke run run",
+    "tenant:new": "pnpm --filter @agent-os/seed run tenant-new"
   },
   "devDependencies": {
     "typescript": "^5.7.3"
