@@ -202,6 +202,12 @@ export const runs = pgTable("runs", {
   costUsd: numeric("cost_usd", { precision: 12, scale: 4 }).notNull().default("0"),
   summary: text("summary"),
   sdkSessionId: text("sdk_session_id"),
+  /** V2 P3 — parent objective when this run is one attempt of a multi-run
+   *  target. NULL for single-shot dispatches. Migration 0026. */
+  objectiveId: uuid("objective_id"),
+  /** V2 P3 — 1-indexed attempt within the parent objective. Always 1 for
+   *  objective-less runs. Migration 0026. */
+  attemptNumber: integer("attempt_number").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -376,6 +382,11 @@ export const approvals = pgTable("approvals", {
   status: text("status").notNull().default("open"),
   decidedBy: uuid("decided_by"),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
+  /** V2 P6 — 'human' (default) | 'critic_quorum'. Migration 0028. */
+  decidedVia: text("decided_via").notNull().default("human"),
+  /** V2 P6 — true when a critic rejection bounced the proposal back to
+   *  the human inbox. Migration 0028. */
+  escalated: boolean("escalated").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
