@@ -152,6 +152,15 @@ export type {
   LifecycleSinks,
 } from "./lifecycle-hooks.js";
 export {
+  composeArchitectPrompt as composeOnboardingArchitectPrompt,
+  planOnboardingSteps,
+  validateOnboardingInterview,
+  type OnboardingInterview,
+  type OnboardingStep,
+  type OnboardingStepKind,
+  type OnboardingValidationResult,
+} from "./onboarding.js";
+export {
   DEFAULT_MANAGER_POLICY,
   decideManagerAction,
   planManagerCycle,

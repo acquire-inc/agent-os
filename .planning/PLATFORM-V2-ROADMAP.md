@@ -64,7 +64,7 @@ Ordered by value + dependency. **buildable-now** = no live Supabase DB needed
 | **7** | **Async A2A handoff chains** — pure logic + migration + tests shipped | ✅* | 6 |
 | **8** | **Autonomous manager**: pure decision + proposal queue shipped | ✅* | 7 |
 | **9** | **Control-plane correctness pass** (invalidations, idempotency, Supabase-readiness) | ✅ | — |
-| 10 | Auto-onboarding: interview → Architect → self-tuning tailored platform (Viktor) | DB-gated | 8,9 |
+| **10** | **Auto-onboarding (Viktor flow)** — pure interview validator + Architect prompt builder + step planner shipped | ✅* | 8,9 |
 
 \*P5's pure circuit-breaker function is buildable now; its scheduled wiring is DB-gated.
 

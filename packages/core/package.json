@@ -18,6 +18,7 @@
     "test:feature-flags": "tsx src/feature-flags.test.ts",
     "test:a2a": "tsx src/a2a.test.ts",
     "test:manager": "tsx src/manager.test.ts",
+    "test:onboarding": "tsx src/onboarding.test.ts",
     "test:budget": "tsx src/budget/tracker.test.ts",
     "test:hydrate-restart": "tsx src/budget/hydrate-restart.test.ts",
     "test:cra": "tsx src/architect/cra-blocklist.test.ts",
