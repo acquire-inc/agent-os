@@ -7,6 +7,7 @@ agents and is productized as Cliently. Agents are DATA. Model is CONFIG.
 
 ```bash
 pnpm install
+pnpm setup                  # interactive .env bootstrap (writes .env from your OpenRouter key)
 pnpm launch:check           # offline launch oracle — should print READY ✓
 pnpm --filter control-plane dev   # local UI on http://localhost:5173
 ```

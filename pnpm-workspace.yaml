@@ -5,6 +5,7 @@ packages:
   - "scripts/verify"
   - "scripts/launch-readiness"
   - "scripts/smoke"
+  - "scripts/setup"
 
 onlyBuiltDependencies:
   - esbuild

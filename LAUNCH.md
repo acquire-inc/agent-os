@@ -17,6 +17,7 @@ Run the oracle:
 
 ```bash
 pnpm install
+pnpm setup        # interactive — fills .env from your OpenRouter key
 pnpm launch:check
 ```
 
@@ -85,6 +86,8 @@ implemented as code-enforced gates. You can't opt out.
 
 ```bash
 pnpm install                   # install workspace deps
+pnpm setup                     # interactive .env bootstrap (writes .env from your answers)
+pnpm setup:check               # validate existing .env without prompting
 pnpm launch:check              # offline launch oracle — should print READY ✓
 pnpm -r typecheck              # 15-project workspace typecheck
 pnpm --filter control-plane dev  # local UI on http://localhost:5173
