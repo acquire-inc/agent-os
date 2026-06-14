@@ -90,7 +90,12 @@ pnpm setup                     # interactive .env bootstrap (writes .env from yo
 pnpm setup:check               # validate existing .env without prompting
 pnpm launch:check              # offline launch oracle — should print READY ✓
 pnpm -r typecheck              # 15-project workspace typecheck
-pnpm --filter control-plane dev  # local UI on http://localhost:5173
+pnpm --filter control-plane dev  # local UI on http://localhost:3000
+docker compose up -d           # local Postgres 16 + pgvector — same image Supabase ships
+
+# Local Postgres + pgvector (for full-stack dev — alternative to Supabase):
+docker compose up -d           # boots pgvector/pgvector:pg16 on :5432
+# then in .env: DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agentos
 
 # Operator-runs (need DATABASE_URL):
 pnpm verify                    # full live verify: migrate + seed + suites + build

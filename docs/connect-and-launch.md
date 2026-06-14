@@ -45,7 +45,28 @@ the SDK gets identical behavior. T-critical agents resolve to
 `anthropic/claude-opus-4.8` (verified at SessionStart — drift fails closed via
 `cantfail.model_violation`).
 
-## Step 2 — Supabase (database + auth)
+## Step 2 — Database (Supabase OR local Postgres)
+
+You have two paths depending on your stage. **Pick one.**
+
+### Path A — Local Postgres + pgvector (dev / pre-production)
+
+Same `pgvector/pgvector:pg16` image Supabase ships, so dev/prod parity is
+clean. No account, no signup.
+
+```bash
+docker compose up -d
+# in your .env:
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agentos
+pnpm db:migrate
+pnpm seed:acqu-vitals
+```
+
+Reset everything with `docker compose down -v`. This is the recommended
+loop for the first developer trying things out — production switches to
+Path B without a code change.
+
+### Path B — Supabase (recommended for live deploy)
 
 1. Create a project at <https://supabase.com/dashboard/projects>. Region:
    pick the one closest to where you'll host the API.

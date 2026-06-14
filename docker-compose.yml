@@ -1,0 +1,45 @@
+# Local Postgres 16 + pgvector for AgentOS development.
+#
+# Use this when you want to run the full platform locally (real DB, real
+# migrations, real seeds, real isolation suite) without provisioning Supabase.
+# Same image Supabase ships in production, so dev / prod parity is clean.
+#
+# Quick start:
+#   docker compose up -d
+#   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agentos pnpm db:migrate
+#   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agentos pnpm seed:acqu-vitals
+#
+# Or after running `pnpm setup`, set DATABASE_URL in .env to:
+#   postgresql://postgres:postgres@localhost:5432/agentos
+#
+# Reset everything (clears the volume):
+#   docker compose down -v
+#
+# What this does NOT replicate:
+#   - Supabase Auth (the API uses its own api-key auth — fine for dev).
+#   - Supabase RLS policies tied to auth.uid() — they apply, but you'll
+#     need to set role = service_role or sign in as a tenant_member for
+#     row-level access to behave the same as Supabase.
+#   - Live edge functions (we don't use any).
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agentos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agentos
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - agentos-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "agentos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  agentos-pgdata:
