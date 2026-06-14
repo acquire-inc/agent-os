@@ -19,6 +19,7 @@ To bring it up against a live DB: read **[`LAUNCH.md`](LAUNCH.md)**.
 |---|---|
 | [`LAUNCH.md`](LAUNCH.md) | 60-second orientation + repo map |
 | [`CLAUDE.md`](CLAUDE.md) | Doctrine — read every session, encodes the non-negotiables |
+| [`docs/connect-and-launch.md`](docs/connect-and-launch.md) | External setup — OpenRouter, Supabase, Inngest, hosting, domain, MCPs |
 | [`docs/internal-launch-runbook.md`](docs/internal-launch-runbook.md) | Operator's step-by-step from READY to LIVE |
 | [`docs/agent-coordination-guidelines.md`](docs/agent-coordination-guidelines.md) | How agents don't step on each other |
 | [`.planning/PLATFORM.md`](.planning/PLATFORM.md) | Capability ledger — 38 capabilities, status per item |

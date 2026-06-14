@@ -29,9 +29,12 @@ so any drift surfaces immediately.
 
 ## How do I launch it for our internal team?
 
-Read **`docs/internal-launch-runbook.md`** top to bottom. It's the 10-item
-checklist: pre-flight → DB up → live isolation → integration → seed → runners
-→ smoke test → control plane → cant-fail on-call → DONE.
+1. **Read `docs/connect-and-launch.md`** first — it walks through the external
+   wiring: OpenRouter (one key for everything — Hermes + Claude + Architect),
+   Supabase, Inngest, hosting (Render/Vercel), domain CNAMEs, MCP connectors.
+2. Then **`docs/internal-launch-runbook.md`** — the 10-item operator
+   checklist: pre-flight → DB up → live isolation → integration → seed →
+   runners → smoke test → control plane → cant-fail on-call → DONE.
 
 ## How do I keep agents from stepping on each other?
 
@@ -50,6 +53,7 @@ implemented as code-enforced gates. You can't opt out.
 | `CLAUDE.md` | Every-session orientation — the canonical doctrine entry point |
 | `docs/main-acqu-agent-doctrine.md` | How agents run — model tiers, tooling, skills, connectors |
 | `docs/acqu-os-build-spec.md` | Platform build spec — data model, runner, safety layer |
+| `docs/connect-and-launch.md` | **External setup** — API keys, Supabase, Inngest, hosting, domain, MCPs |
 | `docs/internal-launch-runbook.md` | **Operator's step-by-step from READY to LIVE** |
 | `docs/agent-coordination-guidelines.md` | Fleet design + the "don't overlap" mental model |
 | `docs/dispatch-contract.md` | Run lifecycle + bundle shape + state machine contracts |

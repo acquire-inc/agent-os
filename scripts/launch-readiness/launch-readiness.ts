@@ -188,6 +188,7 @@ console.log("\n[6] Required doctrine docs present");
     "docs/tenant-config-validation.md",
     "docs/agent-coordination-guidelines.md",
     "docs/internal-launch-runbook.md",
+    "docs/connect-and-launch.md",
     "docs/migration-rollback-notes.md",
     "docs/feature-flags.md",
     "docs/a2a-handoffs.md",
