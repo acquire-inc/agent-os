@@ -16,8 +16,34 @@ import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createInterface } from "node:readline/promises";
+import { createInterface, type Interface } from "node:readline/promises";
 import { stdin as input, stdout as output, argv, exit } from "node:process";
+
+// CR-05: readline's default echoes every keystroke. Pasted secrets (OpenRouter
+// keys, DB passwords, service-role keys) end up in the shell scrollback,
+// tmux/screen logs, and any session recorder. secretQuestion masks input by
+// overriding `output._writeToOutput` with a "*" muter for the duration of one
+// question — the same pattern inquirer uses. We DO NOT log the value;
+// `.env` 0600 is the only persistent home for these strings.
+async function secretQuestion(rl: Interface, prompt: string): Promise<string> {
+  output.write(prompt);
+  // The Node typings don't expose _writeToOutput, but every readline
+  // interface has it (lib/internal/readline/interface.js). Cast through
+  // an internal shape that lets us patch + restore.
+  type WriteMuter = { _writeToOutput?: (s: string) => void };
+  const muter = rl as unknown as WriteMuter;
+  const original = muter._writeToOutput;
+  muter._writeToOutput = (s: string) => {
+    output.write(s === "\n" || s === "\r\n" ? s : "*");
+  };
+  try {
+    const answer = await rl.question("");
+    return answer;
+  } finally {
+    muter._writeToOutput = original;
+    output.write("\n");
+  }
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..");
@@ -177,8 +203,8 @@ async function main() {
   try {
     const answers = new Map<string, string>();
 
-    // Required — OpenRouter key (used twice).
-    const orKey = (await rl.question("OPENROUTER_API_KEY (https://openrouter.ai/keys): ")).trim();
+    // Required — OpenRouter key (used twice). Secret prompt: echo masked.
+    const orKey = (await secretQuestion(rl, "OPENROUTER_API_KEY (https://openrouter.ai/keys): ")).trim();
     if (!orKey) {
       console.log("\nNo OpenRouter key entered. The platform can still boot in demo mode,");
       console.log("but the Architect (/architect) will return 501 and the runner stays in DRY-RUN.");
@@ -193,16 +219,17 @@ async function main() {
     answers.set("AOS_VAULT_KEY", randomBytes(32).toString("base64"));
     console.log("  ✓ AOS_VAULT_KEY generated locally (32 random bytes, base64).");
 
-    // Optional Supabase — surface the docs path, don't block.
+    // Optional Supabase — surface the docs path, don't block. The y/N answer
+    // is NOT a secret (echo allowed); the URL/keys that follow ARE secrets.
     const wantSupabase = (await rl.question("\nDo you have a Supabase project ready? [y/N]: ")).trim().toLowerCase();
     if (wantSupabase === "y" || wantSupabase === "yes") {
-      const dbUrl = (await rl.question("  DATABASE_URL (Supabase Settings → Database → Connection string URI): ")).trim();
+      const dbUrl = (await secretQuestion(rl, "  DATABASE_URL (Supabase Settings → Database → Connection string URI): ")).trim();
       if (dbUrl) answers.set("DATABASE_URL", dbUrl);
       const supaUrl = (await rl.question("  VITE_SUPABASE_URL (Settings → API → Project URL): ")).trim();
       if (supaUrl) answers.set("VITE_SUPABASE_URL", supaUrl);
-      const anon = (await rl.question("  VITE_SUPABASE_ANON_KEY (anon public key): ")).trim();
+      const anon = (await secretQuestion(rl, "  VITE_SUPABASE_ANON_KEY (anon public key): ")).trim();
       if (anon) answers.set("VITE_SUPABASE_ANON_KEY", anon);
-      const svc = (await rl.question("  SUPABASE_SERVICE_ROLE_KEY (server-only): ")).trim();
+      const svc = (await secretQuestion(rl, "  SUPABASE_SERVICE_ROLE_KEY (server-only): ")).trim();
       if (svc) answers.set("SUPABASE_SERVICE_ROLE_KEY", svc);
     } else {
       console.log("  → Skipped. UI runs on demo data until DATABASE_URL is set. See docs/connect-and-launch.md.");
@@ -212,6 +239,7 @@ async function main() {
     const out = buildEnvFromTemplate(answers);
     writeFileSync(ENV_PATH, out, { mode: 0o600 });
     console.log(`\n✓ Wrote ${ENV_PATH} (mode 0600)`);
+    console.log("  → secrets entered with local echo suppressed; raw values exist only in .env (mode 0600).");
 
     const env = parseEnvFile(out);
     const missing = reportCheck(env);
