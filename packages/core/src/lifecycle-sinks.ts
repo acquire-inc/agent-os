@@ -59,12 +59,13 @@ import type {
   HandoffDecision,
 } from "./a2a.js";
 import type { ImprovementSink, ImprovementProposal } from "./improve.js";
-import type {
-  ActiveLease,
-  LeaseDecision,
-  LeaseHolder,
-  LeaseSink,
-  LeaseTarget,
+import {
+  assertTenantScopedKey,
+  type ActiveLease,
+  type LeaseDecision,
+  type LeaseHolder,
+  type LeaseSink,
+  type LeaseTarget,
 } from "./lease.js";
 import type { AgentFleetSample, ManagerAction, ManagerSink } from "./manager.js";
 import type {
@@ -310,6 +311,17 @@ export function buildLeaseSink(db: Db, emit: RelayEmitter): LeaseSink {
 
   return {
     async loadActive(target, _nowIso) {
+      // WR-04: refuse to load a target whose key isn't tenant-prefixed.
+      // We don't know the caller's tenant from loadActive's signature, so we
+      // assert the key SHAPE: it must include a "{uuid-ish}/" prefix. The
+      // acquire path will then re-check the full tenant match against
+      // agents.tenantId. Refusing here too means a regressed caller can't
+      // even see the cross-tenant row before we'd refuse to write.
+      if (!/^[^/]+\//.test(target.key)) {
+        throw new Error(
+          `lease target key not tenant-prefixed — refusing to load (key=${target.key})`,
+        );
+      }
       const [row] = await db
         .select()
         .from(schema.agentLeases)
@@ -327,6 +339,8 @@ export function buildLeaseSink(db: Db, emit: RelayEmitter): LeaseSink {
     async acquire(input) {
       const tenantId = await resolveTenantId(input.holder.ownerAgentId);
       assertTenant(tenantId);
+      // WR-04: full assertion now that we know the tenant.
+      assertTenantScopedKey(input.target, tenantId);
       const expiresAt = new Date(new Date(input.nowIso).getTime() + input.ttlMs);
       const [row] = await db
         .insert(schema.agentLeases)

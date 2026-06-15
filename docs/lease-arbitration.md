@@ -29,12 +29,15 @@ A lease target is `(kind, key)` — both strings. Any future resource type
 joins the arbitration layer by picking a stable key; no schema change
 needed.
 
+The `key` MUST be **tenant-prefixed** — see § Tenant scoping below. Format:
+`{tenantId}/{resource_id}`. The `kind` stays the resource-class string.
+
 ```
-lead/L-12345
-deal/D-9
-objective/abc
-tool.connector.slack/channel-9
-mcp.hubspot/contact-440
+lead    / {tenantId}/L-12345
+deal    / {tenantId}/D-9
+objective / {tenantId}/abc
+tool.connector.slack / {tenantId}/channel-9
+mcp.hubspot / {tenantId}/contact-440
 ```
 
 ## Decision matrix
@@ -146,11 +149,27 @@ DATABASE_URL=… # live arbitration test — adds in the next launch pass
 3. New relay variant: add the event name in `relay/events.ts`, the
    emit branch in `lease.ts` runner, the dashboard subscription.
 
+## Tenant scoping
+
+Lease target keys MUST be **tenant-prefixed**: `{tenantId}/{resource_id}`.
+Two tenants both using `lead/L-123` would otherwise collide on the
+`(kind, key)` uniqueness, and a cant-fail run in tenant A could preempt
+tenant B's lease (cross-tenant safety bug). The pure `decideLease()` carries
+no tenant assertion — it can't, because the lease layer is meant to be
+generic. The guard lives at the **boundary**: `assertTenantScopedKey()` in
+`packages/core/src/lease.ts` runs inside `buildLeaseSink.loadActive` and
+`.acquire` BEFORE the SQL, and throws on mismatch. RLS on `agent_leases` is
+the DB-side safety net but the prefix is what makes the keyspace per-tenant
+in the first place.
+
+When wiring a new resource type, build the key as
+``` `${tenantId}/${resourceId}` ``` not just `resourceId`.
+
 ## Compliance notes
 
 - Lease arbitration does NOT change autonomy, can't-fail, CRA, model
   routing, or budget enforcement. It only sequences work.
 - Cant-fail preempts are recorded in the audit trail (separate event)
   so an operator can review every safety-tier intervention.
-- Tenant scoping: target keys are per-tenant; one tenant's `lead/L-1`
-  is unrelated to another's. RLS on `agent_leases` enforces this.
+- Tenant scoping: target keys are tenant-prefixed (above). RLS on
+  `agent_leases` enforces tenant_id at the DB layer too.

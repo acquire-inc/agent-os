@@ -34,10 +34,38 @@
 /** Identifier of the resource being held. The platform deliberately keeps
  *  this as (kind, key) strings: any future resource type (lead, deal,
  *  connector record, tool invocation, sub-agent slot) participates by picking
- *  a stable key without a schema change. */
+ *  a stable key without a schema change.
+ *
+ *  WR-04 tenant scoping (REQUIRED): the `key` MUST be tenant-prefixed —
+ *  `{tenantId}/{resource_id}`. See docs/lease-arbitration.md § Tenant scoping
+ *  for rationale and the runtime guard at assertTenantScopedKey(). Without
+ *  the prefix, two tenants that both use `lead/L-123` as a key would
+ *  collide and a cant-fail run in tenant A could preempt tenant B's
+ *  lease — a cross-tenant safety bug that no other layer catches because
+ *  agent_leases is V2-gated and the pure decideLease() carries no tenant
+ *  assertion of its own. */
 export interface LeaseTarget {
   kind: string;
   key: string;
+}
+
+/** WR-04 runtime guard: every lease load/acquire MUST be against a target
+ *  whose key starts with `{tenantId}/`. Throws on mismatch so a regression
+ *  fails loud at the boundary instead of silently writing a cross-tenant-
+ *  shaped row. The sink calls this before the SQL; pure tests construct
+ *  targets that already include the prefix. */
+export function assertTenantScopedKey(target: LeaseTarget, tenantId: string): void {
+  if (!tenantId || tenantId.length === 0) {
+    throw new Error(
+      `lease tenant_id required — refusing to operate on target ${target.kind}/${target.key}`,
+    );
+  }
+  if (!target.key.startsWith(`${tenantId}/`)) {
+    throw new Error(
+      `lease target key not tenant-prefixed — refusing to load/acquire ` +
+        `(tenant=${tenantId}, key=${target.key})`,
+    );
+  }
 }
 
 export function leaseTargetEq(a: LeaseTarget, b: LeaseTarget): boolean {

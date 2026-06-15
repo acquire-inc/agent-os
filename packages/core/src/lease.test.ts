@@ -4,6 +4,7 @@ import {
   CANTFAIL_LEASE_FLOOR_MS,
   DEFAULT_CONFLICT_BACKOFF_MS,
   DEFAULT_LEASE_TTL_MS,
+  assertTenantScopedKey,
   clampLeaseTtl,
   decideLease,
   isLeaseActive,
@@ -211,6 +212,48 @@ async function main() {
       sink,
     );
     assert(sink.calls.acquired[0]!.ttlMs === DEFAULT_LEASE_TTL_MS, "DEFAULT_LEASE_TTL_MS used when ttlMs absent");
+  }
+
+  console.log("\n[assertTenantScopedKey — WR-04 cross-tenant guard]");
+  {
+    const tenantA = "tenant-A";
+    const tenantB = "tenant-B";
+    // Correctly prefixed key passes.
+    let threw = false;
+    try {
+      assertTenantScopedKey({ kind: "lead", key: `${tenantA}/L-1` }, tenantA);
+    } catch {
+      threw = true;
+    }
+    assert(!threw, "tenant-prefixed key passes for owning tenant");
+    // Cross-tenant prefix throws.
+    threw = false;
+    try {
+      assertTenantScopedKey({ kind: "lead", key: `${tenantA}/L-1` }, tenantB);
+    } catch {
+      threw = true;
+    }
+    assert(threw, "key prefixed by another tenant id throws");
+    // Unprefixed key throws.
+    threw = false;
+    try {
+      assertTenantScopedKey({ kind: "lead", key: "L-1" }, tenantA);
+    } catch (e) {
+      threw = true;
+      assert(
+        /not tenant-prefixed/.test((e as Error).message),
+        "throw names the doctrine",
+      );
+    }
+    assert(threw, "unprefixed key throws");
+    // Empty tenantId is itself a refusal.
+    threw = false;
+    try {
+      assertTenantScopedKey({ kind: "lead", key: "L-1" }, "");
+    } catch {
+      threw = true;
+    }
+    assert(threw, "empty tenantId throws (refuse to operate)");
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);
