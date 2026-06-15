@@ -407,11 +407,28 @@ function synthFleetActivity(agents: Agent[], sinceHours = 24, target = 80): Flee
 }
 
 export const data = {
-  async tenants(): Promise<Tenant[]> {
+  // WR-06: `tenants` is a METADATA table — `tenant_id`-based row filtering is
+  // not the right control here (a tenant row IS the metadata, it doesn't carry
+  // someone else's tenant_id). Auth-scope is what gates: only return tenants
+  // the calling user is a `tenant_members` member of. The implicit
+  // `tenant_members!inner()` join makes Supabase drop any row that lacks a
+  // membership match for the supplied userId — defense-in-depth even when the
+  // RLS policy on `tenants` is mis-configured.
+  async tenants(userId: string): Promise<Tenant[]> {
     if (isSupabaseConfigured && supabase) {
-      const { data: rows, error } = await supabase.from("tenants").select("*").order("created_at");
+      const { data: rows, error } = await supabase
+        .from("tenants")
+        .select("*, tenant_members!inner()")
+        .eq("tenant_members.user_id", userId)
+        .order("created_at");
       if (error) throw error;
-      return (rows ?? []).map((r) => mapRow<Tenant>(r as Record<string, unknown>));
+      // Drop any row missing the joined tenant_members hit, regardless of what
+      // RLS let through (PostgREST shape: the inner join already prunes, but
+      // we re-assert here so a row that arrived without a member relation is
+      // treated as untrusted).
+      return (rows ?? [])
+        .filter((r) => Boolean((r as { tenant_members?: unknown[] }).tenant_members))
+        .map((r) => mapRow<Tenant>(r as Record<string, unknown>));
     }
     return mergeTenants(demoTenants);
   },
@@ -440,11 +457,24 @@ export const data = {
       : byTenant(demoRuns, tenantId);
   },
 
-  async runActivity(runId: string): Promise<RunActivity[]> {
+  // CR-04: scope by tenant + assert post-fetch, matching the sb() wrapper's
+  // defense-in-depth pattern. Without this, a leaked/guessed runId would
+  // surface another tenant's activity stream if the run_activity RLS policy
+  // ever regresses.
+  async runActivity(runId: string, tenantId: string): Promise<RunActivity[]> {
     if (isSupabaseConfigured && supabase) {
-      const { data: rows, error } = await supabase.from("run_activity").select("*").eq("run_id", runId).order("ts");
+      const { data: rows, error } = await supabase
+        .from("run_activity")
+        .select("*")
+        .eq("run_id", runId)
+        .eq("tenant_id", tenantId)
+        .order("ts");
       if (error) throw error;
-      return (rows ?? []).map((r) => mapRow<RunActivity>(r as Record<string, unknown>));
+      const arr = rows ?? [];
+      if (arr.some((r) => (r as { tenant_id?: string }).tenant_id !== tenantId)) {
+        throw new Error("runActivity: cross-tenant row in response — refusing to surface");
+      }
+      return arr.map((r) => mapRow<RunActivity>(r as Record<string, unknown>));
     }
     return demoRunActivity.filter((a) => a.runId === runId);
   },

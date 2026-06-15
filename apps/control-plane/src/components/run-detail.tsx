@@ -3,6 +3,7 @@ import type { Agent, Run } from "@agent-os/shared";
 import { Badge } from "#/components/ui/badge";
 import { Drawer } from "#/components/ui/drawer";
 import { Separator, StatusDot } from "#/components/ui/misc";
+import { useApp } from "#/lib/app-context";
 import { data } from "#/lib/data";
 import { RUN_STATUS_LABEL, statusBadgeVariant } from "#/lib/helpers";
 import { formatNumber, formatUsd, relativeTime } from "#/lib/utils";
@@ -15,9 +16,14 @@ const KIND_COLOR: Record<string, string> = {
 };
 
 export function RunDetail({ run, agent, onClose }: { run: Run; agent?: Agent; onClose: () => void }) {
+  // CR-04: scope run-activity reads to the current tenant. Both query key and
+  // queryFn carry the tenantId so a tenant switch in the chrome refetches.
+  const { activeTenant } = useApp();
+  const tenantId = activeTenant?.id ?? "";
   const { data: activity = [] } = useQuery({
-    queryKey: ["run-activity", run.id],
-    queryFn: () => data.runActivity(run.id),
+    queryKey: ["run-activity", tenantId, run.id],
+    queryFn: () => data.runActivity(run.id, tenantId),
+    enabled: Boolean(tenantId),
   });
 
   return (

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Project, Tenant } from "@agent-os/shared";
+import { useAuth } from "./auth";
 import { data } from "./data";
 
 const ORG_KEY = "aos-active-org";
@@ -21,9 +22,18 @@ interface AppCtx {
 const Ctx = createContext<AppCtx | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  // WR-06: data.tenants() now requires the caller's userId so the Supabase
+  // branch joins through tenant_members. In demo mode (user null) we still
+  // want the merged demo fixture, so pass an empty string — the demo branch
+  // ignores the argument.
+  const { user } = useAuth();
+  const userId = user?.id ?? "";
   const { data: tenants = [], isLoading: tenantsLoading } = useQuery({
-    queryKey: ["tenants"],
-    queryFn: () => data.tenants(),
+    queryKey: ["tenants", userId],
+    queryFn: () => data.tenants(userId),
+    // In Supabase mode wait for auth; demo mode runs immediately because
+    // isSupabaseConfigured is false and the userId is unused.
+    enabled: Boolean(userId) || !user,
   });
 
   const [activeTenantId, setActiveTenantId] = useState<string | null>(
