@@ -80,6 +80,12 @@ export const EVENT_NAMES = [
   // sample_size, requires_human_approval }. Apply/reject decisions land via
   // the queue's status column; can't-fail agents are never auto-applied.
   "improvement.proposed",
+  // CR-02: emitted on the operator's apply of an improvement proposal
+  // belonging to a CANT-FAIL agent (or one whose requires_human_approval
+  // flag is set). Distinct event so the safety-tier dashboard can subscribe
+  // narrowly: every prompt-rewrite on a critical agent leaves a searchable
+  // breadcrumb. Payload: { proposal_id, agent_id, version, applied_by }.
+  "cantfail.improvement_applied",
 
   // Critic-agent peer-approval (V2 P6). Emitted when a critic quorum
   // auto-approves a low-stakes proposal OR a critic rejection escalates it
@@ -111,6 +117,11 @@ export const EVENT_NAMES = [
   // actual agents.enabled flip. Payload: { agent_id, kind, rationale,
   // proposal_id }.
   "manager.action_proposed",
+  // WR-05: manager saw a threshold breach but a pending proposal of the same
+  // (agent, kind) already exists in the operator inbox — skip writing a
+  // duplicate. Payload: { agent_id, kind, reason }. Prevents the paused-
+  // budget-hog inbox flood without losing the audit trail.
+  "manager.action_skipped_dedup",
 
   // Connector health (carrier: connector-health-monitor agent)
   "connector.health.degraded",

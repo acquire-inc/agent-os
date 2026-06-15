@@ -1557,11 +1557,20 @@ app.post("/api/admin/manager-proposals/:id/decide", requireAdmin, async (c) => {
   // Apply: pause or retire (= pause + mark for archival; retirement
   // archival is a lifecycle concern, here we just flip enabled and stamp
   // the proposal).
+  // CR-03: enforce tenant scope on the agents update. The proposal row was
+  // already loaded scoped to tenant, but a poisoned/cross-tenant proposal
+  // (e.g. one written by a V2 sink before CR-01 landed) must NOT let an
+  // admin from tenant A flip an agent in tenant B. Defense-in-depth on the
+  // same uniform `id AND tenantId` predicate every other admin write uses.
   if (proposal.kind === "pause" || proposal.kind === "retire") {
-    await db
+    const updated = await db
       .update(schema.agents)
       .set({ enabled: false })
-      .where(eq(schema.agents.id, proposal.agentId));
+      .where(and(eq(schema.agents.id, proposal.agentId), eq(schema.agents.tenantId, tenantId)))
+      .returning({ id: schema.agents.id });
+    if (updated.length === 0) {
+      return c.json({ error: "proposal references agent outside tenant — refusing to apply" }, 409);
+    }
   }
   await db
     .update(schema.managerProposals)

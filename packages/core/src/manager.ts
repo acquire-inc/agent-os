@@ -148,11 +148,29 @@ export function planManagerCycle(
 export interface ManagerSink {
   /** Load the active fleet samples for one tenant. */
   loadFleet(tenantId: string): Promise<readonly AgentFleetSample[]>;
+  /** WR-05 dedup gate: is there already a pending proposal for this
+   *  (tenant, agent, kind) tuple? If true, runManagerCycle skips the write
+   *  and emits `manager.action_skipped_dedup` instead — prevents the paused-
+   *  budget-hog inbox flood where a metric blip becomes 3 fresh proposals
+   *  every cycle until an operator acts. */
+  hasOpenProposal(
+    tenantId: string,
+    agentId: string,
+    kind: ManagerAction["kind"],
+  ): Promise<boolean>;
   /** Persist a manager proposal — operator reviews before apply, mirroring
    *  agent_improvement_proposals. Returns proposal id. */
   writeProposal(tenantId: string, action: ManagerAction): Promise<string>;
   /** Emit `manager.action_proposed` for the dashboard. */
   emit(input: { tenantId: string; action: ManagerAction; proposalId: string }): Promise<void>;
+  /** Emit `manager.action_skipped_dedup` when the dedup gate trips. The
+   *  dashboard surfaces this as "manager saw the threshold but a pending
+   *  proposal already exists — no inbox churn." */
+  emitSkippedDedup(input: {
+    tenantId: string;
+    action: ManagerAction;
+    reason: string;
+  }): Promise<void>;
 }
 
 export interface ManagerRunResult {
@@ -169,6 +187,17 @@ export async function runManagerCycle(
   const actions = planManagerCycle(samples, policy);
   const proposals: ManagerRunResult["proposals"] = [];
   for (const a of actions) {
+    // WR-05: skip when a pending proposal of the same (agent, kind) already
+    // sits in the operator inbox. Emit the skip so the dashboard can show
+    // "saw the threshold, no duplicate created."
+    if (await sink.hasOpenProposal(tenantId, a.agentId, a.kind)) {
+      await sink.emitSkippedDedup({
+        tenantId,
+        action: a,
+        reason: "open_pending_proposal",
+      });
+      continue;
+    }
     const id = await sink.writeProposal(tenantId, a);
     await sink.emit({ tenantId, action: a, proposalId: id });
     proposals.push({ action: a, proposalId: id });

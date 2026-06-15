@@ -131,19 +131,62 @@ async function main() {
     assert(sink.calls.emits.length === 0, "no emits");
   }
 
+  console.log("\n[runManagerCycle — WR-05 dedup against pending proposals]");
+  {
+    // Agent "1" already has a pending pause proposal; the cycle should
+    // emit the skipped-dedup event and NOT write a duplicate.
+    const fleet = [
+      sample({ agentId: "1", trailingSuccessRate: 0.2 }), // would pause
+      sample({ agentId: "2", monthlySpendShare: 0.7 }),    // would pause
+    ];
+    const sink = makeSpySink(fleet, { openProposals: [{ agentId: "1", kind: "pause" }] });
+    const r = await runManagerCycle("t-1", sink);
+    assert(r.proposals.length === 1, "only the non-deduped action writes a proposal");
+    assert(sink.calls.writes.length === 1, "one write");
+    assert(sink.calls.skipped.length === 1, "dedup skip emitted");
+    assert(sink.calls.skipped[0]!.action.agentId === "1", "skip names the deduped agent");
+    assert(sink.calls.skipped[0]!.reason === "open_pending_proposal", "skip carries the reason code");
+  }
+  {
+    // Different KIND on the same agent does NOT dedup — pause and retire are
+    // distinct proposals even on the same agent.
+    const fleet = [
+      sample({ agentId: "x", enabled: false, hoursSincePaused: 24 * 30, hoursSinceLastSuccess: 24 * 60 }),
+    ];
+    const sink = makeSpySink(fleet, { openProposals: [{ agentId: "x", kind: "pause" }] });
+    const r = await runManagerCycle("t-1", sink);
+    assert(r.proposals.length === 1, "retire is not deduped by an open pause");
+    assert(sink.calls.skipped.length === 0, "no skip emitted");
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }
 
-function makeSpySink(fleet: AgentFleetSample[]): ManagerSink & {
-  calls: { writes: ManagerAction[]; emits: Array<{ proposalId: string }> };
+function makeSpySink(
+  fleet: AgentFleetSample[],
+  opts: { openProposals?: Array<{ agentId: string; kind: ManagerAction["kind"] }> } = {},
+): ManagerSink & {
+  calls: {
+    writes: ManagerAction[];
+    emits: Array<{ proposalId: string }>;
+    skipped: Array<{ action: ManagerAction; reason: string }>;
+  };
 } {
-  const calls = { writes: [] as ManagerAction[], emits: [] as Array<{ proposalId: string }> };
+  const calls = {
+    writes: [] as ManagerAction[],
+    emits: [] as Array<{ proposalId: string }>,
+    skipped: [] as Array<{ action: ManagerAction; reason: string }>,
+  };
+  const open = new Set((opts.openProposals ?? []).map((p) => `${p.agentId}/${p.kind}`));
   let n = 0;
   return {
     calls,
     async loadFleet() {
       return fleet;
+    },
+    async hasOpenProposal(_tenant, agentId, kind) {
+      return open.has(`${agentId}/${kind}`);
     },
     async writeProposal(_tenant, action) {
       calls.writes.push(action);
@@ -152,6 +195,9 @@ function makeSpySink(fleet: AgentFleetSample[]): ManagerSink & {
     },
     async emit(input) {
       calls.emits.push({ proposalId: input.proposalId });
+    },
+    async emitSkippedDedup(input) {
+      calls.skipped.push({ action: input.action, reason: input.reason });
     },
   };
 }

@@ -186,6 +186,9 @@ export interface CriticReviewSink {
   escalateToHuman(approvalId: string, decision: QuorumDecision): Promise<void>;
   /** Emit `critic.quorum_decided` to the relay. */
   emitDecision(input: {
+    /** Tenant scope for the relay row — threaded from the loaded proposal so
+     *  the sink never writes an empty-string tenantId. */
+    tenantId: string;
     approvalId: string;
     eligibility: EligibilityDecision;
     decision: QuorumDecision | null;
@@ -231,10 +234,10 @@ export async function runCriticReview(
 
   if (decision.outcome === "approved") {
     await sink.approveByQuorum(approvalId, decision);
-    await sink.emitDecision({ approvalId, eligibility, decision });
+    await sink.emitDecision({ tenantId: proposal.tenantId, approvalId, eligibility, decision });
   } else if (decision.outcome === "escalate_to_human") {
     await sink.escalateToHuman(approvalId, decision);
-    await sink.emitDecision({ approvalId, eligibility, decision });
+    await sink.emitDecision({ tenantId: proposal.tenantId, approvalId, eligibility, decision });
   }
   // pending: no state change, no emit — wait for more votes.
 
