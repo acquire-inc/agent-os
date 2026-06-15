@@ -141,8 +141,12 @@ export interface HandoffSink {
     target: HandoffTargetAgent;
     handoffContext: string;
   }): Promise<{ handoffId: string; nextRunId: string }>;
-  /** Emit `agent.handoff_initiated` to the relay so the chain is visible
-   *  in the operator dashboard. */
+  /** Emit `agent.handoff_decided` to the relay so the chain is visible in
+   *  the operator dashboard. Payload's `action` field discriminates the
+   *  variant: `queue | refuse_paused | refuse_cross_tenant | refuse_unknown`
+   *  — consumers filter by it without parsing rationale strings. Must match
+   *  the name registered in relay/events.ts; a contributor emitting a name
+   *  that isn't in the closed namespace gets rejected before the DB insert. */
   emit(input: {
     request: HandoffRequest;
     decision: HandoffDecision;
