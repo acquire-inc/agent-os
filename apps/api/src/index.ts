@@ -35,7 +35,7 @@ import {
   type ApiKeyContext,
   type LlmClient,
 } from "@agent-os/core";
-import { checkTenantBudget, compareForecasts, DEFAULT_THRESHOLDS, DEFAULT_TIER_MODELS, inferTaskProfile, isModelTier, MODEL_TIERS, pickBestModel, suggestModelForBlueprint, validateScorecardThresholds, type ModelCatalogEntry, type ModelSuggestion, type ModelTier, type ScorecardThresholdOverrides, type ScorecardThresholds, type TaskProfile, type TokenEstimate } from "@agent-os/core";
+import { checkTenantBudget, compareForecasts, DEFAULT_THRESHOLDS, DEFAULT_TIER_MODELS, inferTaskProfile, isModelTier, MODEL_TIERS, pickBestModel, suggestModelForBlueprint, validateScorecardThresholds, validateTierOverrides, type ModelCatalogEntry, type ModelSuggestion, type ModelTier, type ScorecardThresholdOverrides, type ScorecardThresholds, type TaskProfile, type TokenEstimate } from "@agent-os/core";
 import { loadModelCatalog, readTenantMonthToDateUsd } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { decryptEnvValue, loadVaultKey, makeBundleTokenResolver, storeCredential } from "@agent-os/vault";
@@ -1280,7 +1280,20 @@ app.put("/api/admin/tenants/me/tier-overrides", requireAdmin, async (c) => {
     }, 400);
   }
   const newSlug: string | null = typeof b.model === "string" && b.model.length > 0 ? b.model : null;
+  // WR-03: route shape validation through the central validateTierOverrides
+  // so the slug regex (MODEL_SLUG_RE) is enforced here AND any future shape
+  // rule lands in one place. Clearing (newSlug=null) skips the validator
+  // since the validator is for setting, not clearing. T-critical is already
+  // rejected above; the validator also rejects it so the pin is enforced at
+  // two layers.
   if (newSlug !== null) {
+    const v = validateTierOverrides({ [b.tier]: newSlug });
+    if (!v.ok) {
+      return c.json({ error: "invalid override", reasons: v.reasons }, 400);
+    }
+    // SECOND pass — catalog membership. The validator does shape; this
+    // checks the slug actually resolves to a known model with a non-critical
+    // tier affinity.
     const catalog = await loadModelCatalog(db);
     const candidate = catalog.find((m) => m.slug === newSlug);
     if (!candidate) {
