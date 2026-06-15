@@ -1474,6 +1474,34 @@ app.post("/api/admin/improvement-proposals/:id/decide", requireAdmin, async (c) 
   if (proposal.kind !== "prompt_amend" || !proposal.proposedPrompt) {
     return c.json({ error: `apply not implemented for kind '${proposal.kind}'` }, 400);
   }
+
+  // CR-02: HARD GATE — cant-fail proposals (or any with requires_human_approval)
+  // require an explicit confirmation header. The header comment promises the
+  // doctrine; this block enforces it. Resolve agent.key scoped to tenant so
+  // a poisoned/cross-tenant proposal can't bypass the gate. If the agent is
+  // can't-fail, the prompt-rewrite always demands the header — even if the
+  // proposal's stored requires_human_approval flag was somehow cleared.
+  const [agent] = await db
+    .select({ key: schema.agents.key })
+    .from(schema.agents)
+    .where(and(eq(schema.agents.id, proposal.agentId), eq(schema.agents.tenantId, tenantId)))
+    .limit(1);
+  if (!agent) {
+    return c.json({ error: "proposal references agent outside tenant — refusing to apply" }, 409);
+  }
+  const cantFail = isCantFail(agent.key);
+  if (proposal.requiresHumanApproval || cantFail) {
+    if (c.req.header("x-confirm-cantfail") !== "yes") {
+      return c.json(
+        {
+          error: "cant-fail proposal requires explicit confirmation header x-confirm-cantfail: yes",
+          proposalId: proposal.id,
+          agentKey: agent.key,
+        },
+        412,
+      );
+    }
+  }
   // Demote the current row first so the unique-current constraint (if any)
   // doesn't conflict.
   await db
@@ -1509,6 +1537,27 @@ app.post("/api/admin/improvement-proposals/:id/decide", requireAdmin, async (c) 
       appliedPromptVersionId: newPromptRow?.id ?? null,
     })
     .where(eq(schema.agentImprovementProposals.id, id));
+  // CR-02 audit trail: emit either the safety-tier event (cant-fail prompt
+  // rewrites are the highest-stakes admin action — they MUST be searchable on
+  // the cantfail.* dashboard) or the routine improvement.applied for normal
+  // prompts. Failure to emit must not roll back the apply — log + continue.
+  try {
+    await emit(db, {
+      tenantId,
+      agentId: proposal.agentId,
+      runId: null,
+      actor: "human",
+      eventName: cantFail ? "cantfail.improvement_applied" : "improvement.applied",
+      payload: {
+        proposal_id: proposal.id,
+        agent_id: proposal.agentId,
+        version: nextVersion,
+        applied_by: "operator",
+      },
+    });
+  } catch (e) {
+    console.warn(`[improvement.apply] emit failed for proposal ${proposal.id}:`, (e as Error).message);
+  }
   return c.json({ ok: true, status: "applied", promptVersionId: newPromptRow?.id, version: nextVersion });
 });
 

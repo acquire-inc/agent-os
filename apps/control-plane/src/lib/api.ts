@@ -31,7 +31,12 @@ export class ApiError extends Error {
   }
 }
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function call<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   const key = getAdminKey();
   if (!key)
     throw new ApiError(401, "No admin API key set — paste one on /settings.");
@@ -40,6 +45,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
     headers: {
       authorization: `Bearer ${key}`,
       "content-type": "application/json",
+      ...(extraHeaders ?? {}),
     },
     body: body == null ? undefined : JSON.stringify(body),
   });
@@ -193,11 +199,18 @@ export const improvementProposals = {
       "GET",
       `/api/admin/improvement-proposals?status=${status}`,
     ),
-  decide: (id: string, decision: "apply" | "reject") =>
+  // CR-02: when the operator confirms a cant-fail apply, set
+  // x-confirm-cantfail: yes. The API enforces 412 server-side when missing.
+  decide: (
+    id: string,
+    decision: "apply" | "reject",
+    opts: { confirmCantFail?: boolean } = {},
+  ) =>
     call<{ ok: boolean; status: string; promptVersionId?: string; version?: number }>(
       "POST",
       `/api/admin/improvement-proposals/${id}/decide`,
       { decision },
+      opts.confirmCantFail ? { "x-confirm-cantfail": "yes" } : undefined,
     ),
 };
 

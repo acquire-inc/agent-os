@@ -80,11 +80,15 @@ export const EVENT_NAMES = [
   // sample_size, requires_human_approval }. Apply/reject decisions land via
   // the queue's status column; can't-fail agents are never auto-applied.
   "improvement.proposed",
-  // CR-02: emitted on the operator's apply of an improvement proposal
-  // belonging to a CANT-FAIL agent (or one whose requires_human_approval
-  // flag is set). Distinct event so the safety-tier dashboard can subscribe
-  // narrowly: every prompt-rewrite on a critical agent leaves a searchable
-  // breadcrumb. Payload: { proposal_id, agent_id, version, applied_by }.
+  // CR-02: emitted on the operator's apply of any improvement proposal.
+  // For the routine (non-cant-fail) path the audit trail lives here.
+  // Payload: { proposal_id, agent_id, version, applied_by }.
+  "improvement.applied",
+  // CR-02 safety-tier mirror: emitted instead of improvement.applied when the
+  // proposal belongs to a CANT-FAIL agent (or one whose
+  // requires_human_approval flag is set). Distinct event so the safety-tier
+  // dashboard can subscribe narrowly to prompt-rewrites on critical agents.
+  // Payload: { proposal_id, agent_id, version, applied_by }.
   "cantfail.improvement_applied",
 
   // Critic-agent peer-approval (V2 P6). Emitted when a critic quorum

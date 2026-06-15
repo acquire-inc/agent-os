@@ -76,8 +76,13 @@ function ImprovementProposalsList({ amap }: { amap: Map<string, { name: string; 
     queryKey: ["improvementProposals"],
     queryFn: () => improvementApi.list("pending"),
   });
+  // CR-02: cant-fail / requires-human-approval proposals demand the operator
+  // tick a confirmation checkbox in the same card before Apply works. We pass
+  // confirmed through to the mutation so it can set the x-confirm-cantfail
+  // header — the API enforces it server-side too (412 when missing).
   const decide = useMutation({
-    mutationFn: ({ id, decision }: { id: string; decision: "apply" | "reject" }) => improvementApi.decide(id, decision),
+    mutationFn: ({ id, decision, confirmed }: { id: string; decision: "apply" | "reject"; confirmed?: boolean }) =>
+      improvementApi.decide(id, decision, { confirmCantFail: confirmed }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["improvementProposals"] }),
   });
 
@@ -107,7 +112,7 @@ function ImprovementProposalsList({ amap }: { amap: Map<string, { name: string; 
               proposal={p}
               agentLabel={amap.get(p.agentId)?.name ?? p.agentId}
               pending={decide.isPending && decide.variables?.id === p.id}
-              onDecide={(decision) => decide.mutate({ id: p.id, decision })}
+              onDecide={(decision, confirmed) => decide.mutate({ id: p.id, decision, confirmed })}
             />
           ))}
         </div>
@@ -125,9 +130,16 @@ function ImprovementProposalCard({
   proposal: ImprovementProposalRow;
   agentLabel: string;
   pending: boolean;
-  onDecide: (decision: "apply" | "reject") => void;
+  onDecide: (decision: "apply" | "reject", confirmed?: boolean) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  // CR-02 UI gate: cant-fail prompt rewrites cannot be one-click applies.
+  // Apply stays disabled until the operator ticks the confirmation box; the
+  // tick also flips the x-confirm-cantfail header on send. Non-cant-fail
+  // proposals keep the normal one-click flow.
+  const [confirmed, setConfirmed] = useState(false);
+  const needsConfirm = proposal.requiresHumanApproval;
+  const applyDisabled = pending || (needsConfirm && !confirmed);
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -144,13 +156,25 @@ function ImprovementProposalCard({
           <Button size="sm" variant="outline" disabled={pending} onClick={() => onDecide("reject")}>
             <XCircle className="size-4" /> Reject
           </Button>
-          <Button size="sm" disabled={pending} onClick={() => onDecide("apply")}>
+          <Button size="sm" disabled={applyDisabled} onClick={() => onDecide("apply", confirmed)}>
             <CheckCircle2 className="size-4" /> Apply
           </Button>
         </div>
       </div>
       <Separator className="my-3" />
       <p className="text-sm">{proposal.rationale}</p>
+      {needsConfirm && (
+        <label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={confirmed}
+            onChange={(e) => setConfirmed(e.target.checked)}
+            className="size-3.5"
+          />
+          I confirm this is a cant-fail prompt rewrite and I want to apply it (sends
+          <code className="mx-1">x-confirm-cantfail: yes</code>).
+        </label>
+      )}
       <button
         type="button"
         className="mt-3 text-xs text-muted-foreground underline"
