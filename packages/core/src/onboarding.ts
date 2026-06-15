@@ -80,8 +80,15 @@ export function validateOnboardingInterview(
   // the operator must explicitly confirm — we DON'T auto-onboard CRA-territory
   // companies. (The Architect's hard refusal still fires at blueprint time;
   // this catches it at the interview layer for a cleaner UX.)
+  // IN-03: match on WORD BOUNDARIES so legitimate copy like "credit card
+  // processing" or "accredited investor" doesn't trip the gate via the
+  // substring match of "credit". The downstream architect blocklist is the
+  // load-bearing refusal; this layer only exists to give the operator the
+  // explicit-confirm UI before the architect blowback.
   const combined = `${iv.description} ${iv.goals} ${iv.industry}`.toLowerCase();
-  const triggered = CRA_TRIGGER_KEYWORDS.filter((k) => combined.includes(k));
+  const triggered = CRA_TRIGGER_KEYWORDS.filter((k) =>
+    new RegExp(`\\b${k}\\b`, "i").test(combined),
+  );
   if (triggered.length > 0 && iv.craAcknowledgement !== "confirmed_not_eligibility_decisioning") {
     reasons.push(
       `CRA territory keyword(s) detected (${triggered.join(", ")}). Operator must confirm ` +

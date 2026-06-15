@@ -99,6 +99,24 @@ async function main() {
       "operator confirmation lifts the CRA pre-check (other validation still runs)",
     );
   }
+  {
+    // IN-03: word-boundary match means legitimate copy that has a CRA keyword
+    // as a SUBSTRING of another word does NOT trip the gate. Pre-fix,
+    // `combined.includes("credit")` matched "accredited" and tripped the gate;
+    // post-fix, `\bcredit\b` requires whole-word match so "accredited" passes.
+    const r = validateOnboardingInterview(
+      iv({
+        description: "We help accredited investors source deals across multiple sectors.",
+        goals: "Increase deal flow for accredited investors by 20% over the next 90 days.",
+        industry: "fintech, accredited investor services",
+        craAcknowledgement: "needs_review",
+      }),
+    );
+    assert(
+      r.reasons.every((m) => !/CRA territory/.test(m)),
+      "substring 'credit' inside 'accredited' does NOT trip the gate (word-boundary match — IN-03 fix)",
+    );
+  }
 
   console.log("\n[composeArchitectPrompt — deterministic, complete shape]");
   {

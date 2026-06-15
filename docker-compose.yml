@@ -1,3 +1,6 @@
+# LOCAL DEVELOPMENT ONLY. Do not deploy this file.
+# Production must use a managed Postgres with a strong password set via a secret manager.
+#
 # Local Postgres 16 + pgvector for AgentOS development.
 #
 # Use this when you want to run the full platform locally (real DB, real
