@@ -202,6 +202,13 @@ export const customToolDispatch: Record<string, CustomToolHandler> = {
   },
 };
 
+// P3/P4 lead pipeline tool handlers — registered after the literal above so
+// the dispatch table picks up the 11 new keys (apify/apollo/supabase_*/
+// serper/jina/firecrawl/email_verify/phone_validate/dnc_scrub). Pure logic
+// lives in @agent-os/core/lead-pipeline; this module is the HTTP + DB I/O.
+import { LEAD_PIPELINE_TOOLS } from "./lead-pipeline-tools.js";
+Object.assign(customToolDispatch, LEAD_PIPELINE_TOOLS);
+
 /** Derive the explicit allowedTools list from the agent's bindings. Pitfall 5:
  *  never leave allowedTools unset — that lets the agent call ANY tool. Returns
  *  custom tool keys + MCP names; the Agent SDK matches on either. */

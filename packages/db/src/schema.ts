@@ -776,3 +776,74 @@ export const managerProposals = pgTable("manager_proposals", {
   appliedBy: text("applied_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/** P3/P4: per-tenant Ideal Customer Profile. Migration 0032. */
+export const icps = pgTable("icps", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  active: boolean("active").notNull().default(false),
+  targetType: text("target_type").notNull(),
+  positiveSignals: jsonb("positive_signals").$type<Record<string, number>>().notNull().default({}),
+  minRevenueUsd: numeric("min_revenue_usd", { precision: 18, scale: 0 }),
+  minHeadcount: integer("min_headcount"),
+  maxHeadcount: integer("max_headcount"),
+  titles: jsonb("titles").$type<string[]>().notNull().default([]),
+  verticals: jsonb("verticals").$type<string[]>().notNull().default([]),
+  geo: jsonb("geo").$type<string[]>().notNull().default([]),
+  countries: jsonb("countries").$type<string[]>().notNull().default([]),
+  dailyDiscoveryLimit: integer("daily_discovery_limit").notNull().default(200),
+  enrichmentBatchSize: integer("enrichment_batch_size").notNull().default(25),
+  scoreThreshold: integer("score_threshold").notNull().default(60),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** P3/P4: the unit of work flowing through discovery → enrichment → scoring. */
+export const leads = pgTable("leads", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  icpId: uuid("icp_id").references(() => icps.id, { onDelete: "set null" }),
+  dedupeKey: text("dedupe_key").notNull(),
+  status: text("status").notNull().default("new"),
+  sourceActor: text("source_actor").notNull(),
+  sourceQuery: jsonb("source_query"),
+  raw: jsonb("raw").notNull().default({}),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  email: text("email"),
+  emailStatus: text("email_status"),
+  phone: text("phone"),
+  phoneType: text("phone_type"),
+  dncFlag: boolean("dnc_flag").notNull().default(false),
+  title: text("title"),
+  company: text("company"),
+  domain: text("domain"),
+  linkedinUrl: text("linkedin_url"),
+  enrichment: jsonb("enrichment").notNull().default({}),
+  icpScore: integer("icp_score"),
+  qualified: boolean("qualified"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  enrichedAt: timestamp("enriched_at", { withTimezone: true }),
+  scoredAt: timestamp("scored_at", { withTimezone: true }),
+});
+
+/** P3/P4: ordered audit log per lead. Append-only. */
+export const leadEvents = pgTable("lead_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  payload: jsonb("payload").notNull().default({}),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** P3: DNC / opt-out list. Discovery skips anything matching. */
+export const suppressionList = pgTable("suppression_list", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  value: text("value").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

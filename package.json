@@ -27,7 +27,8 @@
     "smoke": "pnpm --filter @agent-os/smoke run run",
     "tenant:new": "pnpm --filter @agent-os/seed run tenant-new",
     "setup": "pnpm --filter @agent-os/setup run run",
-    "setup:check": "pnpm --filter @agent-os/setup run check"
+    "setup:check": "pnpm --filter @agent-os/setup run check",
+    "seed:lead-pipeline": "pnpm --filter @agent-os/seed run lead-pipeline"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

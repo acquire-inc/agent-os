@@ -70,6 +70,7 @@ const OFFLINE_TESTS: Array<{ label: string; filter: string; script: string }> = 
   { label: "core/dispatch-contract",  filter: "@agent-os/core",         script: "test:dispatch-contract" },
   { label: "core/lease",              filter: "@agent-os/core",         script: "test:lease" },
   { label: "core/tenant-config",      filter: "@agent-os/core",         script: "test:tenant-config" },
+  { label: "core/lead-pipeline",      filter: "@agent-os/core",         script: "test:lead-pipeline" },
   { label: "core/memory",             filter: "@agent-os/core",         script: "test:memory" },
   { label: "core/objective",          filter: "@agent-os/core",         script: "test:objective" },
   { label: "core/improve",            filter: "@agent-os/core",         script: "test:improve" },

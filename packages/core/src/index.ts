@@ -225,5 +225,28 @@ export {
   type LeaseSink,
   type LeaseTarget,
 } from "./lease.js";
+export {
+  DISCOVERY_ACTORS,
+  applyQualificationRules,
+  computeDedupeKey,
+  matchesSuppression,
+  matrixForTargetType,
+  normalizeDomain,
+  normalizeEmail,
+  normalizeLinkedinUrl,
+  selectDiscoveryActors,
+  validateScoringResult,
+  type DiscoveryActor,
+  type EmailStatus,
+  type ICP,
+  type PhoneType,
+  type QualificationDecision,
+  type QualificationInput,
+  type RawLeadInput,
+  type ScoringResult,
+  type ScoringValidationResult,
+  type SuppressionEntry,
+  type TargetType,
+} from "./lead-pipeline.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";
