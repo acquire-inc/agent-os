@@ -169,6 +169,36 @@ export function normalizeEmail(input: string | null | undefined): string {
   return input.trim().toLowerCase();
 }
 
+/**
+ * Normalize a phone for keying. Strips everything except digits and a leading
+ * `+`; prepends `+` (with a NANP `1` country-code default when an unprefixed
+ * 10-digit string arrives) so a formatted US phone matches the stored e164
+ * form. Returns `null` if empty after the strip. Migration 0032 declares
+ * e164 (`+15551234567`) as the canonical suppression-list storage shape; this
+ * is the one normalizer both sides of a suppression match must run through.
+ *
+ * Doctrine: the contract is that `(555) 123-4567` (the shape leads arrive in)
+ * MUST match `+15551234567` (the shape the suppression list stores) — that's
+ * the WR-03 invariant. Bare 10-digit input defaults to +1 because the Acqu
+ * tenant base is US-anchored; any operator on a non-NANP geography should
+ * pass phones with their own `+CC` prefix, which is preserved as-is.
+ */
+export function normalizePhone(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  const hasLeadingPlus = trimmed.startsWith("+");
+  // Keep digits only; drop spaces, parens, hyphens, dots, alphabetics.
+  const digits = trimmed.replace(/\D+/g, "");
+  if (!digits) return null;
+  if (hasLeadingPlus) return `+${digits}`;
+  // No leading `+`. A 10-digit string is NANP-shaped without country code —
+  // default to `+1`. An 11+ digit string already carries one (or is global).
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length >= 11) return `+${digits}`;
+  return digits;
+}
+
 /** Normalize a LinkedIn URL for keying. Strips protocol/host, lowercases,
  *  drops trailing slash + query. */
 export function normalizeLinkedinUrl(input: string | null | undefined): string {
@@ -220,12 +250,16 @@ export function matchesSuppression(
   const email = normalizeEmail(lead.email);
   const domain = normalizeDomain(lead.domain);
   const li = normalizeLinkedinUrl(lead.linkedinUrl);
-  const phone = (lead.phone ?? "").trim();
+  // WR-03: normalize phones on BOTH sides — migration 0032 stores phones as
+  // e164 (`+15551234567`) but leads arrive in formatted shapes like
+  // `(555) 123-4567`. A `.trim()`-only compare missed every e164-suppressed
+  // contact whose discovery row carried the formatted variant.
+  const phone = normalizePhone(lead.phone);
   for (const s of suppression) {
     if (s.kind === "email" && email && s.value === email) return true;
     if (s.kind === "domain" && domain && s.value === domain) return true;
     if (s.kind === "linkedin_url" && li && s.value === li) return true;
-    if (s.kind === "phone" && phone && s.value === phone) return true;
+    if (s.kind === "phone" && phone && normalizePhone(s.value) === phone) return true;
   }
   return false;
 }

@@ -234,6 +234,7 @@ export {
   normalizeDomain,
   normalizeEmail,
   normalizeLinkedinUrl,
+  normalizePhone,
   selectDiscoveryActors,
   validateScoringResult,
   type DiscoveryActor,

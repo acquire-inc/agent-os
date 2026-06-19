@@ -9,6 +9,7 @@ import {
   normalizeDomain,
   normalizeEmail,
   normalizeLinkedinUrl,
+  normalizePhone,
   selectDiscoveryActors,
   validateScoringResult,
   type RawLeadInput,
@@ -70,6 +71,24 @@ async function main() {
     }
   }
 
+  console.log("\n[CR-01 — apifyRunActor matrix gate invariant (dispatch-time refusal)]");
+  // The handler in apps/runner refuses dispatch when the requested actor's
+  // matrix row does NOT list the tenant's active ICP target_type. This pure
+  // assertion captures the truth the handler depends on: crunchbase-funded
+  // for a local_smb ICP is a hard "not registered" mismatch.
+  {
+    const crunchbase = DISCOVERY_ACTORS.find((a) => a.key === "apify:crunchbase-funded");
+    assert(crunchbase !== undefined, "crunchbase actor present in matrix");
+    assert(!crunchbase!.targets.includes("local_smb"), "crunchbase targets[] excludes local_smb (dispatch must refuse)");
+    assert(crunchbase!.targets.includes("tech_funded"), "crunchbase targets[] includes tech_funded (only allowed type)");
+  }
+  {
+    const googleMaps = DISCOVERY_ACTORS.find((a) => a.key === "apify:google-maps-scraper");
+    assert(googleMaps !== undefined, "google-maps actor present in matrix");
+    assert(googleMaps!.targets.includes("local_smb"), "google-maps targets[] includes local_smb (dispatch must allow)");
+    assert(!googleMaps!.targets.includes("tech_funded"), "google-maps targets[] excludes tech_funded (dispatch must refuse for tf)");
+  }
+
   console.log("\n[normalization — domain/email/linkedin]");
   assert(normalizeDomain("https://www.Example.com/path") === "example.com", "domain: strip proto/www/path/case");
   assert(normalizeDomain("") === "", "domain: empty in -> empty out");
@@ -112,6 +131,25 @@ async function main() {
   assert(matchesSuppression({ ...base, linkedinUrl: "https://linkedin.com/in/blocked-user/?ref=x" }, supp), "linkedin match through normalization");
   assert(!matchesSuppression({ ...base, email: "ok@example.com" }, supp), "non-match returns false");
   assert(!matchesSuppression({ ...base }, supp), "empty lead returns false");
+
+  console.log("\n[WR-03 — normalizePhone shared between match and scrub]");
+  assert(normalizePhone(null) === null, "null in → null out");
+  assert(normalizePhone(undefined) === null, "undefined in → null out");
+  assert(normalizePhone("   ") === null, "whitespace-only → null");
+  assert(normalizePhone("(555) 123-4567") === "+15551234567", "formatted NANP → +1-prefixed e164");
+  assert(normalizePhone("+1 555-123-4567") === "+15551234567", "intl with + preserves country code");
+  assert(normalizePhone("+15551234567") === "+15551234567", "already-e164 unchanged");
+  assert(normalizePhone("555-1234") === "5551234", "short digit string keeps no `+` (no intl assumption)");
+  assert(normalizePhone("+447911123456") === "+447911123456", "non-NANP intl preserved as-is");
+  // The canonical motivating case: stored as e164, arrives formatted.
+  assert(
+    matchesSuppression({ ...base, phone: "(555) 123-4567" }, [{ kind: "phone", value: "+15551234567" }]),
+    "WR-03: formatted lead phone matches +15551234567 suppression entry",
+  );
+  assert(
+    !matchesSuppression({ ...base, phone: "(999) 999-9999" }, [{ kind: "phone", value: "+15551234567" }]),
+    "WR-03: unrelated phone does not match",
+  );
 
   console.log("\n[validateScoringResult — strict contract]");
   {

@@ -162,6 +162,51 @@ async function main() {
     }
   }
 
+  // CR-02: tool.lead.update_lead — whitelist + tenant + input-shape guards
+  // that fail BEFORE any DB I/O (so no live db is required to assert them).
+  console.log("• CR-02: updateLead whitelist + input-shape guards (no DB needed)");
+  {
+    const { updateLead } = await import("./lead-pipeline-tools.js");
+    const ctx = { outputDir: "/tmp", tenantId: "tenant-A", runId: "r1", agentId: "a1" };
+
+    // 1. Agent-supplied status is rejected by the whitelist.
+    const rStatus = await updateLead({ lead_id: "some-id", status: "qualified" } as unknown, ctx);
+    const eStatus = (rStatus.result as { ok: boolean; error?: string });
+    assert(eStatus.ok === false, "agent-supplied status: rejected (not ok)");
+    assert(
+      typeof eStatus.error === "string" && /key 'status' not writable/.test(eStatus.error),
+      "agent-supplied status: error names 'status' as not-writable",
+    );
+
+    // 2. Extra unexpected key (`tenant_id`) is rejected by the whitelist.
+    const rTenant = await updateLead({ lead_id: "some-id", tenant_id: "tenant-B" } as unknown, ctx);
+    const eTenant = (rTenant.result as { ok: boolean; error?: string });
+    assert(eTenant.ok === false, "extra tenant_id key: rejected (not ok)");
+    assert(
+      typeof eTenant.error === "string" && /key 'tenant_id' not writable/.test(eTenant.error),
+      "extra tenant_id key: error names 'tenant_id' as not-writable",
+    );
+
+    // 3. Out-of-range icp_score is rejected (caught before DB write).
+    const rScore = await updateLead({ lead_id: "some-id", icp_score: 150 } as unknown, ctx);
+    const eScore = (rScore.result as { ok: boolean; error?: string });
+    assert(eScore.ok === false, "icp_score 150: rejected (not ok)");
+    assert(
+      typeof eScore.error === "string" && /\[0, 100\]/.test(eScore.error),
+      "icp_score 150: error names the [0, 100] range",
+    );
+
+    // 4. Missing tenant context is refused (mirrors supabaseLogEvent shape).
+    const rNoTenant = await updateLead({ lead_id: "some-id" } as unknown, { outputDir: "/tmp" });
+    const eNoTenant = (rNoTenant.result as { ok: boolean; error?: string });
+    assert(eNoTenant.ok === false && /tenant context/.test(eNoTenant.error ?? ""), "no tenant context: refused");
+
+    // 5. Missing lead_id is refused before any DB call.
+    const rNoId = await updateLead({ icp_score: 50, qualified: true } as unknown, ctx);
+    const eNoId = (rNoId.result as { ok: boolean; error?: string });
+    assert(eNoId.ok === false && /lead_id required/.test(eNoId.error ?? ""), "no lead_id: refused");
+  }
+
   console.log("");
   console.log(`Results: ${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);

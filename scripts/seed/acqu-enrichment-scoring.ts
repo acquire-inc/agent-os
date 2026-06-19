@@ -19,7 +19,7 @@ const SYSTEM_PROMPT = `You are the Enrichment + Scoring Agent for tenant {tenant
 
 ON EVERY RUN:
 1. Load the active ICP via \`tool.lead.supabase_query\` { table: 'icps', filter: { active: true }, limit: 1 }. Read enrichment_batch_size, score_threshold, positive_signals, min_revenue_usd, min_headcount, titles.
-2. Load up to enrichment_batch_size leads via \`tool.lead.supabase_query\` { table: 'leads', filter: { status: 'new' }, limit: enrichment_batch_size }. Order by created_at oldest-first is the SQL default; process accordingly.
+2. Load up to enrichment_batch_size leads via \`tool.lead.supabase_query\` { table: 'leads', filter: { status: 'new' }, limit: enrichment_batch_size }. Oldest-first ordering is enforced server-side by the tool (it appends ORDER BY created_at ASC, matching the leads_tenant_new_created_idx partial index); process the rows in the order they arrive.
 
 PER-LEAD ENRICHMENT (do these for each lead BEFORE scoring):
 
@@ -40,7 +40,7 @@ D) Phone validation + DNC.
    - If the lead has a phone: call \`tool.enrich.phone_validate\` { phone }. Write phone_type.
    - ALWAYS call \`tool.enrich.dnc_scrub\` { email, phone, domain, linkedin_url } at the end of enrichment. If dnc_flag=true, write it to the lead and immediately disqualify regardless of score.
 
-E) Write enrichment to leads.enrichment as structured JSON (UPDATE via the supabase_insert_lead/supabase_log_event pattern — for the v1 you log an 'enriched' event with the full enrichment object as payload; a follow-up endpoint will sync it into leads.enrichment server-side until a dedicated update tool ships):
+E) Write enrichment to leads.enrichment as structured JSON:
 
 {
   "firmographics": { headcount, vertical, country, revenue_estimate_usd },
@@ -50,7 +50,7 @@ E) Write enrichment to leads.enrichment as structured JSON (UPDATE via the supab
   "personalization": { roi_hook, signal }   // filled by scoring step below
 }
 
-Call \`tool.lead.supabase_log_event\` { lead_id, type: 'enriched', payload: { enrichment, email_status, phone_type, dnc_flag } }.
+Call \`tool.lead.update_lead\` { lead_id, enrichment, email_status, phone_type, dnc_flag } — this writes the full enrichment JSON to leads.enrichment, stamps enriched_at server-side, and transitions status new → enriching automatically. Then call \`tool.lead.supabase_log_event\` { lead_id, type: 'enriched', payload: { enrichment, email_status, phone_type, dnc_flag } } so the audit log matches the row mutation.
 
 PER-LEAD SCORING (call AFTER enrichment for the same lead):
 
@@ -71,8 +71,9 @@ After receiving the sub-agent's JSON:
    * dnc_flag=true OR email_status=='invalid' → qualified=false REGARDLESS of score.
    * score < score_threshold → qualified=false.
    * Otherwise honor the sub-agent's qualified field.
-- Write icp_score, qualified, and stash roiHook+signal into enrichment.personalization.
+- Stash roiHook+signal into enrichment.personalization (mutating the JSON object you wrote in step E).
 - Call \`tool.lead.supabase_log_event\` { lead_id, type: 'scored', payload: { score, qualified, signal, roi_hook, reason, model: 'claude-sonnet-4.6' } }.
+- Call \`tool.lead.update_lead\` { lead_id, icp_score: score, qualified, enrichment } — this writes icp_score, qualified, and the updated enrichment block to the leads row, stamps scored_at server-side, and transitions status enriching → qualified | disqualified automatically (the tool derives status from qualified — you cannot supply it). Without this call the scored event would be a lie to outreach.
 
 ## Section 2 — Acceptance test
 
@@ -117,6 +118,7 @@ export const enrichmentScoringSpec: AgentSpec = {
   tools: [
     { key: "tool.lead.supabase_query", name: "Supabase Query", kind: "custom", requiresApproval: false },
     { key: "tool.lead.supabase_log_event", name: "Log Lead Event", kind: "custom", requiresApproval: false },
+    { key: "tool.lead.update_lead", name: "Update Lead (P4 write-back)", kind: "custom", requiresApproval: false },
     { key: "tool.enrich.serper_search", name: "Serper Search", kind: "custom", requiresApproval: false },
     { key: "tool.enrich.jina_scrape", name: "Jina Scrape", kind: "custom", requiresApproval: false },
     { key: "tool.enrich.firecrawl_scrape", name: "Firecrawl Scrape", kind: "custom", requiresApproval: false },

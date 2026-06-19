@@ -23,10 +23,12 @@ import {
   matchesSuppression,
   normalizeDomain,
   normalizeEmail,
+  normalizePhone,
   type RawLeadInput,
   type SuppressionEntry,
+  type TargetType,
 } from "@agent-os/core";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CustomToolHandler } from "./custom-tools.js";
@@ -88,9 +90,30 @@ export const apifyRunActor: CustomToolHandler = async (input, ctx) => {
     return envErr("actor_id required");
   }
 
+  // CR-01: matrix is the contract at dispatch, not just at seed time. Load the
+  // active ICP server-side (agent cannot lie about target_type) and refuse to
+  // dispatch any actor that does not list the ICP's target_type in its matrix
+  // row. Looked up before the Apify network call so a mismatched run never
+  // costs the operator.
+  if (!ctx.tenantId) return envErr("apify_run_actor requires tenant context");
+  const matrixActor = DISCOVERY_ACTORS.find((a) => a.externalId === actor_id || a.key === actor_id);
+  if (matrixActor) {
+    const db = getDb();
+    const [icp] = await db
+      .select({ targetType: schema.icps.targetType })
+      .from(schema.icps)
+      .where(and(eq(schema.icps.tenantId, ctx.tenantId), eq(schema.icps.active, true)))
+      .limit(1);
+    if (!icp) return envErr("no active ICP for tenant — refusing actor dispatch");
+    if (!matrixActor.targets.includes(icp.targetType as TargetType)) {
+      return envErr(
+        `actor ${actor_id} not registered for target_type=${icp.targetType} (registered: ${matrixActor.targets.join(",")})`,
+      );
+    }
+  }
+
   // Clamp items to the matrix cap. We look up by external id since the agent
   // may pass either the catalog key or the raw "org/name".
-  const matrixActor = DISCOVERY_ACTORS.find((a) => a.externalId === actor_id || a.key === actor_id);
   const ceiling = matrixActor?.maxItemsPerRun ?? 100;
   const requested = typeof max_items === "number" && max_items > 0 ? max_items : ceiling;
   const limit = Math.min(requested, ceiling);
@@ -219,7 +242,13 @@ async function runScopedQuery(
       if (typeof filter.status === "string") where.push(eq(schema.leads.status, filter.status));
       if (typeof filter.qualified === "boolean") where.push(eq(schema.leads.qualified, filter.qualified));
       if (typeof filter.icp_id === "string") where.push(eq(schema.leads.icpId, filter.icp_id));
-      const rows = await db.select().from(schema.leads).where(and(...where)).limit(cap);
+      // WR-02: oldest-first ordering, matching migration 0032's
+      // leads_tenant_new_created_idx partial index. Postgres makes no order
+      // guarantee without an explicit ORDER BY — the enrichment-scoring agent
+      // assumed oldest-first ("the SQL default"); without this, the same
+      // status='new' leads can be re-served across batches and rack up
+      // duplicate enrichment spend.
+      const rows = await db.select().from(schema.leads).where(and(...where)).orderBy(schema.leads.createdAt).limit(cap);
       return { ok: true, value: rows };
     }
     case "icps": {
@@ -256,6 +285,8 @@ async function runScopedQuery(
  */
 export const supabaseInsertLead: CustomToolHandler = async (input, ctx) => {
   if (!ctx.tenantId) return envErr("supabase_insert_lead requires tenant context");
+  // Hoist to a local const so the narrowing survives the db.transaction arrow.
+  const tenantId = ctx.tenantId;
   const row = (input as Record<string, unknown>) ?? {};
   const sourceActor = typeof row.source_actor === "string" ? row.source_actor : null;
   if (!sourceActor) return envErr("source_actor required");
@@ -281,46 +312,68 @@ export const supabaseInsertLead: CustomToolHandler = async (input, ctx) => {
 
   const db = getDb();
 
-  // Suppression check (server-side; never trusts the agent).
-  const suppRows = await db
-    .select({ kind: schema.suppressionList.kind, value: schema.suppressionList.value })
-    .from(schema.suppressionList)
-    .where(eq(schema.suppressionList.tenantId, ctx.tenantId));
-  const suppression: SuppressionEntry[] = suppRows.map((r) => ({
-    kind: r.kind as SuppressionEntry["kind"],
-    value: r.value,
-  }));
-  if (matchesSuppression(raw, suppression)) {
-    return envOk({ inserted: false, suppressed: true, dedupe_key: dedupeKey });
+  // CR-03: cross-tenant FK guard. The leads.icp_id FK enforces "some ICP
+  // exists," not "this tenant's ICP" — RLS only checks leads.tenant_id, not
+  // the relationship. Validate ownership before the write so a compromised
+  // or off-prompt agent cannot point a lead row at another tenant's ICP.
+  // Same shape as supabase_log_event's L344 tenant check (registry-grep parity).
+  const icpId = typeof row.icp_id === "string" ? row.icp_id : null;
+  if (icpId !== null) {
+    const [icp] = await db
+      .select({ id: schema.icps.id })
+      .from(schema.icps)
+      .where(and(eq(schema.icps.id, icpId), eq(schema.icps.tenantId, tenantId)))
+      .limit(1);
+    if (!icp) return envErr("icp_id not visible to this tenant — refusing insert");
   }
 
-  // INSERT with ON CONFLICT DO NOTHING on (tenant_id, dedupe_key).
-  const [inserted] = await db
-    .insert(schema.leads)
-    .values({
-      tenantId: ctx.tenantId,
-      icpId: typeof row.icp_id === "string" ? row.icp_id : null,
-      dedupeKey,
-      status: "new",
-      sourceActor,
-      sourceQuery: raw.sourceQuery as object | null,
-      raw: raw.raw,
-      firstName: raw.firstName,
-      lastName: raw.lastName,
-      email: normalizeEmail(raw.email),
-      phone: raw.phone,
-      title: raw.title,
-      company: raw.company,
-      domain: normalizeDomain(raw.domain),
-      linkedinUrl: raw.linkedinUrl,
-    })
-    .onConflictDoNothing({ target: [schema.leads.tenantId, schema.leads.dedupeKey] })
-    .returning({ id: schema.leads.id });
+  // WR-01: suppression read + insert wrapped in a single transaction so an
+  // operator adding a DNC entry between the two queries (e.g. an unsubscribe
+  // webhook firing concurrently) cannot slip a lead through after suppression
+  // landed. The ON CONFLICT DO NOTHING semantics on (tenant_id, dedupe_key)
+  // are preserved inside the wrapper.
+  return await db.transaction(async (tx) => {
+    // Suppression check (server-side; never trusts the agent).
+    const suppRows = await tx
+      .select({ kind: schema.suppressionList.kind, value: schema.suppressionList.value })
+      .from(schema.suppressionList)
+      .where(eq(schema.suppressionList.tenantId, tenantId));
+    const suppression: SuppressionEntry[] = suppRows.map((r) => ({
+      kind: r.kind as SuppressionEntry["kind"],
+      value: r.value,
+    }));
+    if (matchesSuppression(raw, suppression)) {
+      return envOk({ inserted: false, suppressed: true, dedupe_key: dedupeKey });
+    }
 
-  if (!inserted) {
-    return envOk({ inserted: false, duplicate: true, dedupe_key: dedupeKey });
-  }
-  return envOk({ inserted: true, lead_id: inserted.id, dedupe_key: dedupeKey });
+    // INSERT with ON CONFLICT DO NOTHING on (tenant_id, dedupe_key).
+    const [inserted] = await tx
+      .insert(schema.leads)
+      .values({
+        tenantId,
+        icpId,
+        dedupeKey,
+        status: "new",
+        sourceActor,
+        sourceQuery: raw.sourceQuery as object | null,
+        raw: raw.raw,
+        firstName: raw.firstName,
+        lastName: raw.lastName,
+        email: normalizeEmail(raw.email),
+        phone: raw.phone,
+        title: raw.title,
+        company: raw.company,
+        domain: normalizeDomain(raw.domain),
+        linkedinUrl: raw.linkedinUrl,
+      })
+      .onConflictDoNothing({ target: [schema.leads.tenantId, schema.leads.dedupeKey] })
+      .returning({ id: schema.leads.id });
+
+    if (!inserted) {
+      return envOk({ inserted: false, duplicate: true, dedupe_key: dedupeKey });
+    }
+    return envOk({ inserted: true, lead_id: inserted.id, dedupe_key: dedupeKey });
+  });
 };
 
 /**
@@ -353,6 +406,138 @@ export const supabaseLogEvent: CustomToolHandler = async (input, ctx) => {
     })
     .returning({ id: schema.leadEvents.id });
   return envOk({ event_id: evt!.id });
+};
+
+// ─── P4 — Lead write-back (the missing CR-02 surface) ──────────────────
+
+/**
+ * tool.lead.update_lead — Server-side write-back for P4 enrichment + scoring.
+ *
+ * Without this, the scorer emits a `scored` event but `leads.icp_score` /
+ * `leads.qualified` / `leads.enrichment` stay NULL, the partial index
+ * `leads_tenant_qualified_idx WHERE qualified=true` never has rows, and
+ * outreach (when it lands) finds zero qualified leads. The agent's scored
+ * decision was being dropped on the floor.
+ *
+ * Doctrine — write-back-or-don't-pretend:
+ *  - Whitelist of writable columns; ANY other key is rejected.
+ *  - Tenant ownership is asserted before the update (same shape as
+ *    `supabase_log_event` L344).
+ *  - Server-derived `enriched_at` / `scored_at` stamps — the agent never
+ *    supplies them.
+ *  - Server-derived `status` transitions ONLY (`new` → `enriching` on first
+ *    enrichment write; `enriching` → `qualified|disqualified` on scoring
+ *    write). Any `status` in the input is dropped.
+ *  - `icp_score` must be a number in [0, 100].
+ *
+ * Input:
+ *   { lead_id, enrichment?, icp_score?, qualified?, email_status?,
+ *     phone_type?, dnc_flag? }
+ */
+export const updateLead: CustomToolHandler = async (input, ctx) => {
+  if (!ctx.tenantId) return envErr("update_lead requires tenant context");
+  const raw = (input as Record<string, unknown>) ?? {};
+  const { lead_id } = raw as { lead_id?: string };
+  if (!lead_id || typeof lead_id !== "string") return envErr("lead_id required");
+
+  // Whitelist — reject any key outside this set so an agent that wandered
+  // off-prompt can't, say, scribble `tenant_id` or `status` directly.
+  const ALLOWED = new Set([
+    "lead_id",
+    "enrichment",
+    "icp_score",
+    "qualified",
+    "email_status",
+    "phone_type",
+    "dnc_flag",
+  ]);
+  for (const k of Object.keys(raw)) {
+    if (!ALLOWED.has(k)) {
+      return envErr(`update_lead: key '${k}' not writable (allowed: ${[...ALLOWED].join(",")})`);
+    }
+  }
+
+  // Validate input shape BEFORE any DB I/O — fail-fast on garbage; also lets
+  // the unit tests assert shape rejection without standing up a live DB.
+  const hasIcpScore = Object.prototype.hasOwnProperty.call(raw, "icp_score");
+  if (hasIcpScore) {
+    const s = raw.icp_score;
+    if (typeof s !== "number" || !Number.isFinite(s) || s < 0 || s > 100) {
+      return envErr("icp_score must be a finite number in [0, 100]");
+    }
+  }
+  const hasQualified = Object.prototype.hasOwnProperty.call(raw, "qualified");
+  if (hasQualified && typeof raw.qualified !== "boolean") {
+    return envErr("qualified must be a boolean");
+  }
+  const hasEnrichment = Object.prototype.hasOwnProperty.call(raw, "enrichment");
+  if (hasEnrichment && (typeof raw.enrichment !== "object" || raw.enrichment === null || Array.isArray(raw.enrichment))) {
+    return envErr("enrichment must be an object");
+  }
+
+  // Tenant ownership — identical shape to supabase_log_event's check (line
+  // intentionally verbatim so registry-grep parity holds).
+  const db = getDb();
+  const [owner] = await db
+    .select({ id: schema.leads.id, status: schema.leads.status })
+    .from(schema.leads)
+    .where(and(eq(schema.leads.id, lead_id), eq(schema.leads.tenantId, ctx.tenantId)))
+    .limit(1);
+  if (!owner) return envErr("lead_id not visible to this tenant");
+
+  // Build the patch. Stamps are server-derived. Status transitions are
+  // server-derived too — agent-supplied status is silently dropped (rejected
+  // via the whitelist above).
+  const patch: Record<string, unknown> = {};
+  const now = new Date();
+  if (hasEnrichment) {
+    patch.enrichment = raw.enrichment as object;
+    patch.enriched_at = now;
+  }
+  if (hasIcpScore) {
+    patch.icp_score = raw.icp_score as number;
+    patch.scored_at = now;
+  }
+  if (hasQualified) patch.qualified = raw.qualified as boolean;
+  if (Object.prototype.hasOwnProperty.call(raw, "email_status")) patch.email_status = raw.email_status;
+  if (Object.prototype.hasOwnProperty.call(raw, "phone_type")) patch.phone_type = raw.phone_type;
+  if (Object.prototype.hasOwnProperty.call(raw, "dnc_flag")) patch.dnc_flag = raw.dnc_flag;
+
+  // Status transitions (server-derived only).
+  if (hasEnrichment && owner.status === "new") patch.status = "enriching";
+  if (hasIcpScore && hasQualified) {
+    patch.status = raw.qualified === true ? "qualified" : "disqualified";
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return envErr("update_lead: no writable columns supplied");
+  }
+
+  // Drizzle uses camelCase column names; map from snake_case patch keys to
+  // schema columns explicitly to keep the whitelist self-documenting.
+  const setValues: Record<string, unknown> = {};
+  if ("enrichment" in patch) setValues.enrichment = patch.enrichment;
+  if ("enriched_at" in patch) setValues.enrichedAt = patch.enriched_at;
+  if ("icp_score" in patch) setValues.icpScore = patch.icp_score;
+  if ("scored_at" in patch) setValues.scoredAt = patch.scored_at;
+  if ("qualified" in patch) setValues.qualified = patch.qualified;
+  if ("email_status" in patch) setValues.emailStatus = patch.email_status;
+  if ("phone_type" in patch) setValues.phoneType = patch.phone_type;
+  if ("dnc_flag" in patch) setValues.dncFlag = patch.dnc_flag;
+  if ("status" in patch) setValues.status = patch.status;
+
+  await db
+    .update(schema.leads)
+    .set(setValues)
+    .where(and(eq(schema.leads.id, lead_id), eq(schema.leads.tenantId, ctx.tenantId)));
+
+  return envOk({
+    updated: true,
+    lead_id,
+    status: typeof setValues.status === "string" ? (setValues.status as string) : owner.status,
+    enriched_at: hasEnrichment ? now.toISOString() : null,
+    scored_at: hasIcpScore ? now.toISOString() : null,
+  });
 };
 
 // ─── P4 — Enrichment tools ─────────────────────────────────────────────
@@ -511,7 +696,7 @@ export const phoneValidate: CustomToolHandler = async (input) => {
   if (!key) return envOk({ phone: digits, type: "unknown", reason: "no_validator_configured" });
   let res: Response;
   try {
-    // numverify uses http for the free tier; production should pin https.
+    // https pinned — never downgrade; api key travels as a query param and HTTP would log it to any intermediary.
     res = await fetchWithTimeout(
       `https://apilayer.net/api/validate?access_key=${encodeURIComponent(key)}&number=${encodeURIComponent(digits)}&format=1`,
       { method: "GET" },
@@ -552,10 +737,13 @@ export const dncScrub: CustomToolHandler = async (input, ctx) => {
   // Return matched entries so the agent can log a reason.
   let matches: typeof rows = [];
   if (match) {
+    const normalizedPhone = normalizePhone(phone);
     matches = rows.filter((r) => {
       if (r.kind === "email" && email && r.value === normalizeEmail(email)) return true;
       if (r.kind === "domain" && domain && r.value === normalizeDomain(domain)) return true;
-      if (r.kind === "phone" && phone && r.value === phone.trim()) return true;
+      // WR-03: e164-normalize both sides — mirrors matchesSuppression so the
+      // echoed match list is consistent with the dnc_flag verdict.
+      if (r.kind === "phone" && normalizedPhone && normalizePhone(r.value) === normalizedPhone) return true;
       return false;
     });
   }
@@ -588,6 +776,7 @@ export const LEAD_PIPELINE_TOOLS: Record<string, CustomToolHandler> = {
   "tool.lead.supabase_query": supabaseQuery,
   "tool.lead.supabase_insert_lead": supabaseInsertLead,
   "tool.lead.supabase_log_event": supabaseLogEvent,
+  "tool.lead.update_lead": updateLead,
   "tool.enrich.serper_search": serperSearch,
   "tool.enrich.jina_scrape": jinaScrape,
   "tool.enrich.firecrawl_scrape": firecrawlScrape,
@@ -595,7 +784,3 @@ export const LEAD_PIPELINE_TOOLS: Record<string, CustomToolHandler> = {
   "tool.enrich.phone_validate": phoneValidate,
   "tool.enrich.dnc_scrub": dncScrub,
 };
-// Suppress unused-import warning on `sql`/`inArray` — keep them imported so
-// future extensions (bulk inserts, IN-list filters) can drop in without
-// re-jiggering the imports.
-void sql; void inArray;
