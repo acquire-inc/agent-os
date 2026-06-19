@@ -13,7 +13,7 @@
 //   pnpm setup --check    # just validate current .env, don't prompt
 
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface, type Interface } from "node:readline/promises";
@@ -247,7 +247,12 @@ async function main() {
     console.log("\nNext:");
     console.log("  pnpm dev          # start control plane on http://localhost:3000");
     if (env.get("DATABASE_URL")) {
-      console.log("  pnpm db:migrate   # push 31 migrations to Supabase");
+      // INFO-01: count migrations dynamically so the wizard's pointer stops
+      // drifting every time a new 00NN_*.sql lands.
+      const migrationCount = readdirSync(join(REPO_ROOT, "supabase/migrations"))
+        .filter((f) => /^\d+_.*\.sql$/.test(f))
+        .length;
+      console.log(`  pnpm db:migrate   # push ${migrationCount} migrations to Supabase`);
       console.log("  pnpm seed:acqu-vitals && pnpm seed:phase-1   # seed tenant + agents");
       console.log("  pnpm verify:isolation-live   # hard gate #2 (live RLS check)");
     } else {
