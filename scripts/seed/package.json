@@ -74,7 +74,8 @@
     "tenant-new": "tsx tenant-new.ts",
     "acqu-discovery-agent": "tsx acqu-discovery-agent.ts",
     "acqu-enrichment-scoring": "tsx acqu-enrichment-scoring.ts",
-    "lead-pipeline": "tsx seed-lead-pipeline.ts"
+    "lead-pipeline": "tsx seed-lead-pipeline.ts",
+    "icp-acqu": "tsx icp-acqu-starter.ts"
   },
   "dependencies": {
     "@agent-os/core": "workspace:*",

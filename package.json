@@ -28,7 +28,8 @@
     "tenant:new": "pnpm --filter @agent-os/seed run tenant-new",
     "setup": "pnpm --filter @agent-os/setup run run",
     "setup:check": "pnpm --filter @agent-os/setup run check",
-    "seed:lead-pipeline": "pnpm --filter @agent-os/seed run lead-pipeline"
+    "seed:lead-pipeline": "pnpm --filter @agent-os/seed run lead-pipeline",
+    "seed:icp-acqu": "pnpm --filter @agent-os/seed run icp-acqu"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

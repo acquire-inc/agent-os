@@ -120,6 +120,7 @@ docker compose up -d                            # local Postgres 16 + pgvector
 pnpm db:migrate                                 # 32 migrations applied
 pnpm seed:acqu-vitals && pnpm seed:phase-1      # tenant + first batch of agents
 pnpm seed:lead-pipeline                         # P3 Discovery + P4 Enrichment+Scoring
+pnpm seed:icp-acqu                              # starter ICP — mid-market B2B SaaS defaults
 pnpm dev                                        # control plane on http://localhost:3000
 
 # When you're ready for the team:
