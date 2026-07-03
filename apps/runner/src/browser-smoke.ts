@@ -1,8 +1,8 @@
 // Live smoke for tool.browser — operator runs this with real config:
 //   pnpm tsx apps/runner/src/browser-smoke.ts
-// Phase 7 uses the default Node-fetch backend (no Browserbase deps yet); the
-// Browserbase + Stagehand backend lands in Phase 8 when an actual agent binds
-// the tool and the V3 API surface stabilizes.
+// Runs on the default Node-fetch backend. The Browserbase + Stagehand backend
+// is a backlog item (see ROADMAP.md Backlog) — wire it when an agent needs
+// real-browser rendering and the V3 API surface stabilizes.
 import { runBrowserTool } from "@agent-os/tool-browser";
 
 async function main() {

@@ -50,7 +50,7 @@ async function main() {
   assert(typeof rotateCredential === "function", "rotateCredential is a function");
 
   console.log("• rotateCredential — no credential row → not rotated");
-  const noCred = await rotateCredential(mockDb(null), Buffer.alloc(32), "mcp-1", async () => null);
+  const noCred = await rotateCredential(mockDb(null), Buffer.alloc(32), "mcp-1", async () => null, "t1");
   assert(noCred.rotated === false, "returns rotated: false");
   assert(noCred.reason === "no credential for mcpId", "reports no-credential reason");
 
@@ -67,6 +67,7 @@ async function main() {
     Buffer.alloc(32),
     "mcp-1",
     async () => null,
+    "t1",
   );
   assert(noExpiry.rotated === false, "returns rotated: false");
   assert(noExpiry.reason?.includes("manual provider rotation"), "reports manual-rotation reason");

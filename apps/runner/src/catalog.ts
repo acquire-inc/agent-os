@@ -32,8 +32,5 @@ export async function getModelCatalog(): Promise<ModelCatalogEntry[]> {
   }
 }
 
-export function resetCatalogCacheForTests(): void {
-  cachedCatalog = null;
-  cachedAt = 0;
-  cachedDb = null;
-}
+// (resetCatalogCacheForTests was removed in the Phase 70 cleanup — no test
+// ever called it. Restore from git history if a cache-reset hook is needed.)

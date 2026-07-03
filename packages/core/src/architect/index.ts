@@ -6,7 +6,6 @@ import { seedAgent, type SkillSource } from "../seed/seedAgent.js";
 import { hydrate, type ResolverContext } from "./hydrate.js";
 import type { LlmClient } from "./llm.js";
 import {
-  listBlueprints,
   loadBlueprint,
   markBlueprintSeeded,
   persistBlueprint,

@@ -41,7 +41,8 @@ import {
   stripeRefresher,
   type RotateResult,
 } from "@agent-os/core";
-import { createDb, registerArtifact, type Db } from "@agent-os/db";
+import { createDb, registerArtifact, schema as dbSchema, type Db } from "@agent-os/db";
+import { and as andOp, eq as eqOp } from "drizzle-orm";
 import type { Refresher } from "@agent-os/vault";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -180,32 +181,48 @@ export const customToolDispatch: Record<string, CustomToolHandler> = {
     });
     return { result };
   },
-  "tool.vault-rotate": async (input) => {
+  // Phase 70 MT-01/MT-02: all three Phase-9 security tools derive tenant
+  // identity from ctx (bundle.agent.tenantId), NEVER from agent-supplied
+  // input — same doctrine as every lead-pipeline handler. A prompt-injected
+  // agent emitting another tenant's mcpId/tenantId gets a refusal envelope.
+  "tool.vault-rotate": async (input, ctx) => {
+    if (!ctx.tenantId) return { result: { rotated: false, reason: "vault-rotate requires tenant context" } };
     const { mcpId, provider } = input as { mcpId: string; provider: string };
+    const db = getDb();
+    // Ownership check before touching the credential: the mcp must belong to
+    // this tenant. Belt-and-braces with rotateCredential's own tenant predicate.
+    const [owned] = await db
+      .select({ id: dbSchema.mcps.id })
+      .from(dbSchema.mcps)
+      .where(andOp(eqOp(dbSchema.mcps.id, mcpId), eqOp(dbSchema.mcps.tenantId, ctx.tenantId)))
+      .limit(1);
+    if (!owned) return { result: { rotated: false, reason: "mcpId not visible to this tenant" } };
     const result: RotateResult = await rotateCredential(
-      getDb(),
+      db,
       getVaultKey(),
       mcpId,
       pickRefresher(provider),
+      ctx.tenantId,
     );
     return { result };
   },
-  "tool.access-audit": async (input) => {
-    const { tenantId } = input as { tenantId: string };
-    const result = await findOrphanedGrants(getDb(), tenantId);
+  "tool.access-audit": async (_input, ctx) => {
+    if (!ctx.tenantId) return { result: { error: "access-audit requires tenant context" } };
+    const result = await findOrphanedGrants(getDb(), ctx.tenantId);
     return { result };
   },
-  "tool.access-log-analyzer": async (input) => {
-    const { tenantId, hours } = input as { tenantId: string; hours?: number };
-    const result = await detectUsageSpikes(getDb(), tenantId, { hours: hours ?? 24 });
+  "tool.access-log-analyzer": async (input, ctx) => {
+    if (!ctx.tenantId) return { result: { error: "access-log-analyzer requires tenant context" } };
+    const { hours } = input as { hours?: number };
+    const result = await detectUsageSpikes(getDb(), ctx.tenantId, { hours: hours ?? 24 });
     return { result };
   },
 };
 
 // P3/P4 lead pipeline tool handlers — registered after the literal above so
-// the dispatch table picks up the 11 new keys (apify/apollo/supabase_*/
-// serper/jina/firecrawl/email_verify/phone_validate/dnc_scrub). Pure logic
-// lives in @agent-os/core/lead-pipeline; this module is the HTTP + DB I/O.
+// the dispatch table picks up every key in LEAD_PIPELINE_TOOLS (discovery,
+// supabase read/write, enrichment, update_lead). Pure logic lives in
+// @agent-os/core/lead-pipeline; this module is the HTTP + DB I/O.
 import { LEAD_PIPELINE_TOOLS } from "./lead-pipeline-tools.js";
 Object.assign(customToolDispatch, LEAD_PIPELINE_TOOLS);
 
@@ -284,7 +301,6 @@ export async function dispatchCustomTool(
     }
     const catalog = await getModelCatalog();
     const baselineTier = ((bundle.agent as { modelTier?: import("@agent-os/core").ModelTier }).modelTier ?? "T-work") as import("@agent-os/core").ModelTier;
-    const { pickModelIntelligently } = await import("@agent-os/core");
     const pick = pickModelIntelligently({
       agentKey: bundle.agent.key,
       agentModel: bundle.agent.model,

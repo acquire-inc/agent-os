@@ -58,7 +58,7 @@ async function main() {
 
   console.log("\n[claim]");
   // Insert a deterministic scheduled run for ad-ops to claim.
-  const [scheduled] = await db
+  await db
     .insert(schema.runs)
     .values({ tenantId, agentId, status: "scheduled", triggerSource: "manual", scheduledFor: new Date() })
     .returning();

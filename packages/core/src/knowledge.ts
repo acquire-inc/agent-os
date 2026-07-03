@@ -1,5 +1,5 @@
 import { schema, type Db } from "@agent-os/db";
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const { docChunks, documents } = schema;
 export const EMBEDDING_DIM = 1536;

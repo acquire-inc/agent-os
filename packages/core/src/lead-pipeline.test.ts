@@ -235,6 +235,21 @@ async function main() {
     });
     assert(d.qualified === true, "score == threshold qualifies (inclusive)");
   }
+  {
+    // Phase 70 CORR-15: NaN < threshold is false — without the guard a
+    // non-finite score would fall through to the scorer's qualified field.
+    const d = applyQualificationRules({
+      scoreThreshold: 60, score: NaN, modelQualified: true,
+      emailStatus: "valid", dncFlag: false,
+    });
+    assert(d.qualified === false, "NaN score → disqualified (finite guard)");
+    assert(/finite/.test(d.reason), "reason names the finite guard");
+    const inf = applyQualificationRules({
+      scoreThreshold: 60, score: Infinity, modelQualified: true,
+      emailStatus: "valid", dncFlag: false,
+    });
+    assert(inf.qualified === false, "Infinity score → disqualified");
+  }
 
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);

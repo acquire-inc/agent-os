@@ -16,7 +16,7 @@
 //
 // The handlers are registered into the runner's customToolDispatch at the
 // bottom of custom-tools.ts via Object.assign.
-import { schema, type Db } from "@agent-os/db";
+import { createDb, schema, type Db } from "@agent-os/db";
 import {
   DISCOVERY_ACTORS,
   computeDedupeKey,
@@ -96,29 +96,37 @@ export const apifyRunActor: CustomToolHandler = async (input, ctx) => {
   // row. Looked up before the Apify network call so a mismatched run never
   // costs the operator.
   if (!ctx.tenantId) return envErr("apify_run_actor requires tenant context");
+  // Phase 70 MT-03: FAIL CLOSED on unregistered actors. An actor id that
+  // matches no DISCOVERY_ACTORS row lists no targets — the doctrine rule
+  // ("never run an actor whose targets[] excludes the ICP's target_type")
+  // has no truthful answer for it, and forwarding the raw string would let
+  // a hallucinated/injected actor id spend the operator's APIFY_TOKEN.
   const matrixActor = DISCOVERY_ACTORS.find((a) => a.externalId === actor_id || a.key === actor_id);
-  if (matrixActor) {
-    const db = getDb();
-    const [icp] = await db
-      .select({ targetType: schema.icps.targetType })
-      .from(schema.icps)
-      .where(and(eq(schema.icps.tenantId, ctx.tenantId), eq(schema.icps.active, true)))
-      .limit(1);
-    if (!icp) return envErr("no active ICP for tenant — refusing actor dispatch");
-    if (!matrixActor.targets.includes(icp.targetType as TargetType)) {
-      return envErr(
-        `actor ${actor_id} not registered for target_type=${icp.targetType} (registered: ${matrixActor.targets.join(",")})`,
-      );
-    }
+  if (!matrixActor) {
+    return envErr(
+      `actor ${actor_id} not in DISCOVERY_ACTORS — only registered actors are dispatchable (registered keys: ${DISCOVERY_ACTORS.map((a) => a.key).join(", ")})`,
+    );
+  }
+  const db = getDb();
+  const [icp] = await db
+    .select({ targetType: schema.icps.targetType })
+    .from(schema.icps)
+    .where(and(eq(schema.icps.tenantId, ctx.tenantId), eq(schema.icps.active, true)))
+    .limit(1);
+  if (!icp) return envErr("no active ICP for tenant — refusing actor dispatch");
+  if (!matrixActor.targets.includes(icp.targetType as TargetType)) {
+    return envErr(
+      `actor ${actor_id} not registered for target_type=${icp.targetType} (registered: ${matrixActor.targets.join(",")})`,
+    );
   }
 
   // Clamp items to the matrix cap. We look up by external id since the agent
   // may pass either the catalog key or the raw "org/name".
-  const ceiling = matrixActor?.maxItemsPerRun ?? 100;
+  const ceiling = matrixActor.maxItemsPerRun;
   const requested = typeof max_items === "number" && max_items > 0 ? max_items : ceiling;
   const limit = Math.min(requested, ceiling);
 
-  const externalId = matrixActor?.externalId ?? actor_id;
+  const externalId = matrixActor.externalId;
   // Apify supports run-sync with a paginated dataset return; the
   // run-sync-get-dataset-items endpoint waits for the actor to finish and
   // returns the items in one response.
@@ -479,11 +487,34 @@ export const updateLead: CustomToolHandler = async (input, ctx) => {
   // intentionally verbatim so registry-grep parity holds).
   const db = getDb();
   const [owner] = await db
-    .select({ id: schema.leads.id, status: schema.leads.status })
+    .select({
+      id: schema.leads.id,
+      status: schema.leads.status,
+      dncFlag: schema.leads.dncFlag,
+      emailStatus: schema.leads.emailStatus,
+    })
     .from(schema.leads)
     .where(and(eq(schema.leads.id, lead_id), eq(schema.leads.tenantId, ctx.tenantId)))
     .limit(1);
   if (!owner) return envErr("lead_id not visible to this tenant");
+
+  // Phase 70 MT-04: hard disqualifiers are SERVER-enforced, prompts are
+  // advisory. When the patch asserts qualified=true, compute the EFFECTIVE
+  // dnc_flag + email_status (patch value if supplied, else current row) and
+  // force qualified=false when either trips. Mirrors applyQualificationRules
+  // in @agent-os/core — the agent-side rule the server no longer trusts.
+  let hardDisqualifier: string | null = null;
+  if (hasQualified && raw.qualified === true) {
+    const effectiveDnc = Object.prototype.hasOwnProperty.call(raw, "dnc_flag")
+      ? raw.dnc_flag === true
+      : owner.dncFlag === true;
+    const effectiveEmail = Object.prototype.hasOwnProperty.call(raw, "email_status")
+      ? raw.email_status
+      : owner.emailStatus;
+    if (effectiveDnc) hardDisqualifier = "dnc_flag=true";
+    else if (effectiveEmail === "invalid") hardDisqualifier = "email_status=invalid";
+    if (hardDisqualifier) raw.qualified = false;
+  }
 
   // Build the patch. Stamps are server-derived. Status transitions are
   // server-derived too — agent-supplied status is silently dropped (rejected
@@ -537,6 +568,8 @@ export const updateLead: CustomToolHandler = async (input, ctx) => {
     status: typeof setValues.status === "string" ? (setValues.status as string) : owner.status,
     enriched_at: hasEnrichment ? now.toISOString() : null,
     scored_at: hasIcpScore ? now.toISOString() : null,
+    // Phase 70 MT-04: non-null when the server overrode qualified=true.
+    hard_disqualifier_applied: hardDisqualifier,
   });
 };
 
@@ -752,21 +785,17 @@ export const dncScrub: CustomToolHandler = async (input, ctx) => {
 
 // ─── Registry ──────────────────────────────────────────────────────────
 
-/** Lazy-init DB getter — mirrors the pattern used by the rest of custom-tools. */
+/** Lazy-init DB getter — mirrors the pattern used by the rest of custom-tools.
+ *  The connection (not the module) is what loads lazily: createDb is imported
+ *  statically, but no connection opens until the first handler call, so the
+ *  module never requires DATABASE_URL at import time. */
 let _db: Db | null = null;
 function getDb(): Db {
   if (_db) return _db;
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL required for lead-pipeline tools");
-  _db = createDbLazy(url);
+  _db = createDb(url);
   return _db;
-}
-function createDbLazy(url: string): Db {
-  // Re-export of @agent-os/db createDb — kept lazy so the module doesn't
-  // require DATABASE_URL at import time.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { createDb } = require("@agent-os/db") as typeof import("@agent-os/db");
-  return createDb(url);
 }
 
 /** All P3/P4 tool handlers, keyed by the public tool key. */

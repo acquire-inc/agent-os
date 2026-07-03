@@ -19,7 +19,10 @@ const SYSTEM_PROMPT = `You are the Enrichment + Scoring Agent for tenant {tenant
 
 ON EVERY RUN:
 1. Load the active ICP via \`tool.lead.supabase_query\` { table: 'icps', filter: { active: true }, limit: 1 }. Read enrichment_batch_size, score_threshold, positive_signals, min_revenue_usd, min_headcount, titles.
-2. Load up to enrichment_batch_size leads via \`tool.lead.supabase_query\` { table: 'leads', filter: { status: 'new' }, limit: enrichment_batch_size }. Oldest-first ordering is enforced server-side by the tool (it appends ORDER BY created_at ASC, matching the leads_tenant_new_created_idx partial index); process the rows in the order they arrive.
+2. Load the batch, oldest-first (ordering is enforced server-side — the tool appends ORDER BY created_at ASC):
+   a. \`tool.lead.supabase_query\` { table: 'leads', filter: { status: 'new' }, limit: enrichment_batch_size }.
+   b. If that returned fewer than enrichment_batch_size rows, top up with STRAGGLERS — leads stuck in 'enriching' from a prior run whose scoring step failed: \`tool.lead.supabase_query\` { table: 'leads', filter: { status: 'enriching' }, limit: <remaining> }. For stragglers, skip the enrichment steps you can see already completed in leads.enrichment and go straight to scoring.
+   Process rows in the order they arrive.
 
 PER-LEAD ENRICHMENT (do these for each lead BEFORE scoring):
 
@@ -95,7 +98,7 @@ When you finish a batch:
 
 ERROR HANDLING:
 - A single tool failure is logged and skipped — the rest of the lead still gets what enrichment is available. Partial enrichment is better than nothing.
-- A scoring sub-agent failure is logged and the lead stays status='new' for the next batch.
+- A scoring sub-agent failure is logged; the lead stays in status='enriching' (step E already transitioned it) and the NEXT run picks it up via the straggler query in step 2b.
 - Respect cost-ceiling-discipline. If your run is approaching budget, finish the current lead and stop accepting new ones; the next cycle picks up.`;
 
 export const enrichmentScoringSpec: AgentSpec = {

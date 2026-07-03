@@ -334,6 +334,11 @@ export interface QualificationDecision {
 export function applyQualificationRules(input: QualificationInput): QualificationDecision {
   if (input.dncFlag) return { qualified: false, reason: "dnc_flag set — opt-out / suppression" };
   if (input.emailStatus === "invalid") return { qualified: false, reason: "email_status=invalid — would bounce" };
+  // Phase 70 CORR-15: NaN < threshold is false, so a non-finite score would
+  // fall through to the scorer's qualified field. Disqualify explicitly.
+  if (!Number.isFinite(input.score)) {
+    return { qualified: false, reason: "score is not a finite number" };
+  }
   if (input.score < input.scoreThreshold) {
     return { qualified: false, reason: `score ${input.score} below threshold ${input.scoreThreshold}` };
   }

@@ -1,49 +1,51 @@
 ---
-status: In Progress
-current_phase: 7
-current_phase_name: Tools registry + Inngest scheduler + Browserbase tool.browser
-plans_total: 7
-plans_complete: 7
-last_activity: 2026-05-30
+status: Publish-ready — operator gates remain
+current_phase: 70
+current_phase_name: Review + cleanup + hardening loop (GSD)
+plans_total: 70
+plans_complete: 70
+last_activity: 2026-06-26
 ---
 
 # Project State — Acqu / Cliently Agent OS
 
 ## Status
 
-**Phase 7 COMPLETE** — gsd-verifier PASSED (3/3 success criteria). Operator DB-push + live-relay/Browserbase follow-ups remain (sandbox limits, documented).
+**Phases 1–70 closed.** `pnpm launch:check` → READY ✓ (24-suite offline battery,
+workspace typecheck across 17 packages, migration ordering, relay registry,
+cant-fail count, doctrine docs). The single source of truth for "what shipped
+and is it ready" is `.planning/LAUNCH-CAPSTONE.md`.
 
-## Current Position
+## Current position
 
-- Phase 1–6: complete (doctrine seeded through fulfillment + revenue ops; Architect + remix shipped).
-- Phase 7: 7/7 plans done (executed inline after the background gsd-executor agents kept stream-timing-out and rewriting history on the shared branch).
-  - 07-01 tools registry schema (migration 0007 + Drizzle mirror + RLS) — db push deferred.
-  - 07-02 seedAgent tools extension (ensureTool/bindTool/AgentSpec.tools optional) + Bundle.tools[].
-  - 07-03 @agent-os/inngest package (client + runScheduledAgent). Fixed createFunction signature inline.
-  - 07-04 Inngest /api/inngest Hono mount + migration 0008 pg_cron→Inngest bridge — db push deferred.
-  - 07-05 @agent-os/tool-browser (SSRF guard T-7-03 + runBrowserTool contract, Node-fetch backend).
-  - 07-06 runner allowedTools narrowing (Pitfall 5) + tool.browser custom dispatch.
-  - 07-07 seed tool.browser row (unbound, RESEARCH OQ1) + architect regression.
+- **V1 platform** (Phases 1–59): registries, Model Router, cant-fail/CRA/injection/budget
+  floors, eval→autonomy ladder, model intelligence + audit trail, artifacts, sub-agent
+  dispatch — all shipped.
+- **Phases 60–67**: model-routing observability surface + month-rollup consolidation.
+- **V2 P1–P10** (all buildable-now portions): memory loop, reflexion objectives,
+  prompt self-improvement, circuit breaker, critic quorum, A2A handoffs, autonomous
+  manager, correctness pass, auto-onboarding. Lifecycle sinks implemented; live
+  wiring is operator-gated on DATABASE_URL.
+- **Coordination invariants** I-001/I-002/I-003 (tenant-config validators, offline
+  dispatch contract, lease arbitration).
+- **Lead pipeline P3+P4** (build-spec §9): migration 0032, 12 deterministic tool
+  handlers, Discovery + Enrichment+Scoring agent seeds, starter ICP seed.
+- **GSD hardening loops**: Phase 68 (5C+6W+4I closed), Phase 69 (3C+4W+3I closed),
+  Phase 70 (review + cleanup + fix pass — artifacts in `.planning/phases/70-review-cleanup/`).
 
-## Verification snapshot
+## Verification snapshot (HEAD at last green run)
 
-- `pnpm -r typecheck` — 12 packages green.
-- `pnpm --filter @agent-os/core run test:architect` — 33/33.
-- Per-package tests: inngest 3/3, tool-browser 15/15, runner 6/6.
+- `pnpm launch:check` — READY ✓
+- Core battery 22 suites + runner/RLS/browser/inngest 16 suites — ~1,000 assertions, 0 failures
+- `pnpm -r typecheck` — 17 packages green
 
-## Sandbox constraints (carried)
+## Operator gates (unchanged — need live env)
 
-- Supabase DB NOT reachable — migrations 0007 + 0008 authored + typecheck-verified; `supabase db push` deferred to operator.
-- Browserbase + Stagehand backend deferred to Phase 8 (V3 API surface moving); Phase 7 ships the SSRF boundary + fetch-backed contract.
-- Live Inngest relay + signing keys deferred to operator.
-
-## Key decisions
-
-- Tools are DATA (registry rows), mirroring skills/MCPs. AgentSpec.tools is OPTIONAL — all 26 prior seeds compile unchanged.
-- tool.browser seeded UNBOUND; first consumer binds in Phase 8.
-- Switched Phase 7 execution from background gsd-executor subagents to inline sequential after repeated stream-idle timeouts caused history rewrites on the shared branch. One-executor-at-a-time on a shared branch is the safe pattern without worktrees.
+- `supabase db push` (all pending migrations) + `pnpm verify:isolation-live` (hard gate #2)
+- Live integration test (`pnpm --filter @agent-os/core test` with DATABASE_URL)
+- OpenRouter key + hosting + domain CNAMEs — see `docs/connect-and-launch.md`
 
 ## Next
 
-- Operator: apply migrations 0007 + 0008 (`supabase db push`), then `pnpm seed:tool-browser`.
-- Phase 8: Phase-4 doctrine batch seed (moat + meta-layer) — and bind tool.browser to its first consumer (creative-miner).
+- Operator runs the launch sequence in LAUNCH-CAPSTONE.md / connect-and-launch.md.
+- Backlog (Tier 2) lives in ROADMAP.md.

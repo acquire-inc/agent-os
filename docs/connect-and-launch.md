@@ -84,7 +84,7 @@ Path B without a code change.
    ```bash
    DATABASE_URL=postgresql://... pnpm db:migrate
    ```
-   31 migrations apply. Each is additive + idempotent (`IF NOT EXISTS`); safe
+   All pending migrations apply. Each is additive + idempotent (`IF NOT EXISTS`); safe
    to re-run.
 6. Seed tenant #1 and the doctrine agents:
    ```bash
@@ -95,6 +95,8 @@ Path B without a code change.
    pnpm seed:phase-4
    pnpm seed:phase-9
    pnpm seed:tool-browser
+   pnpm seed:lead-pipeline      # P3 Discovery + P4 Enrichment+Scoring agents
+   pnpm seed:icp-acqu           # starter ICP (mid-market B2B defaults; edit later)
    ```
 7. **Run the live isolation suite** — this is *hard gate #2* (no external
    tenant until this passes; internal launch can proceed under operator

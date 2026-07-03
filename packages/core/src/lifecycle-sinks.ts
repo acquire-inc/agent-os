@@ -234,7 +234,10 @@ export function buildCriticReviewSink(db: Db, emit: RelayEmitter): CriticReviewS
         tenantId: row.tenantId,
         proposerAgentId: row.agentId,
         proposerIsCantFail,
-        estimatedCostUsd: 0,
+        // Phase 70 CORR-03: null (unknown stake) — isCriticEligible routes
+        // unknown-stake proposals to the HUMAN inbox. 0 would have made every
+        // proposal critic-eligible, inverting the doctrine.
+        estimatedCostUsd: null,
       } satisfies ProposalForReview;
     },
     async loadVotes(approvalId) {

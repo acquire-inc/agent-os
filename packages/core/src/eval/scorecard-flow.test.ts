@@ -9,7 +9,7 @@
 // Run: pnpm --filter @agent-os/core test:scorecard-flow
 
 import { runScorecardJob, type ScorecardJobSink } from "./job.js";
-import type { RunSample, Verdict } from "./scorecard.js";
+import type { RunSample } from "./scorecard.js";
 
 let passed = 0;
 let failed = 0;

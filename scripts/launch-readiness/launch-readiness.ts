@@ -21,7 +21,7 @@
 // Operator gates (printed but NOT failed on — they live on a live DB):
 //   - Live RLS isolation suite (hard gate #2 for external launch).
 //   - Live integration test.
-//   - supabase db push migrations 0014-0031.
+//   - supabase db push (all pending migrations).
 //
 // Exit code: 0 = ready to launch internally; non-zero = something offline
 // is failing and must be fixed first.
@@ -78,6 +78,13 @@ const OFFLINE_TESTS: Array<{ label: string; filter: string; script: string }> = 
   { label: "core/circuit-breaker",    filter: "@agent-os/core",         script: "test:circuit-breaker" },
   { label: "tool-rls-test (static)",  filter: "@agent-os/tool-rls-test", script: "test" },
   { label: "runner/lease-integration", filter: "@agent-os/runner",        script: "test:lease-integration" },
+  // Phase 70 OPS-02: runner safety suites — cantfail runtime assertion,
+  // budget lifecycle, execute-flow contract, and the custom-tools dispatch
+  // battery (incl. update_lead tenant + whitelist guards).
+  { label: "runner/custom-tools",     filter: "@agent-os/runner",        script: "test" },
+  { label: "runner/cantfail",         filter: "@agent-os/runner",        script: "test:cantfail" },
+  { label: "runner/budget",           filter: "@agent-os/runner",        script: "test:budget" },
+  { label: "runner/execute-flow",     filter: "@agent-os/runner",        script: "test:execute-flow" },
 ];
 
 console.log("\n[1] Offline test battery");
@@ -215,7 +222,7 @@ console.log("\n[6] Required doctrine docs present");
 console.log("\n[operator-gated — printed only, not blocking]");
 console.log("  • Live RLS isolation: scripts/verify/isolation-live.ts (needs DATABASE_URL)");
 console.log("  • Live integration test: pnpm --filter @agent-os/core test (needs DATABASE_URL)");
-console.log("  • supabase db push migrations 0014-0031");
+console.log("  • supabase db push (all pending migrations)");
 console.log("  • Inngest signing keys + live relay");
 console.log("  • Browserbase / Stagehand keys for tool.browser");
 

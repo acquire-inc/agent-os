@@ -31,7 +31,7 @@ import {
   type PickResult,
   type TaskProfile,
 } from "./intelligence.js";
-import { pickModelForTask, type ResolveModelResult } from "./resolve.js";
+import { pickModelForTask } from "./resolve.js";
 import type { ModelTier } from "./tier-models.js";
 
 export interface IntelligentPickArgs {

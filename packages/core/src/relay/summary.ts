@@ -22,7 +22,7 @@
 import { schema, type Db } from "@agent-os/db";
 import { eq, sql } from "drizzle-orm";
 
-const { runs, runSummaries, securityFindings, approvals } = schema;
+const { runs, runSummaries } = schema;
 
 export interface ComposeRunSummaryArgs {
   runId: string;

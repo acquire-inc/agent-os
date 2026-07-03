@@ -20,7 +20,7 @@
 
 import { schema, type Db } from "@agent-os/db";
 import { decrypt, storeCredential, type Refresher } from "@agent-os/vault";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { recordFinding } from "./findings.js";
 
 const { oauthCredentials } = schema;
@@ -40,11 +40,17 @@ export async function rotateCredential(
   key: Buffer,
   mcpId: string,
   refresher: Refresher,
+  /** Tenant owning the credential. Phase 70 MT-01: the where clause carries
+   *  BOTH predicates so a foreign mcpId (leaked via relay events / artifacts)
+   *  can never rotate another tenant's credential — the core fails closed
+   *  even if a future caller forgets its own ownership check. */
+  tenantId: string,
 ): Promise<RotateResult> {
+  if (!tenantId) return { rotated: false, reason: "tenantId required" };
   const [cred] = await db
     .select()
     .from(oauthCredentials)
-    .where(eq(oauthCredentials.mcpId, mcpId))
+    .where(and(eq(oauthCredentials.mcpId, mcpId), eq(oauthCredentials.tenantId, tenantId)))
     .limit(1);
 
   if (!cred) return { rotated: false, reason: "no credential for mcpId" };

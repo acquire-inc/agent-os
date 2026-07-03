@@ -15,7 +15,6 @@ import {
   isModelTier,
   resolveModel,
   tierFromLegacyModel,
-  TierResolutionError,
 } from "./index.js";
 
 let passed = 0;

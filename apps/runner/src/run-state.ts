@@ -52,11 +52,6 @@ export function registerOutputDir(runId: string, dir: string): void {
   ensure(runId).outputDirs.push(dir);
 }
 
-/** WR-08 fix: list registered tmp dirs for a run (test/debug). */
-export function getOutputDirs(runId: string): readonly string[] {
-  return runs.get(runId)?.outputDirs ?? [];
-}
-
 /**
  * Downgrade the run's autonomy. Idempotent: if the run is already at or
  * below the target, this is a no-op. The override only ratchets DOWN — an

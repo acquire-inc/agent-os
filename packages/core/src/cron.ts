@@ -10,21 +10,6 @@ export function previousTick(cron: string, now: Date): Date | null {
   }
 }
 
-/** The next time this cron will fire after `now` (UTC), or null. */
-export function nextTick(cron: string, now: Date = new Date()): Date | null {
-  try {
-    const interval = CronExpressionParser.parse(cron, { currentDate: now, tz: "UTC" });
-    return interval.next().toDate();
-  } catch {
-    return null;
-  }
-}
-
-export function isValidCron(cron: string): boolean {
-  try {
-    CronExpressionParser.parse(cron);
-    return true;
-  } catch {
-    return false;
-  }
-}
+// (nextTick and isValidCron were removed in the Phase 70 cleanup — only
+// previousTick has consumers. Restore from git history if the scheduler ever
+// needs forward-looking ticks or seed-time cron validation.)

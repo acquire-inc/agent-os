@@ -1709,7 +1709,9 @@ app.get("/api/connections", async (c) => {
 // Store/replace a credential for an MCP. In production this is called by the
 // OAuth callback handler after the human consents; here it also enables manual
 // setup. Requires the vault key to be configured.
-app.post("/api/connections/:mcpId/credential", async (c) => {
+// Phase 70 MT-06: credential writes are an OPERATOR action — runner keys
+// dispatch agents, they don't provision connector secrets. Admin-gated.
+app.post("/api/connections/:mcpId/credential", requireAdmin, async (c) => {
   const { tenantId } = c.get("auth");
   if (!vaultKey) return c.json({ error: "vault not configured (AOS_VAULT_KEY)" }, 503);
   const mcpId = c.req.param("mcpId");
