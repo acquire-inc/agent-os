@@ -537,7 +537,13 @@ export const updateLead: CustomToolHandler = async (input, ctx) => {
   // Status transitions (server-derived only).
   if (hasEnrichment && owner.status === "new") patch.status = "enriching";
   if (hasIcpScore && hasQualified) {
-    patch.status = raw.qualified === true ? "qualified" : "disqualified";
+    // Phase 70 CORR-07: a re-score must never yank a lead OUT of the outreach
+    // lifecycle (in_outreach/replied/bounced/closed). The scoring transition
+    // only fires from pre-outreach states; later re-scores update icp_score/
+    // qualified but leave status to the outreach machinery.
+    if (owner.status === "new" || owner.status === "enriching" || owner.status === "qualified" || owner.status === "disqualified") {
+      patch.status = raw.qualified === true ? "qualified" : "disqualified";
+    }
   }
 
   if (Object.keys(patch).length === 0) {
