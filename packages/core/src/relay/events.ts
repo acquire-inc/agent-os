@@ -80,6 +80,19 @@ export const EVENT_NAMES = [
   // sample_size, requires_human_approval }. Apply/reject decisions land via
   // the queue's status column; can't-fail agents are never auto-applied.
   "improvement.proposed",
+
+  // Exemplar learning loop (V3 E1). Emitted when an agent's decided
+  // approvals are harvested into exemplars + promoted principles and the
+  // composed block is written to the agent's exemplar namespace. Payload:
+  // { agent_id, exemplar_count, principle_count }.
+  "exemplar.harvested",
+
+  // Judge-calibration loop (V3 E2). Emitted ONLY when critic-quorum verdicts
+  // drift from human decisions (agreement below floor OR any material
+  // false-approval rate). Payload: { sample_size, agreement_rate,
+  // false_approvals, rationale }. Calibration measures — it never adjusts
+  // the critic policy.
+  "critic.calibration_drift",
   // CR-02: emitted on the operator's apply of any improvement proposal.
   // For the routine (non-cant-fail) path the audit trail lives here.
   // Payload: { proposal_id, agent_id, version, applied_by }.

@@ -44,6 +44,8 @@
     "test:job": "tsx src/eval/job.test.ts",
     "test:cantfail": "tsx src/seed/seedAgent.cantfail.test.ts",
     "test:memory": "tsx src/memory.test.ts",
+    "test:exemplar": "tsx src/exemplar.test.ts",
+    "test:judge-calibration": "tsx src/judge-calibration.test.ts",
     "test:lead-pipeline": "tsx src/lead-pipeline.test.ts",
     "test:objective": "tsx src/objective.test.ts",
     "test:improve": "tsx src/improve.test.ts",

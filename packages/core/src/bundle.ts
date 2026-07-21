@@ -2,6 +2,7 @@ import { schema, type Db } from "@agent-os/db";
 import { RUN_STATUSES } from "@agent-os/shared";
 import { and, eq, inArray } from "drizzle-orm";
 import { episodeNamespace, formatPriorLearnings } from "./memory.js";
+import { exemplarNamespace } from "./exemplar.js";
 
 const { agents, agentMcps, agentSkills, agentTools, documents, envVars, jobRefs, jobs, mcps, runs, skills, tools } = schema;
 
@@ -140,7 +141,11 @@ export async function buildBundle(db: Db, runId: string, baseUrl: string, opts: 
     if (query) knowledge = await opts.retrieveKnowledge(query, scope.folders).catch(() => []);
     // Phase V2-2: pull this agent's own prior lessons (episodic memory) so the
     // run starts smarter. Separate namespace from job-knowledge; best-effort.
-    const chunks = await opts.retrieveKnowledge(query || agent.persona || agent.name, [episodeNamespace(agent.id)]).catch(() => []);
+    // V3 E1: prior learnings union two agent-scoped namespaces — episodic
+    // lessons (P2) and operator-decision exemplars (exemplar.harvested).
+    const chunks = await opts
+      .retrieveKnowledge(query || agent.persona || agent.name, [episodeNamespace(agent.id), exemplarNamespace(agent.id)])
+      .catch(() => []);
     priorLearnings = formatPriorLearnings(chunks);
   }
 

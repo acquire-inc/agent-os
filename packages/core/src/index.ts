@@ -249,5 +249,30 @@ export {
   type SuppressionEntry,
   type TargetType,
 } from "./lead-pipeline.js";
+export {
+  composeExemplarBlock,
+  exemplarFromDecision,
+  exemplarNamespace,
+  runExemplarHarvest,
+  selectPromotable,
+  tallyCorrections,
+  type DecisionRecord,
+  type Exemplar,
+  type ExemplarHarvestResult,
+  type ExemplarKind,
+  type ExemplarSink,
+  type OperatorDecision,
+  type PrincipleCandidate,
+} from "./exemplar.js";
+export {
+  CALIBRATION_AGREEMENT_FLOOR,
+  CALIBRATION_MAX_FALSE_APPROVAL_RATE,
+  CALIBRATION_MIN_SAMPLE,
+  calibrateJudge,
+  runJudgeCalibration,
+  type CalibrationPair,
+  type CalibrationReport,
+  type CalibrationSink,
+} from "./judge-calibration.js";
 export * from "./relay/index.js";
 export * from "./router/index.js";
