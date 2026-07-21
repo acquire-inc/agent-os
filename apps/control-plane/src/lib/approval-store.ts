@@ -11,6 +11,7 @@ export interface ApprovalDecision {
   choiceKey: string;
   decidedBy: string;
   decidedAt: string;
+  operatorText?: string;
 }
 
 type ByTenant = Record<string, Record<string, ApprovalDecision>>;
@@ -36,12 +37,28 @@ export function approvalDecision(tenantId: string, id: string): ApprovalDecision
   return read()[tenantId]?.[id];
 }
 
-export function decideApproval(tenantId: string, id: string, choiceKey: string, decidedBy: string): void {
+export function decideApproval(
+  tenantId: string,
+  id: string,
+  choiceKey: string,
+  decidedBy: string,
+  /** V3 E1: the operator's corrected text when they edited before approving.
+   *  Persisted so the exemplar harvest learns from the correction. */
+  operatorText?: string,
+): void {
   const all = read();
   // Idempotency: first decision wins. A double-submit or two-tab race cannot
   // flip an already-resolved approval to a different choice.
   if (all[tenantId]?.[id]) return;
-  all[tenantId] = { ...(all[tenantId] ?? {}), [id]: { choiceKey, decidedBy, decidedAt: new Date().toISOString() } };
+  all[tenantId] = {
+    ...(all[tenantId] ?? {}),
+    [id]: {
+      choiceKey,
+      decidedBy,
+      decidedAt: new Date().toISOString(),
+      ...(operatorText && operatorText.trim() ? { operatorText: operatorText.trim() } : {}),
+    },
+  };
   write(all);
 }
 

@@ -382,6 +382,10 @@ export const approvals = pgTable("approvals", {
   status: text("status").notNull().default("open"),
   decidedBy: uuid("decided_by"),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
+  /** V3 E1: structured decision capture — option chosen + operator's edit
+   *  (the edit is the positive exemplar). Migration 0033. */
+  decidedOptionKey: text("decided_option_key"),
+  operatorText: text("operator_text"),
   /** V2 P6 — 'human' (default) | 'critic_quorum'. Migration 0028. */
   decidedVia: text("decided_via").notNull().default("human"),
   /** V2 P6 — true when a critic rejection bounced the proposal back to

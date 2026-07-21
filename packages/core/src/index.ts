@@ -18,6 +18,14 @@ export { metaRefresher, stripeRefresher } from "./security/refreshers/stubs.js";
 export { findOrphanedGrants, type OrphanedGrantRow } from "./security/access-audit.js";
 export { detectUsageSpikes, type UsageSpikeRow } from "./security/anomaly.js";
 export {
+  collectSecrets,
+  scanSecretEgress,
+  MIN_SECRET_LENGTH,
+  SENSITIVE_ENV_VARS,
+  type EgressMatch,
+  type EgressScanResult,
+} from "./security/egress-guard.js";
+export {
   scrubInjections,
   scrubToolResult,
   type InjectionCategory,

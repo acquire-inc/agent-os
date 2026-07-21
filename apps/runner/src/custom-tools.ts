@@ -14,11 +14,13 @@
 // vault-rotate) the vault key from env vars on first call so handlers stay
 // process-isolated from runner module load — env may not be wired at import.
 import {
+  collectSecrets,
   emit,
   isCantFail,
   pickModelIntelligently,
   raiseCapBreachApproval,
   recordFinding,
+  scanSecretEgress,
   scrubToolResult,
   type ModelTier,
 } from "@agent-os/core";
@@ -277,11 +279,49 @@ export class CapBreachError extends Error {
  * in isolation. The audit trail is only complete when executeRun is
  * the entry point.
  */
+// V3 E3: secret snapshot built once per process — the sensitive env values
+// an outbound payload must never contain. Lazy so tests can dispatch without
+// env wired.
+let _egressSecrets: Map<string, string> | null = null;
+function egressSecrets(): Map<string, string> {
+  if (!_egressSecrets) _egressSecrets = collectSecrets(process.env);
+  return _egressSecrets;
+}
+
 export async function dispatchCustomTool(
   bundle: Bundle,
   toolKey: string,
   input: unknown,
 ): Promise<CustomToolDispatchResult> {
+  // V3 E3: secret-egress scan at the tool-call boundary — the OUTBOUND
+  // mirror of the injection guard. A prompt-injected agent that tries to
+  // exfiltrate the vault key / provider keys / DB URL through any tool
+  // payload gets refused fail-closed, with a finding naming the env var
+  // (never the value).
+  {
+    const payload = JSON.stringify(input ?? {});
+    const scan = scanSecretEgress(payload, egressSecrets());
+    if (!scan.clean) {
+      const sources = scan.matches.map((m) => m.source).join(", ");
+      if (bundle.agent.tenantId && bundle.run?.id) {
+        try {
+          await recordFinding(getDb(), {
+            tenantId: bundle.agent.tenantId,
+            category: "anomaly",
+            severity: "high",
+            title: "secret egress blocked at tool dispatch",
+            agentId: bundle.agent.id,
+            payload: { tool_key: toolKey, run_id: bundle.run.id, matched: sources },
+          }).catch(() => {});
+        } catch {
+          /* finding emission is best-effort; the refusal below is the defense */
+        }
+      }
+      throw new Error(
+        `secret-egress blocked: tool ${toolKey} payload contains secret material (${sources}). The dispatch was refused.`,
+      );
+    }
+  }
   // Phase 58: built-in `tool.delegate` short-circuits the normal handler
   // dispatch and invokes the sub-agent path. Input: { skill_key, prompt }.
   // The agent's skill registry is queried for the target skill's

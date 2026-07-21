@@ -327,7 +327,10 @@ app.post("/api/approvals/:id/decide", async (c) => {
   const [approval] = await db.select().from(schema.approvals).where(and(eq(schema.approvals.id, id), eq(schema.approvals.tenantId, tenantId))).limit(1);
   if (!approval) return c.json({ error: "approval not found" }, 404);
   if (approval.status !== "open") return c.json({ error: "approval already decided" }, 409);
-  const updated = await resolveApproval(db, id, String(b.optionKey), b.decidedBy ?? null);
+  // V3 E1: optional editedText — the operator's corrected version of the
+  // proposed action. Persisted for the exemplar harvest.
+  const editedText = typeof b.editedText === "string" ? b.editedText : null;
+  const updated = await resolveApproval(db, id, String(b.optionKey), b.decidedBy ?? null, editedText);
   return c.json({ approval: updated, runStatus: "pending" });
 });
 

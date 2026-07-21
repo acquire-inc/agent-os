@@ -258,11 +258,21 @@ export async function raiseApproval(
 }
 
 /** Human decided: record the choice and flip the run to `pending` for resume. */
-export async function resolveApproval(db: Db, approvalId: string, optionKey: string, decidedBy: string | null) {
+export async function resolveApproval(
+  db: Db,
+  approvalId: string,
+  optionKey: string,
+  decidedBy: string | null,
+  /** V3 E1: operator's replacement text when they edited the proposed action
+   *  before approving. Persisted so the exemplar harvest can learn from the
+   *  correction (the edit IS the positive exemplar). */
+  operatorText?: string | null,
+) {
+  const edit = typeof operatorText === "string" && operatorText.trim().length > 0 ? operatorText.trim() : null;
   return await db.transaction(async (tx) => {
     const [approval] = await tx
       .update(approvals)
-      .set({ status: "decided", decidedBy, decidedAt: new Date() })
+      .set({ status: "decided", decidedBy, decidedAt: new Date(), decidedOptionKey: optionKey, operatorText: edit })
       .where(eq(approvals.id, approvalId))
       .returning();
     if (!approval) return undefined;
@@ -272,7 +282,7 @@ export async function resolveApproval(db: Db, approvalId: string, optionKey: str
       runId: approval.runId,
       tenantId: approval.tenantId,
       kind: "decision",
-      message: `Human chose: ${optionKey}`,
+      message: edit ? `Human chose: ${optionKey} (with edit)` : `Human chose: ${optionKey}`,
     });
 
     // Mirror to Relay.

@@ -46,6 +46,7 @@
     "test:memory": "tsx src/memory.test.ts",
     "test:exemplar": "tsx src/exemplar.test.ts",
     "test:judge-calibration": "tsx src/judge-calibration.test.ts",
+    "test:egress": "tsx src/security/egress-guard.test.ts",
     "test:lead-pipeline": "tsx src/lead-pipeline.test.ts",
     "test:objective": "tsx src/objective.test.ts",
     "test:improve": "tsx src/improve.test.ts",

@@ -38,9 +38,10 @@ function ApprovalsPage() {
   const qc = useQueryClient();
 
   const decide = useMutation({
-    mutationFn: async ({ id, key }: { id: string; key: string }) => {
+    mutationFn: async ({ id, key, editedText }: { id: string; key: string; editedText?: string }) => {
       if (!tenantId) return;
-      decideApproval(tenantId, id, key, user?.name ?? user?.email ?? "operator");
+      // V3 E1: the operator's edit is the positive exemplar — capture it.
+      decideApproval(tenantId, id, key, user?.name ?? user?.email ?? "operator", editedText);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["approvals", tenantId] }),
   });
@@ -133,7 +134,7 @@ function ApprovalsPage() {
                     approval={approval}
                     agentName={amap.get(approval.agentId)?.name ?? "Unknown"}
                     chosenKey={tenantId ? approvalDecision(tenantId, approval.id)?.choiceKey : undefined}
-                    onChoose={(key) => decide.mutate({ id: approval.id, key })}
+                    onChoose={(key, editedText) => decide.mutate({ id: approval.id, key, editedText })}
                   />
                 ))}
               </div>
@@ -150,7 +151,7 @@ function ApprovalsPage() {
                     approval={approval}
                     agentName={amap.get(approval.agentId)?.name ?? "Unknown"}
                     chosenKey={tenantId ? approvalDecision(tenantId, approval.id)?.choiceKey : undefined}
-                    onChoose={(key) => decide.mutate({ id: approval.id, key })}
+                    onChoose={(key, editedText) => decide.mutate({ id: approval.id, key, editedText })}
                   />
                 ))}
               </div>
@@ -187,11 +188,15 @@ function ApprovalCard({
   approval: Approval;
   agentName: string;
   chosenKey: string | undefined;
-  onChoose: (key: string) => void;
+  onChoose: (key: string, editedText?: string) => void;
 }) {
   const isOpen = approval.status === "open";
   const isAnswered = Boolean(chosenKey);
   const firstOption = approval.options[0];
+  // V3 E1: optional edit-before-approve. The corrected text is stored with
+  // the decision and becomes the positive exemplar for this agent.
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(approval.proposedAction);
 
   return (
     <Card className="p-5">
@@ -230,12 +235,37 @@ function ApprovalCard({
       {/* Context */}
       <p className="mt-3 text-sm text-foreground">{approval.context}</p>
 
-      {/* Proposed action */}
+      {/* Proposed action — editable before approving (V3 E1) */}
       <div className="mt-3 rounded-lg bg-muted p-3">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Proposed action
-        </p>
-        <p className="text-sm">{approval.proposedAction}</p>
+        <div className="mb-1 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Proposed action
+          </p>
+          {isOpen && !isAnswered && (
+            <button
+              type="button"
+              className="text-xs text-primary underline-offset-2 hover:underline"
+              onClick={() => setEditing((e) => !e)}
+            >
+              {editing ? "Cancel edit" : "Edit before approving"}
+            </button>
+          )}
+        </div>
+        {editing ? (
+          <textarea
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            rows={4}
+            className="w-full rounded-md border border-border bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+        ) : (
+          <p className="text-sm">{approval.proposedAction}</p>
+        )}
+        {editing && (
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Your corrected version is what runs — and it teaches the agent (stored as a positive exemplar).
+          </p>
+        )}
       </div>
 
       <Separator className="my-3" />
@@ -250,7 +280,7 @@ function ApprovalCard({
                 variant={optionButtonVariant(i, opt.key)}
                 size="sm"
                 disabled={isAnswered}
-                onClick={() => onChoose(opt.key)}
+                onClick={() => onChoose(opt.key, editing && editText.trim() !== approval.proposedAction.trim() ? editText : undefined)}
                 className={chosenKey === opt.key ? "ring-2 ring-primary/60" : ""}
               >
                 {opt.key} · {opt.label}
