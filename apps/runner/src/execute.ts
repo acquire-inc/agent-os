@@ -272,8 +272,36 @@ async function dryRun(api: ApiClient, b: Bundle): Promise<RunResult> {
 }
 
 /** Live run via the Claude Agent SDK. */
+/** OpenRouter slug → native Anthropic model id. Used ONLY in subscription
+ *  auth mode (direct Anthropic; no gateway). The registry stores OpenRouter
+ *  slugs; the cant-fail SessionStart assertion runs against those slugs
+ *  BEFORE this mapping, so the safety floor is unaffected. Confirm ids
+ *  against live Anthropic docs when models move (CLAUDE.md non-negotiable #7). */
+const ANTHROPIC_NATIVE_IDS: Record<string, string> = {
+  "anthropic/claude-opus-4.8": "claude-opus-4-8",
+  "anthropic/claude-sonnet-4.6": "claude-sonnet-4-6",
+  "anthropic/claude-haiku-4-5": "claude-haiku-4-5-20251001",
+};
+
 async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<RunResult> {
   const runId = b.run.id;
+  // Subscription mode serves Claude models only — Hermes/DeepSeek/etc. exist
+  // solely behind the OpenRouter gateway. Fail the run with an actionable
+  // message instead of sending an unknown id to Anthropic.
+  let sdkModel = b.agent.model;
+  if (cfg.authMode === "subscription") {
+    const native = ANTHROPIC_NATIVE_IDS[b.agent.model];
+    if (!native) {
+      const message =
+        `model ${b.agent.model} requires the OpenRouter gateway (API-key mode). ` +
+        `Subscription auth serves Claude models only — either set ANTHROPIC_API_KEY + ` +
+        `ANTHROPIC_BASE_URL=https://openrouter.ai/api, or point this agent/tier at a ` +
+        `Claude model (tenants.tier_overrides or spec.model).`;
+      await api.postActivity(runId, "error", message).catch(() => {});
+      return { status: "failed", summary: message, tokensIn: 0, tokensOut: 0, costUsd: 0 };
+    }
+    sdkModel = native;
+  }
   // Dynamic import keeps the SDK out of the dry-run path / type surface.
   const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as {
     query: (args: { prompt: string; options?: Record<string, unknown> }) => AsyncIterable<Record<string, unknown>>;
@@ -281,7 +309,7 @@ async function liveRun(api: ApiClient, b: Bundle, cfg: RunnerConfig): Promise<Ru
 
   const prompt = b.job?.instructions ?? "Carry out your standing responsibilities for this run.";
   const options: Record<string, unknown> = {
-    model: b.agent.model,
+    model: sdkModel,
     systemPrompt: buildSystemPrompt(b),
     permissionMode: permissionMode(b.autonomy),
     // Pitfall 5 (07-RESEARCH.md): explicit allowlist from the Bundle's tool +

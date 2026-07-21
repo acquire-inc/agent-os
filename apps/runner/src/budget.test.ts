@@ -80,6 +80,7 @@ const dryCfg: RunnerConfig = {
   pollIntervalMs: 1000,
   once: true,
   anthropicKey: undefined,
+  authMode: "dry-run" as const,
   dryRun: true,
 };
 

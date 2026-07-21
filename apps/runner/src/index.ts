@@ -45,7 +45,7 @@ async function main() {
 
   console.log(
     `[runner] ${cfg.runnerId} polling ${cfg.agentIds.length} agent(s) at ${cfg.apiUrl} ` +
-      `(${cfg.dryRun ? "DRY-RUN — no ANTHROPIC_API_KEY" : "live Agent SDK"})`,
+      `(${cfg.authMode === "dry-run" ? "DRY-RUN — no ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN" : cfg.authMode === "subscription" ? "live Agent SDK — Claude subscription (Claude models only)" : "live Agent SDK — API-key gateway"})`,
   );
 
   if (cfg.once) {

@@ -45,6 +45,29 @@ the SDK gets identical behavior. T-critical agents resolve to
 `anthropic/claude-opus-4.8` (verified at SessionStart — drift fails closed via
 `cantfail.model_violation`).
 
+### Alternative — Claude Pro/Max subscription (internal use only)
+
+Have a Claude subscription and no OpenRouter credit yet? The runner can bill
+your subscription directly:
+
+1. Run `claude setup-token` on the machine and copy the long-lived token.
+2. Set `CLAUDE_CODE_OAUTH_TOKEN=<token>` in the runner's env; leave
+   `ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL` **empty**.
+3. Start the runner — the boot log will say
+   `live Agent SDK — Claude subscription (Claude models only)`.
+
+What you get: every Claude-tier agent runs live (T-work Sonnet, T-critical
+Opus — the cant-fail floor is unchanged). What you don't: Hermes tiers
+(T-cheap/T-reason) exist only behind OpenRouter, so those agents fail with an
+actionable message — point their tier at a Claude model via
+`tenants.tier_overrides` (e.g. `{"T-cheap": "anthropic/claude-haiku-4-5"}`)
+until you add OpenRouter. The Architect endpoint also stays 501 without
+`OPENROUTER_API_KEY` (it needs a raw completions API, which subscription auth
+doesn't expose) — seed agents from scripts instead.
+
+**Doctrine caveat (CLAUDE.md):** subscription auth is for the internal Acqu
+tenant only. Customer-facing Cliently must run on API-key auth.
+
 ## Step 2 — Database (Supabase OR local Postgres)
 
 You have two paths depending on your stage. **Pick one.**
