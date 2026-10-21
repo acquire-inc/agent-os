@@ -45,3 +45,7 @@ connectors · Inngest scheduler.
 ## License
 
 Internal — see `LICENSE` (if absent, treat as proprietary).
+
+## Branches and terminal work
+
+Follow the [company branch and worktree policy](https://github.com/haybunn/main-os/blob/main/docs/BRANCHES.md). Use `bb/<topic>-<date>` for a thread and `hb/<topic>` for terminal work. Push each session; fast-forward local `main` before starting terminal work.
